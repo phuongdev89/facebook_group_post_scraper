@@ -190,6 +190,17 @@ def init_db(db_path: str = None):
         cols = [r[1] for r in cursor.execute("PRAGMA table_info(ai_analyses)").fetchall()]
         if cols and "telegram_sent" not in cols:
             cursor.execute("ALTER TABLE ai_analyses ADD COLUMN telegram_sent INTEGER DEFAULT 0")
+            cursor.execute("UPDATE ai_analyses SET telegram_sent = 1 WHERE telegram_sent IS NULL OR telegram_sent = 0")
+
+        # Migration bảng posts bổ sung ai_status, matched_keyword, matched_source
+        cols_posts = [r[1] for r in cursor.execute("PRAGMA table_info(posts)").fetchall()]
+        if cols_posts:
+            if "ai_status" not in cols_posts:
+                cursor.execute("ALTER TABLE posts ADD COLUMN ai_status INTEGER DEFAULT 0")
+            if "matched_keyword" not in cols_posts:
+                cursor.execute("ALTER TABLE posts ADD COLUMN matched_keyword TEXT DEFAULT ''")
+            if "matched_source" not in cols_posts:
+                cursor.execute("ALTER TABLE posts ADD COLUMN matched_source TEXT DEFAULT ''")
 
         # Indexes để tối ưu hóa truy vấn
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments(post_id);")
@@ -197,6 +208,7 @@ def init_db(db_path: str = None):
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_replies_post_id ON replies(post_id);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_media_post_id ON media(post_id);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_posts_creation_time ON posts(creation_time);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_posts_ai_status ON posts(ai_status);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_analyses_post_id ON ai_analyses(post_id);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_analyses_should_notify ON ai_analyses(should_notify);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_analyses_telegram_sent ON ai_analyses(telegram_sent, should_notify);")
@@ -216,6 +228,7 @@ def migrate_ai_analyses_telegram_sent_if_needed(db_path: str = None):
         cols = [r[1] for r in cursor.execute("PRAGMA table_info(ai_analyses)").fetchall()]
         if cols and "telegram_sent" not in cols:
             cursor.execute("ALTER TABLE ai_analyses ADD COLUMN telegram_sent INTEGER DEFAULT 0")
+            cursor.execute("UPDATE ai_analyses SET telegram_sent = 1 WHERE telegram_sent IS NULL OR telegram_sent = 0")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_analyses_telegram_sent ON ai_analyses(telegram_sent, should_notify);")
             conn.commit()
 
@@ -1216,6 +1229,70 @@ def export_diagnostics_sql(output_file_path: str, db_path: str = None) -> tuple[
     except Exception as e:
         err_msg = f"Lỗi xuất chẩn đoán: {str(e)}"
         return False, err_msg, 0
+
+
+# ==============================================================================
+# AI Queue Helpers for Background Dispatcher
+# ==============================================================================
+
+def mark_post_ai_pending(post_id: str, matched_keyword: str = "", matched_source: str = "", db_path: str = None) -> bool:
+    """Đưa bài viết vào hàng đợi phân tích AI (ai_status = 1)"""
+    if not post_id:
+        return False
+    with get_connection(db_path) as conn:
+        cursor = conn.execute("""
+            UPDATE posts 
+            SET ai_status = 1, 
+                matched_keyword = ?, 
+                matched_source = ?,
+                updated_at = datetime('now', 'localtime')
+            WHERE post_id = ?
+        """, (matched_keyword or "", matched_source or "", str(post_id)))
+        return cursor.rowcount > 0
+
+
+def mark_post_ai_status(post_id: str, status: int, db_path: str = None) -> bool:
+    """Cập nhật trạng thái phân tích AI của bài viết (0: bình thường, 1: chờ phân tích, 2: đã xong, -1: lỗi, 3: đang chạy)"""
+    if not post_id:
+        return False
+    with get_connection(db_path) as conn:
+        cursor = conn.execute("""
+            UPDATE posts 
+            SET ai_status = ?, 
+                updated_at = datetime('now', 'localtime')
+            WHERE post_id = ?
+        """, (int(status), str(post_id)))
+        return cursor.rowcount > 0
+
+
+def get_pending_ai_posts(limit: int = 5, db_path: str = None) -> list[dict]:
+    """Lấy danh sách các bài viết đang chờ phân tích AI (ai_status = 1)"""
+    with get_connection(db_path) as conn:
+        rows = conn.execute("""
+            SELECT post_id, group_name, page_name, message, permalink, comment_count, creation_time, post_type, matched_keyword, matched_source
+            FROM posts 
+            WHERE ai_status = 1
+            ORDER BY updated_at ASC
+            LIMIT ?
+        """, (int(limit),)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_post_comments_with_replies(post_id: str, db_path: str = None) -> list[dict]:
+    """Lấy toàn bộ bình luận và reply của một bài viết từ SQLite"""
+    if not post_id:
+        return []
+    post_id = str(post_id)
+    with get_connection(db_path) as conn:
+        comments = []
+        comment_rows = conn.execute("SELECT * FROM comments WHERE post_id = ? ORDER BY created_at ASC", (post_id,)).fetchall()
+        for c in comment_rows:
+            c_dict = dict(c)
+            reply_rows = conn.execute("SELECT * FROM replies WHERE comment_id = ? ORDER BY created_at ASC", (c["comment_id"],)).fetchall()
+            c_dict["replies"] = [dict(r) for r in reply_rows]
+            comments.append(c_dict)
+        return comments
+
 
 
 

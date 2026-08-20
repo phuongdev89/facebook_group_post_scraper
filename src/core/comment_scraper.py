@@ -78,6 +78,21 @@ def retry_request(url, headers, data, proxies, cookies=None, max_retries=5):
     raise Exception(f"Failed after {max_retries} attempts")
 
 # ===== PAYLOADS =====
+import base64
+
+def normalize_feedback_id(post_or_feedback_id: str) -> str:
+    """Đảm bảo feedback_id luôn ở định dạng chuẩn Facebook GraphQL Relay ID (base64 feedback:<post_id>)"""
+    s = str(post_or_feedback_id or "").strip()
+    if not s:
+        return ""
+    if s.startswith("ZmVlZGJhY2s"):
+        return s
+    if s.startswith("feedback:"):
+        return base64.b64encode(s.encode("utf-8")).decode("utf-8")
+    if s.isdigit():
+        return base64.b64encode(f"feedback:{s}".encode("utf-8")).decode("utf-8")
+    return s
+
 
 def comments_payload(feedback_id, cursor=None, cookies=None):
     # Extract user ID from cookies if available
@@ -85,6 +100,7 @@ def comments_payload(feedback_id, cursor=None, cookies=None):
     if cookies and "c_user" in cookies:
         user_id = cookies["c_user"]
     
+    clean_fb_id = normalize_feedback_id(feedback_id)
     return {
         "av": user_id,
         "__user": user_id,
@@ -103,7 +119,7 @@ def comments_payload(feedback_id, cursor=None, cookies=None):
             "focusCommentID": None,
             "scale": 2,
             "useDefaultActor": False,
-            "id": feedback_id,
+            "id": clean_fb_id,
             "__relay_internal__pv__CometUFICommentAutoTranslationTyperelayprovider": "AUTO_TRANSLATE",
             "__relay_internal__pv__CometUFICommentAvatarStickerAnimatedImagerelayprovider": False,
             "__relay_internal__pv__CometUFICommentActionLinksRewriteEnabledrelayprovider": True,
@@ -165,7 +181,11 @@ def fb_json(response_text):
     return json.loads(first)
 
 
-def fetch_comments(feedback_id, cookies=None):
+def fetch_comments(feedback_id, cookies=None, fb_dtsg=None, target_count=None, logger=None, **kwargs):
+    global FB_DTSG
+    if fb_dtsg:
+        FB_DTSG = fb_dtsg
+
     results = []
     cursor = None
     response_count = 0
@@ -184,9 +204,6 @@ def fetch_comments(feedback_id, cookies=None):
         
         # Save each JSON response for inspection
         response_count += 1
-        # with open(f"response_{response_count}.json", "w", encoding="utf-8") as f:
-        #     json.dump(j, f, ensure_ascii=False, indent=2)
-        # print(f"💾 Saved response_{response_count}.json")
         
         comments_block = (
             j.get("data", {})
@@ -200,8 +217,8 @@ def fetch_comments(feedback_id, cookies=None):
             break
 
         for e in edges:
-            n = e["node"]
-            fb = n["feedback"]
+            n = e.get("node") or {}
+            fb = n.get("feedback") or {}
 
             # Extract parent_post_story info from first response
             if response_count == 1 and post_info is None:
@@ -220,8 +237,6 @@ def fetch_comments(feedback_id, cookies=None):
                         if media and media.get("id"):
                             post_info["media_id"] = media.get("id")
                             break  # Only get first one
-                    
-                    print(f"📎 Extracted post info: {post_info}")
 
             # Extract reaction count
             reactors = fb.get("reactors", {})
@@ -232,7 +247,6 @@ def fetch_comments(feedback_id, cookies=None):
 
             results.append({
                 "comment_id": n.get("legacy_fbid"),
-                # "author": n["author"]["name"],
                 "text": (n.get("body") or {}).get("text", ""),
                 "reaction_count": total_reactions,
                 "_feedback_id": fb.get("id"),  # Internal use only (for fetching replies)
@@ -240,11 +254,17 @@ def fetch_comments(feedback_id, cookies=None):
             })
 
         cursor = comments_block.get("page_info", {}).get("end_cursor")
-        #break
         if not cursor:
             break
+        if target_count and len(results) >= target_count:
+            break
 
-        #time.sleep(0.4)
+    # Lấy replies cho từng bình luận
+    for c in results:
+        try:
+            c["replies"] = fetch_replies(c, cookies=cookies)
+        except Exception:
+            c["replies"] = []
 
     return results, post_info
 

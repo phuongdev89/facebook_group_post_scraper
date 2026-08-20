@@ -48,17 +48,20 @@ import src.core.group_scraper as group_post_scraper_v2
 import src.core.comment_scraper as comment_scraper
 import src.core.page_scraper as post_scraper
 import src.core.media_scraper as single_post_image
-from src.config.constants import CHROME_DATA_DIR, DATA_DIR, ensure_data_dir
+from src.config.constants import CHROME_DATA_DIR, DATA_DIR, ensure_data_dir, APP_VERSION
 from src.core.proxy_utils import select_proxy, normalize_proxy_url
-from src.config.constants import APP_VERSION
 from src.ui.components.tag_widget import ModelTagWidget
 from src.ui.components.gemini_model_selector import GeminiModelSelectorWidget
+from src.ui.components.openai_model_selector import OpenAIModelSelectorWidget
 from src.ui.dialogs.telegram_guide_dialog import TelegramGuideDialog
 from src.ui.dialogs.prompt_guide_dialog import PromptGuideDialog
 from src.ui.dialogs.group_select_dialog import GroupSelectDialog
 from src.ui.dialogs.update_dialog import UpdateDialog
 from src.ui.workers.group_fetch_worker import GroupFetchWorker
 from src.ui.workers.telegram_worker import TelegramDispatcherThread
+from src.ui.workers.ai_worker import AIAnalysisWorker, FetchOpenAIModelsWorker, TestAIModelsWorker
+from src.ui.workers.scraper_worker import ScraperThread
+
 
 
 # ==============================================================================
@@ -1147,426 +1150,6 @@ class GroupListWidget(QWidget):
 
 
 # ==============================================================================
-# Worker Thread: AI Analysis & Telegram Worker (Consumer Thread)
-# ==============================================================================
-class AIAnalysisWorker(QThread):
-    """Background consumer worker thread for AI Analysis and Telegram Alerts running in parallel"""
-    log_signal = pyqtSignal(str)
-    analysis_completed_signal = pyqtSignal(dict)
-
-    def __init__(self, ai_config=None, telegram_config=None):
-        super().__init__()
-        self.ai_config = ai_config or {}
-        self.telegram_config = telegram_config or {}
-        self.task_queue = queue.Queue()
-        self.stop_requested = False
-
-    def update_config(self, ai_config=None, telegram_config=None):
-        """Cập nhật cấu hình AI / Telegram trực tiếp theo thời gian thực trong lúc đang quét (Hot-reload)"""
-        if ai_config is not None:
-            self.ai_config = dict(ai_config)
-        if telegram_config is not None:
-            self.telegram_config = dict(telegram_config)
-
-    def enqueue(self, post_data: dict, comments_data: list, matched_keyword: str, matched_source: str):
-        """Đẩy bài viết và bình luận vào hàng đợi để AI phân tích song song"""
-        self.task_queue.put((post_data, comments_data, matched_keyword, matched_source))
-
-    def stop(self):
-        """Dừng worker an toàn"""
-        self.stop_requested = True
-        self.task_queue.put(None)  # Poison pill to unblock queue.get()
-
-    def log(self, message: str):
-        self.log_signal.emit(message)
-
-    def run(self):
-        while not self.stop_requested:
-            try:
-                task = self.task_queue.get(timeout=0.5)
-            except queue.Empty:
-                continue
-
-            if task is None:
-                break
-
-            post, comments, kw_hit, kw_source = task
-            post_id = str(post.get("post_id", "N/A"))
-
-            # Đọc cấu hình mới nhất theo thời gian thực (hỗ trợ đổi Prompt/Model/Token ngay khi đang quét)
-            ai_enabled = self.ai_config.get("enabled", False)
-            ai_provider = self.ai_config.get("provider", "google_ai")
-            ai_base_url = self.ai_config.get("base_url", "")
-            ai_api_key = self.ai_config.get("api_key", "")
-            default_m = "gemini-2.0-flash" if ai_provider in ("google_ai", "google_ai_studio") else "gpt-4o-mini"
-            ai_models = self.ai_config.get("models") or self.ai_config.get("model") or default_m
-            ai_prompt = self.ai_config.get("prompt", "")
-            try:
-                ai_timeout = int(self.ai_config.get("timeout", 20))
-            except (ValueError, TypeError):
-                ai_timeout = 20
-
-            tg_enabled = self.telegram_config.get("enabled", False)
-            tg_token = self.telegram_config.get("token", "")
-            tg_chat_id = self.telegram_config.get("chat_id", "")
-            notify_on_keyword = self.telegram_config.get("notify_on_keyword", False)
-
-            try:
-                # 1. Đóng gói Post + Comments thành mảng JSON
-                payload_json = ai_analyzer.format_post_and_comments_payload(post, comments)
-
-                if ai_enabled and ai_api_key:
-                    self.log(f"      🤖 [AI Thread] Đang phân tích bài {post_id} qua AI ({ai_provider}, timeout {ai_timeout}s)...")
-                    should_notify, _, ai_result, ai_reason, model_used = ai_analyzer.analyze_post_with_fallback(
-                        base_url=ai_base_url,
-                        api_key=ai_api_key,
-                        models=ai_models,
-                        prompt=ai_prompt,
-                        post_content=payload_json,
-                        timeout=ai_timeout,
-                        logger=self.log,
-                        provider=ai_provider
-                    )
-
-                    target_name = (ai_result.get("target_name") or ai_result.get("device_name") or "").strip()
-                    price = (ai_result.get("price") or ai_result.get("price_or_budget") or "").strip()
-                    actor_role = (ai_result.get("actor_role") or ai_result.get("seller_type") or "").strip()
-                    matched_snippet = (ai_result.get("matched_snippet") or ai_result.get("seller_snippet") or "").strip()
-
-                    # 2. Lưu kết quả phân tích vào bảng ai_analyses trong SQLite
-                    database.save_ai_analysis(
-                        post_id=post_id,
-                        group_name=post.get("group_name") or post.get("page_name") or "",
-                        matched_keyword=kw_hit,
-                        matched_source=kw_source,
-                        model_used=model_used,
-                        should_notify=should_notify,
-                        target_name=target_name,
-                        price=price,
-                        actor_role=actor_role,
-                        matched_snippet=matched_snippet,
-                        reason=ai_reason,
-                        raw_response=json.dumps(ai_result, ensure_ascii=False) if ai_result else ""
-                    )
-
-                    if should_notify:
-                        self.log(f"      🎯 [AI Alert] Bài {post_id} PHÁT HIỆN KHỚP: {target_name} ({price}) [Model: {model_used}]")
-
-                        if tg_enabled and tg_token and tg_chat_id and notify_on_keyword:
-                            self.log(f"      📱 [AI Thread] Đang gửi thông báo Telegram bài {post_id}...")
-                            ok, err = telegram_notifier.send_keyword_match_alert(
-                                token=tg_token,
-                                chat_id=tg_chat_id,
-                                post_data=post,
-                                comments_data=comments,
-                                matched_keyword=kw_hit,
-                                matched_source=kw_source,
-                                ai_result=ai_result,
-                                ai_model=model_used
-                            )
-                            if ok:
-                                self.log(f"      ✅ [Telegram] Đã gửi thông báo bài {post_id} thành công.")
-                            else:
-                                self.log(f"      ❌ [Telegram] Gửi bài {post_id} thất bại: {err}")
-                    else:
-                        self.log(f"      ⏭️ [AI Skip] Bài {post_id} không khớp tiêu chí (should_notify=False): {ai_reason}")
-
-                elif tg_enabled and tg_token and tg_chat_id and notify_on_keyword:
-                    # Khi AI TẮT: gửi cảnh báo trực tiếp nếu bài viết trùng từ khóa
-                    self.log(f"      📱 [Keyword Alert] Đang gửi thông báo Telegram bài {post_id}...")
-                    ok, err = telegram_notifier.send_keyword_match_alert(
-                        token=tg_token,
-                        chat_id=tg_chat_id,
-                        post_data=post,
-                        comments_data=comments,
-                        matched_keyword=kw_hit,
-                        matched_source=kw_source,
-                        ai_result=None,
-                        ai_model=None
-                    )
-                    if ok:
-                        self.log(f"      ✅ [Telegram] Đã gửi thông báo bài {post_id} thành công.")
-                    else:
-                        self.log(f"      ❌ [Telegram] Gửi bài {post_id} thất bại: {err}")
-
-            except Exception as e:
-                self.log(f"      ❌ [AI Worker Error] Lỗi xử lý bài {post_id}: {e}")
-            finally:
-                self.task_queue.task_done()
-
-
-# ==============================================================================
-# Worker Thread: Scraper Thread (Producer Thread)
-# ==============================================================================
-class ScraperThread(QThread):
-    """Background worker thread for scraping operations (producer only, non-blocking)"""
-    log_signal = pyqtSignal(str)
-    progress_signal = pyqtSignal(int, int)  # current, total
-    finished_signal = pyqtSignal(bool, str)  # success, message
-    
-    def __init__(self, params, cookies=None, fb_dtsg=None, telegram_config=None, ai_config=None):
-        super().__init__()
-        self.params = params
-        self.cookies = cookies or {}
-        self.fb_dtsg = fb_dtsg or ""
-        self.telegram_config = telegram_config or {}
-        self.ai_config = ai_config or {}
-        self.stop_requested = False
-        
-        # Khởi tạo AI Analysis Worker chạy song song
-        self.ai_worker = AIAnalysisWorker(self.ai_config, self.telegram_config)
-        self.ai_worker.log_signal.connect(self.log)
-    
-    def stop(self):
-        """Yêu cầu ngắt cào an toàn"""
-        self.stop_requested = True
-        self.log("🛑 Nhận được yêu cầu DỪNG. Đang dừng cào...")
-        if self.ai_worker and self.ai_worker.isRunning():
-            self.ai_worker.stop()
-
-    def log(self, message):
-        self.log_signal.emit(message)
-
-    def _apply_proxy(self):
-        has_cookies = bool(self.cookies)
-        proxies = select_proxy(has_cookies)
-
-        if proxies:
-            proxy_url = proxies['http']
-            if has_cookies:
-                port = re.search(r':(\d+)$', proxy_url)
-                port_str = port.group(1) if port else '?'
-                self.log(f"🔒 Proxy: STATIC (cookie session) — port {port_str}")
-            else:
-                self.log(f"🔄 Proxy: ROTATING — {proxy_url}")
-        else:
-            self.log("⚠️  No proxy configured")
-
-        comment_scraper.PROXIES = proxies
-        post_scraper.PROXIES = proxies
-        group_post_scraper_v2.PROXIES = proxies
-        single_post_image.PROXIES = proxies
-
-    def check_keyword_match(self, post_data: dict, comments_data: list, keywords: list[str]) -> tuple[bool, str, str]:
-        """
-        Kiểm tra xem bài viết hoặc bình luận/phản hồi có chứa ít nhất 1 từ khóa hay không.
-        Trả về: (matched: bool, keyword: str, match_source: str)
-        """
-        if not keywords:
-            return True, "", ""  # Empty keywords -> Match all by default
-
-        # 1. Kiểm tra nội dung bài viết
-        post_text = (post_data.get("message") or post_data.get("text") or "").lower()
-        for kw in keywords:
-            kw_clean = kw.strip().lower()
-            if kw_clean and kw_clean in post_text:
-                return True, kw, "Bài viết"
-
-        # 2. Kiểm tra các bình luận & phản hồi
-        for c in comments_data:
-            c_text = (c.get("text") or "").lower()
-            for kw in keywords:
-                kw_clean = kw.strip().lower()
-                if kw_clean and kw_clean in c_text:
-                    return True, kw, "Bình luận"
-
-            replies = c.get("replies") or []
-            for r in replies:
-                r_text = (r.get("text") or "").lower()
-                for kw in keywords:
-                    kw_clean = kw.strip().lower()
-                    if kw_clean and kw_clean in r_text:
-                        return True, kw, "Phản hồi bình luận"
-
-        return False, "", ""
-
-    def run(self):
-        try:
-            self._apply_proxy()
-            # Bắt đầu thread phân tích AI chạy nền song song
-            self.ai_worker.start()
-            self.scrape_group_posts_loop()
-        except Exception as e:
-            self.finished_signal.emit(False, f"Lỗi không xác định: {str(e)}")
-        finally:
-            if self.ai_worker and self.ai_worker.isRunning():
-                self.ai_worker.stop()
-                self.ai_worker.wait(3000)
-
-    def scrape_group_posts_loop(self):
-        groups = self.params.get('groups') or self.params.get('urls') or []
-        count = self.params.get('count', 5)
-        min_comments = self.params.get('min_comments', 0)
-        keywords = self.params.get('keywords', [])
-        infinite_loop = self.params.get('infinite_loop', False)
-        loop_interval = self.params.get('loop_interval', 60)
-
-        tg_enabled = self.telegram_config.get("enabled", False)
-        tg_token = self.telegram_config.get("token", "")
-        tg_chat_id = self.telegram_config.get("chat_id", "")
-        notify_on_finish = self.telegram_config.get("notify_on_finish", False)
-
-        ai_enabled = self.ai_config.get("enabled", False)
-        ai_base_url = self.ai_config.get("base_url", "")
-        ai_api_key = self.ai_config.get("api_key", "")
-        ai_models = self.ai_config.get("models") or self.ai_config.get("model") or "gpt-4o-mini"
-
-        cycle_count = 0
-
-        while not self.stop_requested:
-            cycle_count += 1
-            cycle_start_time = time.time()
-            self.log(f"\n=======================================================")
-            self.log(f"🔄 BẮT ĐẦU ĐỢT QUÉT #{cycle_count} ({len(groups)} nhóm | {len(keywords)} từ khóa)")
-            if ai_enabled and ai_base_url and ai_api_key:
-                self.log(f"🤖 AI Thread: BẬT (Models: {ai_models}) — Chạy song song không nghẽn cào")
-            else:
-                self.log(f"🤖 AI Thread: TẮT (Gửi toàn bộ bài trùng từ khóa)")
-            self.log(f"=======================================================")
-
-            total_groups = len(groups)
-            all_posts_scraped = 0
-            all_posts_saved = 0
-
-            for group_idx, group_item in enumerate(groups, 1):
-                if self.stop_requested:
-                    break
-
-                if isinstance(group_item, dict):
-                    url = group_item.get("url", "")
-                    configured_name = (group_item.get("name") or "").strip()
-                else:
-                    url = str(group_item).strip()
-                    configured_name = ""
-
-                if configured_name.startswith("http://") or configured_name.startswith("https://"):
-                    configured_name = ""
-
-                display_title = f"{configured_name} ({url})" if configured_name else url
-                self.log(f"\n[Nhóm {group_idx}/{total_groups}] Đang xử lý: {display_title}")
-                group_id = extract_group_id_from_url(url, cookies=self.cookies)
-
-                if not group_id:
-                    self.log(f"  ❌ Không thể trích xuất Group ID từ URL: {url}")
-                    continue
-
-                self.log(f"  ✅ Group ID: {group_id}")
-
-                try:
-                    # Reset và cấu hình chính xác cho nhóm hiện tại
-                    group_post_scraper_v2.GROUP_ID = group_id
-                    group_post_scraper_v2.HEADERS["referer"] = f"https://www.facebook.com/groups/{group_id}/"
-                    group_post_scraper_v2.COOKIES = self.cookies
-                    group_post_scraper_v2.FB_DTSG = self.fb_dtsg
-                    group_post_scraper_v2.GROUP_NAME = configured_name if configured_name else None
-                    comment_scraper.FB_DTSG = self.fb_dtsg
-
-                    batch_size = 5
-
-                    def process_batch(batch_posts, total_so_far, total_limit):
-                        nonlocal all_posts_scraped, all_posts_saved
-                        if self.stop_requested:
-                            return
-
-                        self.log(f"  📦 Đang xử lý batch {len(batch_posts)} bài ({total_so_far}/{total_limit})...")
-                        for i, post in enumerate(batch_posts, 1):
-                            if self.stop_requested:
-                                break
-
-                            post_id = post.get("post_id")
-                            if not post_id:
-                                continue
-
-                            # Bảo đảm gán đúng group_name của nhóm đang quét
-                            if configured_name and not post.get("group_name"):
-                                post["group_name"] = configured_name
-                            elif not post.get("group_name") and group_post_scraper_v2.GROUP_NAME:
-                                post["group_name"] = group_post_scraper_v2.GROUP_NAME
-
-                            all_posts_scraped += 1
-                            self.log(f"    [{i}/{len(batch_posts)}] Bài viết ID: {post_id}")
-
-                            try:
-                                self.log(f"      💬 Đang lấy bình luận...")
-                                comments, _ = fetch_comments_for_post(post_id, cookies=self.cookies)
-                                self.log(f"      ✓ Đã lấy {len(comments)} bình luận")
-                                
-                                # Kiểm tra bộ lọc từ khóa
-                                matched, kw_hit, kw_source = self.check_keyword_match(post, comments, keywords)
-
-                                if matched:
-                                    if keywords:
-                                        self.log(f"      🎯 Khớp từ khóa '{kw_hit}' tại {kw_source}!")
-                                    
-                                    # Lưu ngay vào SQLite
-                                    db_stats = save_post_data("group_post", post_id, post, comments)
-                                    all_posts_saved += 1
-
-                                    # Đẩy vào queue cho AI worker xử lý song song (không block cào)
-                                    self.ai_worker.enqueue(post, comments, kw_hit, kw_source)
-                                    self.log(f"      ⚡ Đã lưu DB & chuyển bài {post_id} sang luồng AI phân tích song song")
-                                else:
-                                    self.log(f"      ⏭ Bỏ qua bài {post_id} (Không khớp từ khóa lọc)")
-
-                                time.sleep(0.3)
-                            except Exception as ex:
-                                self.log(f"      ❌ Lỗi xử lý bài {post_id}: {ex}")
-
-                    self.log(f"  Đang cào {count} bài viết từ nhóm {group_id}...")
-                    posts = fetch_group_posts(
-                        limit=count,
-                        min_comments=min_comments,
-                        batch_size=batch_size,
-                        on_batch_complete=process_batch,
-                        group_id=group_id,
-                        group_name=configured_name,
-                        cookies=self.cookies,
-                        fb_dtsg=self.fb_dtsg
-                    )
-                    self.log(f"  ✓ Đã hoàn thành cào nhóm {group_id}")
-
-                except Exception as ex:
-                    self.log(f"  ❌ Lỗi khi cào nhóm {url}: {ex}")
-                    continue
-
-                self.progress_signal.emit(group_idx, total_groups)
-
-            cycle_duration = time.time() - cycle_start_time
-            self.log(f"\n✨ Kết thúc đợt quét #{cycle_count} trong {cycle_duration:.1f}s")
-            self.log(f"📊 Tổng bài tìm thấy: {all_posts_scraped} | Đã lưu SQLite: {all_posts_saved}")
-
-            # Gửi thông báo hoàn thành đợt cào qua Telegram nếu bật
-            if tg_enabled and notify_on_finish and not self.stop_requested:
-                stats = {
-                    "total_groups": total_groups,
-                    "total_posts": all_posts_scraped,
-                    "total_saved": all_posts_saved,
-                    "duration": cycle_duration
-                }
-                self.log("📢 Đang gửi thông báo tổng kết đợt quét tới Telegram...")
-                ok, msg = telegram_notifier.send_finish_notification(tg_token, tg_chat_id, stats)
-                if ok:
-                    self.log("✅ Đã gửi thông báo tổng kết Telegram thành công")
-                else:
-                    self.log(f"⚠️ Gửi tổng kết Telegram thất bại: {msg}")
-
-            if not infinite_loop or self.stop_requested:
-                break
-
-            self.log(f"\n⏳ Chế độ lặp vô hạn: Nghỉ {loop_interval}s trước khi quét lại từ đầu...")
-            sleep_ticks = int(loop_interval * 2)
-            for _ in range(sleep_ticks):
-                if self.stop_requested:
-                    break
-                time.sleep(0.5)
-
-        if self.stop_requested:
-            self.finished_signal.emit(True, "Đã DỪNG tiến trình cào dữ liệu theo yêu cầu.")
-        else:
-            self.finished_signal.emit(True, f"Đã hoàn thành cào dữ liệu thành công ({all_posts_saved} bài đã lưu).")
-
-
-# ==============================================================================
 # Dialog: Post Detail & Comments Simulation (PostDetailDialog)
 # ==============================================================================
 class PostDetailDialog(QDialog):
@@ -2117,6 +1700,12 @@ class FacebookNotificationUI(QMainWindow):
         self.telegram_dispatcher.notification_sent_signal.connect(self.on_telegram_notification_sent)
         self.telegram_dispatcher.start()
 
+        # Background AI Dispatcher Thread (Quét DB phân tích AI tự động độc lập)
+        self.ai_dispatcher = AIAnalysisWorker(check_interval=3)
+        self.ai_dispatcher.log_signal.connect(self.log)
+        self.ai_dispatcher.analysis_completed_signal.connect(self.on_ai_analysis_completed)
+        self.ai_dispatcher.start()
+
         self.init_ui()
         self.load_saved_settings()
         self.refresh_group_autocomplete_options()
@@ -2126,12 +1715,22 @@ class FacebookNotificationUI(QMainWindow):
         if hasattr(self, 'telegram_dispatcher') and self.telegram_dispatcher and self.telegram_dispatcher.isRunning():
             self.telegram_dispatcher.stop()
             self.telegram_dispatcher.wait(2000)
+        if hasattr(self, 'ai_dispatcher') and self.ai_dispatcher and self.ai_dispatcher.isRunning():
+            self.ai_dispatcher.stop()
+            self.ai_dispatcher.wait(2000)
         super().closeEvent(event)
 
     def on_telegram_notification_sent(self, item: dict):
         """Xử lý phản hồi khi Telegram Dispatcher gửi thành công thông báo"""
         if hasattr(self, 'tabs') and self.tabs.currentIndex() == 2:
-            self.load_ai_analyses_page(silent=True)
+            self.load_ai_analysis_data()
+
+    def on_ai_analysis_completed(self, item: dict):
+        """Xử lý phản hồi khi AI Worker phân tích xong một bài viết"""
+        if hasattr(self, 'tabs') and self.tabs.currentIndex() == 2:
+            self.load_ai_analysis_data()
+        if hasattr(self, 'telegram_dispatcher') and self.telegram_dispatcher:
+            self.telegram_dispatcher.trigger_check_now()
     
     def init_ui(self):
         self.setWindowTitle(f"📘 Facebook Scraper & AI Notification System v{APP_VERSION}")
@@ -2890,7 +2489,7 @@ class FacebookNotificationUI(QMainWindow):
 
             if pid == str(post_id):
                 cmt_item = self.history_table.item(row, 5)
-                if status == "updating":
+                if status in ("updating", "updating_comments"):
                     if stt_item:
                         orig = stt_item.data(Qt.ItemDataRole.UserRole + 1)
                         if orig is None:
@@ -2903,10 +2502,23 @@ class FacebookNotificationUI(QMainWindow):
                         it = self.history_table.item(row, col)
                         if it:
                             it.setBackground(QColor("#E0F2FE"))
+                elif status == "analyzing_ai":
+                    if stt_item:
+                        orig = stt_item.data(Qt.ItemDataRole.UserRole + 1)
+                        if orig is None:
+                            stt_item.setData(Qt.ItemDataRole.UserRole + 1, stt_item.text())
+                        stt_item.setText("🤖 " + str(stt_item.data(Qt.ItemDataRole.UserRole + 1)))
+                    if cmt_item:
+                        cmt_item.setText("🤖 Đang phân tích AI...")
+                        cmt_item.setForeground(QColor("#7C3AED"))
+                    for col in range(self.history_table.columnCount()):
+                        it = self.history_table.item(row, col)
+                        if it:
+                            it.setBackground(QColor("#EDE9FE"))
                 elif status == "done":
                     if stt_item:
                         orig = stt_item.data(Qt.ItemDataRole.UserRole + 1)
-                        stt_item.setText(str(orig) if orig else stt_item.text().replace("🔄 ", ""))
+                        stt_item.setText(str(orig) if orig else stt_item.text().replace("🔄 ", "").replace("🤖 ", ""))
                     if cmt_item:
                         cmt_item.setText(str(comment_count))
                         cmt_item.setForeground(QColor("#15803D"))
@@ -2918,7 +2530,7 @@ class FacebookNotificationUI(QMainWindow):
                 elif status == "error":
                     if stt_item:
                         orig = stt_item.data(Qt.ItemDataRole.UserRole + 1)
-                        stt_item.setText(str(orig) if orig else stt_item.text().replace("🔄 ", ""))
+                        stt_item.setText(str(orig) if orig else stt_item.text().replace("🔄 ", "").replace("🤖 ", ""))
                     if cmt_item:
                         cmt_item.setText("❌ Lỗi")
                         cmt_item.setForeground(QColor("#DC2626"))
@@ -2926,6 +2538,8 @@ class FacebookNotificationUI(QMainWindow):
                         it = self.history_table.item(row, col)
                         if it:
                             it.setBackground(QColor("#FEE2E2"))
+
+                self.history_table.viewport().update()
                 break
 
     def comment_update_finished(self, success, message):
@@ -3601,7 +3215,7 @@ class FacebookNotificationUI(QMainWindow):
         self.log(f"🔔 [Telegram Dispatcher] Đã đưa {count} bài viết vào hàng đợi gửi Telegram. Đang tiến hành gửi...")
         if hasattr(self, 'telegram_dispatcher') and self.telegram_dispatcher:
             self.telegram_dispatcher.trigger_check_now()
-        self.load_ai_analyses_page(silent=True)
+        self.load_ai_analysis_data()
         QMessageBox.information(
             self,
             "Gửi lại Telegram",
@@ -4360,43 +3974,15 @@ class FacebookNotificationUI(QMainWindow):
         self.gemini_model_selector.btn_refresh.clicked.connect(self.on_fetch_gemini_models_clicked)
         ai_layout.addWidget(self.gemini_model_selector)
 
-        # 2. OpenAI Models Tagging Container
-        self.openai_models_container = QWidget()
-        openai_models_layout = QVBoxLayout(self.openai_models_container)
-        openai_models_layout.setContentsMargins(0, 0, 0, 0)
-        openai_models_layout.setSpacing(4)
-
-        models_header_layout = QHBoxLayout()
-        models_header_layout.addWidget(QLabel("<b>Danh sách Model OpenAI / Tương thích:</b>"))
-        models_header_layout.addStretch()
-
-        self.btn_test_models = QPushButton("🧪 Test AI & Kiểm tra Models")
-        self.btn_test_models.setToolTip("Gửi request thực tế qua API tới từng model: Gạch ngang model bị lỗi hoặc không trả về JSON thuần")
-        self.btn_test_models.setStyleSheet("""
-            QPushButton {
-                background-color: #8B5CF6;
-                color: white;
-                font-size: 11px;
-                font-weight: bold;
-                padding: 4px 10px;
-                border-radius: 4px;
-            }
-            QPushButton:hover { background-color: #7C3AED; }
-            QPushButton:disabled { background-color: #9CA3AF; }
-        """)
-        self.btn_test_models.clicked.connect(self.test_ai_models_live_action)
-        models_header_layout.addWidget(self.btn_test_models)
-        openai_models_layout.addLayout(models_header_layout)
-
-        self.ai_model_tag_widget = ModelTagWidget()
-        openai_models_layout.addWidget(self.ai_model_tag_widget)
-
-        models_note = QLabel("💡 <i>Model lỗi hoặc không trả về JSON thuần sẽ bị gạch ngang và loại trừ khi cào.</i>")
-        models_note.setStyleSheet("font-size: 10px; color: #64748B;")
-        models_note.setWordWrap(True)
-        openai_models_layout.addWidget(models_note)
-
-        ai_layout.addWidget(self.openai_models_container)
+        # 2. OpenAI Models Checkbox Selector Widget
+        self.openai_model_selector = OpenAIModelSelectorWidget()
+        self.openai_model_selector.btn_refresh.clicked.connect(self.fetch_openai_models_action)
+        self.openai_model_selector.btn_test_models.clicked.connect(self.test_ai_models_live_action)
+        self.ai_model_tag_widget = self.openai_model_selector  # alias for backwards compatibility
+        self.openai_models_container = self.openai_model_selector  # alias for backwards compatibility
+        self.btn_fetch_openai_models = self.openai_model_selector.btn_refresh
+        self.btn_test_models = self.openai_model_selector.btn_test_models
+        ai_layout.addWidget(self.openai_model_selector)
 
         # System Prompt Section with Presets & Guide Button
         prompt_header_layout = QHBoxLayout()
@@ -4600,13 +4186,56 @@ class FacebookNotificationUI(QMainWindow):
             return
         self.gemini_model_selector.fetch_models_from_key(key)
 
+    def fetch_openai_models_action(self):
+        """Khởi chạy worker tải danh sách model trực tiếp từ OpenAI / Base URL API"""
+        base_url = self.get_resolved_ai_base_url()
+        api_key = self.ai_api_key_input.text().strip()
+
+        if hasattr(self, 'btn_fetch_openai_models'):
+            self.btn_fetch_openai_models.setEnabled(False)
+            self.btn_fetch_openai_models.setText("⏳ Đang tải...")
+        self.log(f"🔄 Đang gửi yêu cầu lấy danh sách models từ API ({base_url})...")
+
+        self.openai_fetch_worker = FetchOpenAIModelsWorker(base_url, api_key)
+
+        def on_finished(ok: bool, models: list, msg: str):
+            if hasattr(self, 'btn_fetch_openai_models'):
+                self.btn_fetch_openai_models.setEnabled(True)
+                self.btn_fetch_openai_models.setText("🔄 Tải Models từ API")
+            if ok and models:
+                self.ai_model_tag_widget.set_models_data(models)
+                active = self.ai_model_tag_widget.get_active_models()
+                default_m = "gpt-4o-mini"
+                database.set_setting("ai_models", ", ".join(active) if active else default_m)
+                database.set_setting("ai_models_data", json.dumps(self.ai_model_tag_widget.get_all_models_data(), ensure_ascii=False))
+                self.log(f"✅ {msg}")
+                QMessageBox.information(
+                    self,
+                    "Tải Models thành công",
+                    f"✅ {msg}\n\nĐã nạp {len(models)} models vào danh sách. Các model Thinking/suy luận đã được tự động đánh dấu loại trừ."
+                )
+            else:
+                self.log(f"⚠️ {msg}")
+                QMessageBox.warning(
+                    self,
+                    "Không tải được Models",
+                    f"⚠️ {msg}\n\nVui lòng kiểm tra lại Base URL và API Key."
+                )
+
+        self.openai_fetch_worker.finished_signal.connect(on_finished)
+        self.openai_fetch_worker.start()
+
     def on_ai_api_key_text_changed(self, text: str):
-        """Tự động phân tích và tải danh sách model Google khi người dùng dán API Key hợp lệ"""
+        """Tự động phân tích và tải danh sách model khi người dùng dán API Key hợp lệ"""
         provider = self.get_current_ai_provider()
         clean_key = text.strip()
         if provider == "google_ai" and clean_key.startswith("AIzaSy") and len(clean_key) >= 30:
             if hasattr(self, 'gemini_model_selector'):
                 self.gemini_model_selector.fetch_models_from_key(clean_key)
+        elif provider == "openai" and clean_key.startswith("sk-") and len(clean_key) >= 35:
+            # Nếu danh sách model OpenAI đang rỗng, tự động fetch
+            if hasattr(self, 'ai_model_tag_widget') and not self.ai_model_tag_widget.get_all_models_data():
+                self.fetch_openai_models_action()
 
     def show_telegram_guide_dialog(self):
         """Mở hộp thoại hướng dẫn lấy Bot Token và Chat ID Telegram"""
@@ -4628,10 +4257,20 @@ class FacebookNotificationUI(QMainWindow):
 
     def test_ai_models_live_action(self):
         """
-        Kiểm tra thực tế qua API từng model trong danh sách:
-        - Gạch ngang các model bị lỗi hoặc không trả về JSON thuần.
-        - Cập nhật trực tiếp lên giao diện và lưu trạng thái vào SQLite.
+        Kiểm tra thực tế qua API từng model bất đồng bộ bằng QThread:
+        - Cho phép bấm nút '⏹ Dừng test' để dừng kiểm tra bất kỳ lúc nào.
+        - Cập nhật hiệu ứng xoay / đang test trực tiếp trên từng ô checkbox.
+        - Hoàn toàn không làm đơ/treo giao diện.
+        - Tự động cập nhật trạng thái hợp lệ/loại trừ lên giao diện và lưu SQLite.
         """
+        # Nếu đang chạy test -> Bấm để DỪNG
+        if hasattr(self, 'ai_test_worker') and self.ai_test_worker and self.ai_test_worker.isRunning():
+            self.ai_test_worker.stop()
+            self.btn_test_models.setText("⏳ Đang dừng...")
+            self.btn_test_models.setEnabled(False)
+            self.log("🛑 Người dùng yêu cầu dừng kiểm tra models...")
+            return
+
         provider = self.get_current_ai_provider()
         base_url = self.get_resolved_ai_base_url()
         api_key = self.ai_api_key_input.text().strip()
@@ -4645,25 +4284,65 @@ class FacebookNotificationUI(QMainWindow):
             QMessageBox.warning(self, "Chưa có Model", "Vui lòng chọn ít nhất một Model AI để kiểm tra.")
             return
 
-        self.btn_test_models.setEnabled(False)
-        self.btn_test_models.setText("⏳ Đang kiểm tra...")
+        self.btn_test_models.setEnabled(True)
+        self.btn_test_models.setText(f"⏹ Dừng test (0/{len(models)})")
+        self.btn_test_models.setToolTip("Bấm để dừng quá trình kiểm tra models ngay lập tức")
+        self.btn_test_models.setStyleSheet("""
+            QPushButton {
+                background-color: #EF4444;
+                color: white;
+                font-size: 10px;
+                font-weight: bold;
+                padding: 2px 8px;
+                border-radius: 3px;
+            }
+            QPushButton:hover { background-color: #DC2626; }
+            QPushButton:disabled { background-color: #9CA3AF; }
+        """)
         self.log(f"🧪 Đang thực hiện kiểm tra thực tế {len(models)} model AI qua {provider.upper()} ({base_url})...")
-        QApplication.processEvents()
 
         timeout = self.get_ai_timeout()
 
-        try:
-            results = ai_analyzer.test_all_models_live(
-                base_url=base_url,
-                api_key=api_key,
-                models=models,
-                timeout=timeout,
-                logger=self.log,
-                provider=provider
-            )
+        self.ai_test_worker = TestAIModelsWorker(
+            base_url=base_url,
+            api_key=api_key,
+            models=models,
+            timeout=timeout,
+            provider=provider
+        )
 
-            if provider == "openai":
-                self.ai_model_tag_widget.update_with_test_results(results)
+        def on_model_started(model_name: str):
+            if provider == "openai" and hasattr(self, 'openai_model_selector'):
+                self.openai_model_selector.set_model_testing_state(model_name)
+
+        def on_progress(current: int, total: int, model_name: str):
+            self.btn_test_models.setText(f"⏹ Dừng test ({current}/{total})")
+            if provider == "openai" and hasattr(self, 'openai_model_selector'):
+                self.openai_model_selector.set_model_testing_state(model_name, current, total)
+
+        def on_single_tested(res: dict):
+            if provider == "openai" and hasattr(self, 'openai_model_selector'):
+                self.openai_model_selector.set_single_model_result(res)
+
+        def on_all_finished(results: list):
+            self.btn_test_models.setEnabled(True)
+            self.btn_test_models.setText("🧪 Test AI & Kiểm tra Models")
+            self.btn_test_models.setToolTip("Gửi request thực tế qua API tới từng model: Loại trừ model bị lỗi hoặc không trả về JSON thuần")
+            self.btn_test_models.setStyleSheet("""
+                QPushButton {
+                    background-color: #8B5CF6;
+                    color: white;
+                    font-size: 10px;
+                    font-weight: bold;
+                    padding: 2px 8px;
+                    border-radius: 3px;
+                }
+                QPushButton:hover { background-color: #7C3AED; }
+                QPushButton:disabled { background-color: #9CA3AF; }
+            """)
+
+            if provider == "openai" and hasattr(self, 'openai_model_selector'):
+                self.openai_model_selector.update_with_test_results(results)
 
             valid_models = [r["name"] for r in results if r.get("is_valid")]
             invalid_models = [r for r in results if not r.get("is_valid")]
@@ -4672,27 +4351,27 @@ class FacebookNotificationUI(QMainWindow):
             default_m = "gemini-2.0-flash" if provider == "google_ai" else "gpt-4o-mini"
             active_str = ", ".join(valid_models) if valid_models else default_m
             database.set_setting("ai_models", active_str)
-            if provider == "openai":
-                database.set_setting("ai_models_data", json.dumps(self.ai_model_tag_widget.get_all_models_data(), ensure_ascii=False))
+            if provider == "openai" and hasattr(self, 'openai_model_selector'):
+                database.set_setting("ai_models_data", json.dumps(self.openai_model_selector.get_all_models_data(), ensure_ascii=False))
 
             report_msg = (
                 f"📊 <b>Kết quả kiểm tra thực tế ({len(results)} model qua {provider.upper()}):</b><br><br>"
                 f"✅ <b>Hợp lệ ({len(valid_models)} model):</b> {', '.join(valid_models) if valid_models else 'Không có'}<br><br>"
             )
             if invalid_models:
-                report_msg += "❌ <b>Bị gạch ngang / Loại trừ:</b><br>"
+                report_msg += "❌ <b>Bị loại trừ / Lỗi:</b><br>"
                 for inv in invalid_models:
                     report_msg += f"• <code>{inv['name']}</code>: <i>{inv['message']}</i><br>"
 
             self.log(f"✅ Hoàn tất kiểm tra models: {len(valid_models)} hợp lệ, {len(invalid_models)} bị loại trừ.")
             QMessageBox.information(self, "Kết quả kiểm tra Model AI", report_msg)
 
-        except Exception as e:
-            self.log(f"❌ Lỗi khi kiểm tra models: {e}")
-            QMessageBox.critical(self, "Lỗi kiểm tra", f"Lỗi trong quá trình kiểm tra models:\n{e}")
-        finally:
-            self.btn_test_models.setEnabled(True)
-            self.btn_test_models.setText("🧪 Test AI & Kiểm tra Models")
+        self.ai_test_worker.model_testing_started.connect(on_model_started)
+        self.ai_test_worker.progress_signal.connect(on_progress)
+        self.ai_test_worker.model_tested_single.connect(on_single_tested)
+        self.ai_test_worker.log_signal.connect(self.log)
+        self.ai_test_worker.finished_all_signal.connect(on_all_finished)
+        self.ai_test_worker.start()
 
     def apply_prompt_preset(self, preset_prompt: str):
         """Áp dụng mẫu prompt có sẵn vào ô nhập liệu"""
@@ -4801,6 +4480,30 @@ class FacebookNotificationUI(QMainWindow):
         self.ai_prompt_input.setPlainText(saved_prompt)
         self.toggle_ai_fields(ai_on)
 
+        # Cập nhật cấu hình cho AI Dispatcher ngầm
+        if hasattr(self, 'ai_dispatcher') and self.ai_dispatcher:
+            provider = self.get_current_ai_provider()
+            active_models = self.get_active_ai_models()
+            default_model = "gemini-2.0-flash" if provider == "google_ai" else "gpt-4o-mini"
+            timeout_val = self.get_ai_timeout()
+            ai_cfg = {
+                "enabled": ai_on,
+                "provider": provider,
+                "base_url": self.get_resolved_ai_base_url(),
+                "api_key": self.ai_api_key_input.text().strip(),
+                "models": active_models if active_models else [default_model],
+                "prompt": saved_prompt,
+                "timeout": timeout_val
+            }
+            tg_cfg = {
+                "enabled": tg_on,
+                "token": self.tg_token_input.text().strip(),
+                "chat_id": self.tg_chat_id_input.text().strip(),
+                "notify_on_finish": self.tg_notify_finish_cb.isChecked(),
+                "notify_on_keyword": self.tg_notify_keyword_cb.isChecked()
+            }
+            self.ai_dispatcher.update_config(ai_cfg, tg_cfg)
+
     def save_group_urls_to_db(self):
         self.group_list_widget.save_to_db()
 
@@ -4874,6 +4577,8 @@ class FacebookNotificationUI(QMainWindow):
             if hasattr(self.scraper_thread, 'ai_worker') and self.scraper_thread.ai_worker:
                 self.scraper_thread.ai_worker.update_config(ai_cfg, tg_cfg)
                 self.log("⚡ [Hot-reload] Đã cập nhật Prompt và cấu hình AI mới ngay cho tiến trình đang quét!")
+        if hasattr(self, 'ai_dispatcher') and self.ai_dispatcher:
+            self.ai_dispatcher.update_config(ai_cfg, tg_cfg)
 
         if not silent:
             QMessageBox.information(self, "Thành công", "✅ Đã lưu toàn bộ cấu hình vào SQLite!")
@@ -4960,6 +4665,8 @@ class FacebookNotificationUI(QMainWindow):
             self.ai_timeout_input.setEnabled(checked)
         self.ai_model_tag_widget.setEnabled(checked)
         self.ai_prompt_input.setEnabled(checked)
+        if hasattr(self, 'btn_fetch_openai_models'):
+            self.btn_fetch_openai_models.setEnabled(checked)
         if hasattr(self, 'btn_test_models'):
             self.btn_test_models.setEnabled(checked)
         if hasattr(self, 'test_ai_btn'):

@@ -195,7 +195,6 @@ def test_comment_update_worker_post_status_signal(temp_db):
          patch("src.ui.workers.comment_update_worker.save_or_update_post"):
         mock_fetch.return_value = ([{"comment_id": "c1", "text": "Hi"}], None)
         mock_get_post.return_value = {"post_id": "p_signal_1", "message": "Test signal"}
-        worker.ai_worker = MagicMock()
         worker.run()
 
     assert ("p_signal_1", "updating", 0) in signals_emitted

@@ -4,12 +4,19 @@ from PyQt6.QtCore import QThread, pyqtSignal
 from src.core.proxy_utils import select_proxy
 from src.core.comment_scraper import fetch_comments
 import src.core.comment_scraper as comment_scraper
-from src.database.repository import get_post_by_id, save_or_update_post
-from src.ui.workers.ai_worker import AIAnalysisWorker
+from src.database.repository import (
+    get_post_by_id,
+    save_or_update_post,
+    mark_post_ai_pending
+)
 
 
 class CommentUpdateWorker(QThread):
-    """Luồng nền cập nhật bình luận cho các bài viết đã chọn hoặc trong 24h, kèm đẩy vào AI queue"""
+    """
+    Luồng nền cập nhật bình luận nhanh:
+    - Chỉ lấy bình luận & reply và lưu SQLite với tốc độ cao nhất.
+    - Bài viết khớp từ khóa được đưa vào hàng đợi SQLite (ai_status = 1) để AI Worker xử lý ngầm trong thread riêng.
+    """
     log_signal = pyqtSignal(str)
     progress_signal = pyqtSignal(int, int)        # current, total
     finished_signal = pyqtSignal(bool, str)       # success, message
@@ -25,15 +32,10 @@ class CommentUpdateWorker(QThread):
         self.keywords = keywords or []
         self.stop_requested = False
 
-        self.ai_worker = AIAnalysisWorker(self.ai_config, self.telegram_config)
-        self.ai_worker.log_signal.connect(self.log)
-
     def stop(self):
         """Yêu cầu dừng worker"""
         self.stop_requested = True
         self.log("🛑 Nhận được yêu cầu DỪNG cập nhật bình luận...")
-        if self.ai_worker and self.ai_worker.isRunning():
-            self.ai_worker.stop()
 
     def log(self, message: str):
         self.log_signal.emit(message)
@@ -89,7 +91,6 @@ class CommentUpdateWorker(QThread):
             self._apply_proxy()
             if self.fb_dtsg:
                 comment_scraper.FB_DTSG = self.fb_dtsg
-            self.ai_worker.start()
 
             total = len(self.post_ids)
             updated_count = 0
@@ -107,43 +108,40 @@ class CommentUpdateWorker(QThread):
                 post_data = post_record or {"post_id": post_id}
 
                 try:
-                    comments, _ = fetch_comments(post_id, cookies=self.cookies)
+                    comments, _ = fetch_comments(
+                        post_id,
+                        cookies=self.cookies,
+                        fb_dtsg=self.fb_dtsg,
+                        logger=self.log
+                    )
                     self.log(f"  ✓ Đã lấy {len(comments)} bình luận cho bài {post_id}")
 
-                    # Cập nhật vào SQLite
+                    # Cập nhật bình luận vào SQLite
                     post_type = post_data.get("post_type", "group_post")
                     save_or_update_post(post_type, post_id, post_data, comments)
                     updated_count += 1
-                    self.post_status_signal.emit(post_id, "done", len(comments))
 
-                    # Kiểm tra khớp từ khóa & đẩy vào queue AI
+                    # Kiểm tra khớp từ khóa -> đưa vào hàng đợi AI
                     matched, kw_hit, kw_source = self.check_keyword_match(post_data, comments, self.keywords)
                     if matched:
                         if self.keywords:
-                            self.log(f"  🎯 Khớp từ khóa '{kw_hit}' tại {kw_source}!")
-                        self.ai_worker.enqueue(post_data, comments, kw_hit, kw_source)
-                        self.log(f"  ⚡ Đã chuyển bài {post_id} và các bình luận mới vào hàng đợi phân tích AI song song")
+                            self.log(f"  🎯 Khớp từ khóa '{kw_hit}' tại {kw_source}! Đã chuyển vào hàng đợi phân tích AI ngầm.")
+                        mark_post_ai_pending(post_id, kw_hit, kw_source)
                     else:
-                        self.log(f"  ⏭ Không khớp từ khóa lọc, bỏ qua phân tích AI cho bài {post_id}")
+                        self.log(f"  ⏭ Không khớp từ khóa lọc.")
 
-                    time.sleep(0.3)
+                    self.post_status_signal.emit(post_id, "done", len(comments))
+                    time.sleep(0.1)
+
                 except Exception as ex:
                     self.log(f"  ❌ Lỗi khi cập nhật bình luận bài {post_id}: {ex}")
                     self.post_status_signal.emit(post_id, "error", 0)
 
                 self.progress_signal.emit(idx, total)
 
-            # Chờ queue AI hoàn thành tất cả tác vụ
-            self.log("⏳ Đang chờ hoàn tất các tác vụ phân tích AI và thông báo Telegram trong hàng đợi...")
-            self.ai_worker.task_queue.join()
-
             if self.stop_requested:
                 self.finished_signal.emit(True, f"Đã DỪNG tiến trình cập nhật bình luận ({updated_count}/{total} bài).")
             else:
-                self.finished_signal.emit(True, f"Đã hoàn thành cập nhật bình luận cho {updated_count}/{total} bài viết.")
+                self.finished_signal.emit(True, f"Đã hoàn thành cập nhật bình luận cho {updated_count}/{total} bài viết. Các bài khớp từ khóa đang được AI phân tích ngầm.")
         except Exception as e:
             self.finished_signal.emit(False, f"Lỗi trong quá trình cập nhật bình luận: {e}")
-        finally:
-            if self.ai_worker and self.ai_worker.isRunning():
-                self.ai_worker.stop()
-                self.ai_worker.wait(3000)

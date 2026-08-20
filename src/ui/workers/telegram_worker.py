@@ -99,10 +99,13 @@ class TelegramDispatcherThread(QThread):
                                 self.log(f"✅ [Telegram Dispatcher] Gửi thành công thông báo Telegram cho bài {post_id}.")
                                 item["telegram_sent"] = 1
                                 self.notification_sent_signal.emit(item)
+                                time.sleep(1.0)
                             else:
-                                self.log(f"⚠️ [Telegram Dispatcher] Không gửi được Telegram cho bài {post_id}: {msg}")
-                                # Đợi 2s trước khi thử tiếp
-                                time.sleep(2)
+                                database.mark_telegram_analysis_sent(analysis_id, status=-1)
+                                self.log(f"⚠️ [Telegram Dispatcher] Không gửi được Telegram cho bài {post_id}: {msg}. Đã đánh dấu Lỗi (Bấm 'Gửi lại Telegram' trên bảng AI để thử lại).")
+                                item["telegram_sent"] = -1
+                                self.notification_sent_signal.emit(item)
+                                time.sleep(1.5)
                     else:
                         # Telegram chưa được cấu hình hoặc bị tắt
                         now = time.time()

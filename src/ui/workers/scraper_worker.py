@@ -5,7 +5,7 @@ from src.core.proxy_utils import select_proxy
 from src.core.group_scraper import fetch_posts as fetch_group_posts
 from src.core.comment_scraper import fetch_comments
 from src.utils.helpers import extract_group_id_from_url
-from src.database.repository import save_or_update_post
+from src.database.repository import save_or_update_post, mark_post_ai_pending
 from src.ui.workers.ai_worker import AIAnalysisWorker
 
 class ScraperThread(QThread):
@@ -117,8 +117,8 @@ class ScraperThread(QThread):
                         comments = []
                         if min_comments > 0:
                             try:
-                                comments = fetch_comments(
-                                    post_id=post_id,
+                                comments, _ = fetch_comments(
+                                    post_id,
                                     target_count=min_comments,
                                     cookies=self.cookies,
                                     fb_dtsg=self.fb_dtsg,
@@ -156,7 +156,8 @@ class ScraperThread(QThread):
                                     break
                                     
                         if kw_hit:
-                            self.log(f"   🎯 Khớp từ khóa '{kw_hit}' ({kw_source}) tại bài {post_id} -> Đẩy vào AI Worker.")
+                            self.log(f"   🎯 Khớp từ khóa '{kw_hit}' ({kw_source}) tại bài {post_id} -> Đưa vào hàng đợi AI.")
+                            mark_post_ai_pending(post_id, kw_hit, kw_source)
                             self.ai_worker.enqueue(post, comments, kw_hit, kw_source)
                             
                 if not infinite_loop or self.stop_requested:

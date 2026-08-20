@@ -663,17 +663,62 @@ python -m src.main</code></pre>
                 </li>
             </ol>
 
-            <h3 class="subsection-title">B. Sử dụng OpenAI hoặc Proxy LLM tương thích</h3>
+            <h3 class="subsection-title">B. Sử dụng OpenAI hoặc Proxy LLM tương thích (OpenRouter, DeepSeek, Groq, Ollama...)</h3>
             <ol class="step-list">
                 <li class="step-item">
                     <div class="step-title">Cấu hình Endpoint & API Key</div>
                     <p>Chọn nhà cung cấp: <span class="btn-tag btn-purple">🧠 OpenAI / OpenAI Tương thích</span>.<br>
-                    • <b>Base URL:</b> Nhập URL endpoint (ví dụ <code>https://api.openai.com/v1</code> hoặc proxy riêng). Nếu bỏ trống, phần mềm tự dùng OpenAI chính hãng.<br>
-                    • <b>API Key:</b> Nhập API Key OpenAI (bắt đầu bằng <code>sk-...</code>).</p>
+                    • <b>Base URL:</b> Nhập URL endpoint của nhà cung cấp (ví dụ <code>https://api.openai.com/v1</code>, <code>https://openrouter.ai/api/v1</code>, <code>https://api.deepseek.com</code> hoặc proxy riêng). Nếu bỏ trống, phần mềm tự dùng OpenAI chính hãng.<br>
+                    • <b>API Key:</b> Nhập API Key tương ứng (bắt đầu bằng <code>sk-...</code>).</p>
                 </li>
                 <li class="step-item">
-                    <div class="step-title">Quản lý Models & Kiểm tra thực tế</div>
-                    <p>Nhập tên model (ví dụ <code>gpt-4o-mini</code>, <code>gpt-4o</code>) vào ô và bấm <code>+</code>. Bấm nút <span class="btn-tag btn-purple">🧪 Test AI & Kiểm tra Models</span> để phần mềm gửi request thực tế tới từng model và tự động gạch ngang loại trừ các model bị lỗi hoặc trả về sai định dạng.</p>
+                    <div class="step-title">Quản lý Bảng Model Checkbox & Tự động tải từ API</div>
+                    <p>• <b>Tải danh sách tự động:</b> Bấm nút <span class="btn-tag btn-blue">🔄 Tải Models từ API</span> để phần mềm tự động truy vấn danh sách model đang hoạt động từ Base URL / API Key của bạn (tự động lọc bỏ các model embedding, audio, tts, image và sắp xếp theo thứ tự chữ cái A-Z).<br>
+                    • <b>Thêm model tùy chỉnh:</b> Nhập tên model vào ô <i>"+ Thêm model tùy chỉnh"</i> (ví dụ <code>gpt-4o-mini</code>, <code>meta-llama/llama-3.3-70b-instruct</code>) và bấm <b>+ Thêm</b>.<br>
+                    • <b>Chọn nhanh & Xóa:</b> Sử dụng các nút <span class="btn-tag">✅ Chọn tất cả</span>, <span class="btn-tag">⬜ Bỏ chọn</span> hoặc <span class="btn-tag btn-red">🗑 Xóa tất cả</span> để làm sạch danh sách model.</p>
+                </li>
+                <li class="step-item">
+                    <div class="step-title">Kiểm tra thực tế (Live Testing) & Hệ thống trạng thái màu sắc</div>
+                    <p>Bấm nút <span class="btn-tag btn-purple">🧪 Test AI & Kiểm tra Models</span> để phần mềm gửi request thực tế tới từng model:</p>
+                    <table style="margin: 12px 0;">
+                        <thead>
+                            <tr>
+                                <th style="width: 25%;">Trạng thái</th>
+                                <th style="width: 25%;">Màu sắc</th>
+                                <th>Ý nghĩa & Hành vi</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><b>Chưa kiểm tra</b></td>
+                                <td><span style="color: #d97706; font-weight: bold;">🟡 Vàng / Hổ phách</span></td>
+                                <td>Model mới thêm vào hoặc vừa tải từ API về (chưa xác minh thực tế qua API).</td>
+                            </tr>
+                            <tr>
+                                <td><b>Đang kiểm tra</b></td>
+                                <td><span style="color: #4f46e5; font-weight: bold;">🟣 Tím / Indigo</span></td>
+                                <td>Hiển thị <code>⏳ tên_model (Đang test...)</code> kèm thanh tiến trình cập nhật theo thời gian thực.</td>
+                            </tr>
+                            <tr>
+                                <td><b>Đã test OK</b></td>
+                                <td><span style="color: #047857; font-weight: bold;">🟢 Xanh lá cây</span></td>
+                                <td>Hiển thị <code>tên_model ✓</code>. Model phản hồi HTTP 200 và trả về JSON thuần chuẩn (sẵn sàng sử dụng).</td>
+                            </tr>
+                            <tr>
+                                <td><b>Lỗi API</b></td>
+                                <td><span style="color: #dc2626; font-weight: bold;">🔴 Đỏ [Lỗi API]</span></td>
+                                <td>Model gặp lỗi kết nối, quá thời gian chờ, hoặc không trả về JSON thuần (tự động bỏ chọn).</td>
+                            </tr>
+                            <tr>
+                                <td><b>Thinking / Reasoner</b></td>
+                                <td><span style="color: #ef4444; font-weight: bold;">🔴 Đỏ [Thinking]</span></td>
+                                <td>Model tư duy (DeepSeek R1, o1, o3...) tự động bị gạch ngang loại trừ để tránh gây lỗi JSON cho hệ thống.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p>• <b>Chạy nền không đơ giao diện (Non-blocking):</b> Toàn bộ quá trình kiểm tra chạy trên luồng nền riêng biệt.<br>
+                    • <b>Nút Dừng tức thì:</b> Khi đang test, nút tự chuyển sang <span class="btn-tag btn-red">⏹ Dừng test (i/N)</span>, bạn có thể bấm để dừng kiểm tra bất kỳ lúc nào.<br>
+                    • <b>Hỗ trợ Server-Sent Events (SSE):</b> Tương thích hoàn hảo với cả các máy chủ proxy trả về stream <code>data: {"id":...}</code>.</p>
                 </li>
             </ol>
 

@@ -2,39 +2,207 @@ import json
 import re
 import random
 import requests
+from typing import Any
 
 
 def parse_json_from_response(text: str) -> dict:
     """
-    Trích xuất và phân tích JSON từ chuỗi phản hồi của LLM,
-    hỗ trợ bóc tách code block ```json ... ``` hoặc tìm cặp ngoặc { ... }.
+    Trích xuất và phân tích JSON siêu bền bỉ từ chuỗi phản hồi của LLM:
+    - Lọc bỏ khối <think>...</think> / <reasoning>...</reasoning>
+    - Bóc tách code block ```json ... ``` (kể cả khi không có fence đóng ```)
+    - Hỗ trợ unescaped newlines/tabs trong chuỗi (strict=False)
+    - Sửa lỗi trailing commas và chuỗi dạng Python dict
+    - Tìm và bóc tách object {...} chính xác
     """
     if not text:
         return {}
 
     cleaned = text.strip()
 
-    # 1. Bóc tách markdown code block
+    # 0. Loại bỏ thẻ <think>...</think> hoặc <reasoning>...</reasoning>
+    cleaned = re.sub(r'<think>[\s\S]*?</think>', '', cleaned, flags=re.IGNORECASE).strip()
+    cleaned = re.sub(r'<reasoning>[\s\S]*?</reasoning>', '', cleaned, flags=re.IGNORECASE).strip()
+
+    # 1. Bóc tách markdown code block (hỗ trợ cả có fence đóng hoặc bị cắt ngang không có fence đóng)
     if "```" in cleaned:
         match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', cleaned, re.IGNORECASE)
         if match:
             cleaned = match.group(1).strip()
+        else:
+            match_open = re.search(r'```(?:json)?\s*([\s\S]*)', cleaned, re.IGNORECASE)
+            if match_open:
+                cleaned = match_open.group(1).strip()
 
-    # 2. Thử parse trực tiếp
+    # 2. Thử parse trực tiếp với strict=False
     try:
-        return json.loads(cleaned)
+        res = json.loads(cleaned, strict=False)
+        if isinstance(res, dict):
+            return res
     except Exception:
         pass
 
-    # 3. Tìm cặp ngoặc { ... } lớn nhất
+    # 3. Thử sửa trailing comma: ví dụ `{"a": 1,}` -> `{"a": 1}`
+    cleaned_no_trailing = re.sub(r',\s*([\}\]])', r'\1', cleaned)
+    try:
+        res = json.loads(cleaned_no_trailing, strict=False)
+        if isinstance(res, dict):
+            return res
+    except Exception:
+        pass
+
+    # 4. Tìm cặp ngoặc { ... } lớn nhất
     match_brace = re.search(r'(\{[\s\S]*\})', cleaned)
     if match_brace:
+        candidate = match_brace.group(1).strip()
         try:
-            return json.loads(match_brace.group(1).strip())
+            res = json.loads(candidate, strict=False)
+            if isinstance(res, dict):
+                return res
+        except Exception:
+            candidate_clean = re.sub(r',\s*([\}\]])', r'\1', candidate)
+            try:
+                res = json.loads(candidate_clean, strict=False)
+                if isinstance(res, dict):
+                    return res
+            except Exception:
+                pass
+
+    # 5. Thử parse dạng Python dict (nháy đơn hoặc boolean True/False)
+    try:
+        import ast
+        cand = cleaned
+        m = re.search(r'(\{[\s\S]*\})', cleaned)
+        if m:
+            cand = m.group(1).strip()
+        parsed_ast = ast.literal_eval(cand)
+        if isinstance(parsed_ast, dict):
+            return parsed_ast
+    except Exception:
+        pass
+
+    return {}
+
+
+def extract_chat_completion_response(response_input: Any) -> tuple[dict, str, str]:
+    """
+    Trích xuất kết quả từ phản hồi OpenAI / OpenAI-compatible / Gemini.
+    Hỗ trợ mạnh mẽ 4 định dạng:
+    1. requests.Response object (gọi .json() trước, fallback sang .text)
+    2. Dictionary dữ liệu
+    3. Chuỗi JSON chuẩn
+    4. SSE Streaming chunks (data: {...} chunks)
+    
+    Trả về: (raw_dict: dict, content_str: str, reasoning_str: str)
+    """
+    if response_input is None:
+        return {}, "", ""
+
+    # 1. Nếu là requests.Response object
+    if hasattr(response_input, "json") and callable(response_input.json):
+        try:
+            data = response_input.json()
+            if isinstance(data, dict):
+                choices = data.get("choices") or []
+                if choices and isinstance(choices[0], dict):
+                    c0 = choices[0]
+                    msg_obj = c0.get("message") or c0.get("delta") or {}
+                    content = msg_obj.get("content") or ""
+                    reasoning = msg_obj.get("reasoning_content") or msg_obj.get("reasoning") or ""
+                    return data, str(content), str(reasoning)
         except Exception:
             pass
 
-    return {}
+    # 2. Nếu là dictionary
+    if isinstance(response_input, dict):
+        choices = response_input.get("choices") or []
+        if choices and isinstance(choices[0], dict):
+            c0 = choices[0]
+            msg_obj = c0.get("message") or c0.get("delta") or {}
+            content = msg_obj.get("content") or ""
+            reasoning = msg_obj.get("reasoning_content") or msg_obj.get("reasoning") or ""
+            return response_input, str(content), str(reasoning)
+
+    # 3. Lấy raw_text từ response.text hoặc string
+    if hasattr(response_input, "text") and isinstance(response_input.text, str):
+        raw_text = response_input.text.strip()
+    elif isinstance(response_input, str):
+        raw_text = response_input.strip()
+    else:
+        raw_text = str(response_input).strip()
+
+    if not raw_text:
+        return {}, "", ""
+
+    # Thử parse JSON chuẩn từ raw_text
+    try:
+        data = json.loads(raw_text, strict=False)
+        if isinstance(data, dict):
+            choices = data.get("choices") or []
+            if choices and isinstance(choices[0], dict):
+                c0 = choices[0]
+                msg_obj = c0.get("message") or c0.get("delta") or {}
+                content = msg_obj.get("content") or ""
+                reasoning = msg_obj.get("reasoning_content") or msg_obj.get("reasoning") or ""
+                return data, str(content), str(reasoning)
+    except Exception:
+        pass
+
+    # 4. Xử lý Server-Sent Events (SSE) Streaming response chunks (data: {...})
+    if "data:" in raw_text or "data :" in raw_text:
+        assembled_content = []
+        assembled_reasoning = []
+        parsed_chunks = []
+
+        for line in raw_text.splitlines():
+            line = line.strip()
+            if not line or line.startswith("event:") or line.startswith("id:") or line.startswith(":"):
+                continue
+            if line.startswith("data:"):
+                chunk_data = line[5:].strip()
+            elif line.startswith("data :"):
+                chunk_data = line[6:].strip()
+            else:
+                continue
+
+            if chunk_data == "[DONE]" or chunk_data == "[done]":
+                continue
+
+            try:
+                chunk_obj = json.loads(chunk_data, strict=False)
+                parsed_chunks.append(chunk_obj)
+                choices = chunk_obj.get("choices") or []
+                if choices and isinstance(choices[0], dict):
+                    c0 = choices[0]
+                    delta = c0.get("delta") or c0.get("message") or {}
+                    c_piece = delta.get("content") or ""
+                    r_piece = delta.get("reasoning_content") or delta.get("reasoning") or ""
+                    if c_piece:
+                        assembled_content.append(str(c_piece))
+                    if r_piece:
+                        assembled_reasoning.append(str(r_piece))
+            except Exception:
+                continue
+
+        if assembled_content or parsed_chunks:
+            full_content = "".join(assembled_content)
+            full_reasoning = "".join(assembled_reasoning)
+            synthesized_data = {
+                "choices": [{
+                    "message": {
+                        "content": full_content,
+                        "reasoning_content": full_reasoning
+                    }
+                }],
+                "streamed": True
+            }
+            return synthesized_data, full_content, full_reasoning
+
+    # 5. Fallback: Nếu không phải JSON hay SSE chuẩn, thử parse_json_from_response trên raw text
+    fallback_data = parse_json_from_response(raw_text)
+    if fallback_data:
+        return {"choices": [{"message": {"content": raw_text}}]}, raw_text, ""
+
+    return {}, "", ""
 
 
 def format_post_and_comments_payload(post_data: dict, comments_data: list = None) -> str:
@@ -92,13 +260,24 @@ def normalize_ai_base_url(base_url: str = "", provider: str = "openai") -> str:
     Chuẩn hóa Base URL:
     - Nếu provider là google_ai / google_ai_studio: mặc định 'https://generativelanguage.googleapis.com/v1beta/openai'
     - Nếu provider là openai và base_url rỗng: mặc định 'https://api.openai.com/v1'
-    - Ngược lại dùng base_url do người dùng cung cấp.
+    - Cắt bỏ các endpoint thừa nếu người dùng dán vào như /chat/completions hoặc /models
+    - Chuẩn hóa https://api.openai.com -> https://api.openai.com/v1
     """
     if provider in ("google_ai", "google_ai_studio", "google"):
         return DEFAULT_GOOGLE_AI_BASE_URL
     if not base_url or not base_url.strip():
         return DEFAULT_OPENAI_BASE_URL
-    return base_url.strip().rstrip('/')
+
+    clean = base_url.strip().rstrip('/')
+    if clean.endswith("/chat/completions"):
+        clean = clean[:-len("/chat/completions")].rstrip('/')
+    elif clean.endswith("/models"):
+        clean = clean[:-len("/models")].rstrip('/')
+
+    if clean in ("https://api.openai.com", "http://api.openai.com"):
+        clean = "https://api.openai.com/v1"
+
+    return clean if clean else DEFAULT_OPENAI_BASE_URL
 
 
 DEFAULT_GEMINI_MODELS = [
@@ -108,6 +287,16 @@ DEFAULT_GEMINI_MODELS = [
     {"name": "gemini-1.5-pro", "display_name": "gemini-1.5-pro (Chính xác cao)", "description": "Phân tích chuyên sâu"},
     {"name": "gemini-2.0-flash-lite", "display_name": "gemini-2.0-flash-lite", "description": "Bản rút gọn siêu tốc"},
     {"name": "gemini-2.5-pro", "display_name": "gemini-2.5-pro", "description": "Thế hệ 2.5 Pro"}
+]
+
+
+DEFAULT_OPENAI_MODELS = [
+    {"name": "gpt-4o-mini", "display_name": "gpt-4o-mini (Khuyên dùng - Nhanh, rẻ, chuẩn JSON)", "description": "Model OpenAI tối ưu tốc độ và độ chính xác", "status": "untested"},
+    {"name": "gpt-4o", "display_name": "gpt-4o (Độ chính xác cao)", "description": "Model đa năng thông minh nhất", "status": "untested"},
+    {"name": "deepseek-chat", "display_name": "deepseek-chat (DeepSeek V3)", "description": "DeepSeek V3 non-thinking siêu nhanh", "status": "untested"},
+    {"name": "claude-3-5-sonnet-20241022", "display_name": "claude-3-5-sonnet", "description": "Claude 3.5 Sonnet", "status": "untested"},
+    {"name": "llama-3.3-70b-instruct", "display_name": "llama-3.3-70b-instruct", "description": "Meta Llama 3.3 70B", "status": "untested"},
+    {"name": "qwen-2.5-72b-instruct", "display_name": "qwen-2.5-72b-instruct", "description": "Qwen 2.5 72B", "status": "untested"}
 ]
 
 
@@ -157,23 +346,8 @@ def fetch_gemini_models_from_api(api_key: str, timeout: int = 8) -> tuple[bool, 
                         "description": desc
                     })
             if extracted:
-                # Sắp xếp các model phổ biến lên đầu
-                def sort_key(item):
-                    n = item["name"].lower()
-                    if "2.0-flash" in n and "lite" not in n:
-                        return 0
-                    if "2.5-flash" in n:
-                        return 1
-                    if "1.5-flash" in n:
-                        return 2
-                    if "1.5-pro" in n:
-                        return 3
-                    if "2.0-flash-lite" in n:
-                        return 4
-                    if "2.5-pro" in n:
-                        return 5
-                    return 10
-                extracted.sort(key=sort_key)
+                # Sắp xếp theo alphabet (A-Z)
+                extracted.sort(key=lambda item: item["name"].lower())
                 return True, extracted, f"Đã tự động tải {len(extracted)} models Gemini từ Google AI Studio"
     except Exception:
         pass
@@ -201,6 +375,126 @@ def fetch_gemini_models_from_api(api_key: str, timeout: int = 8) -> tuple[bool, 
         return False, DEFAULT_GEMINI_MODELS.copy(), f"Lỗi kết nối API Google: {str(e)[:100]}"
 
     return False, DEFAULT_GEMINI_MODELS.copy(), "Không lấy được danh sách từ API (sử dụng danh sách mặc định)"
+
+
+def fetch_openai_models_from_api(base_url: str = "", api_key: str = "", timeout: int = 8) -> tuple[bool, list[dict], str]:
+    """
+    Gọi OpenAI hoặc LLM Proxy / Endpoint tương thích để lấy danh sách models khả dụng.
+    Hỗ trợ cả OpenAI chính hãng, OpenRouter, DeepSeek, Groq, Ollama, LM Studio, vLLM, Together...
+    Trả về: (thành_công: bool, danh_sách_models: list[dict], thông_điệp: str)
+    Mỗi phần tử: {
+        "name": str,
+        "display_name": str,
+        "description": str,
+        "is_thinking": bool,
+        "is_valid": bool,
+        "enabled": bool,
+        "status": str,
+        "message": str
+    }
+    """
+    resolved_base_url = normalize_ai_base_url(base_url, provider="openai")
+    endpoints_to_try = [
+        f"{resolved_base_url}/models",
+    ]
+    if not resolved_base_url.endswith("/v1"):
+        endpoints_to_try.append(f"{resolved_base_url}/v1/models")
+
+    headers = {"Content-Type": "application/json"}
+    if api_key and api_key.strip():
+        headers["Authorization"] = f"Bearer {api_key.strip()}"
+
+    last_error = ""
+    for url in endpoints_to_try:
+        try:
+            resp = requests.get(url, headers=headers, timeout=timeout)
+            if resp.status_code != 200:
+                last_error = f"HTTP {resp.status_code}: {resp.text[:100]}"
+                continue
+
+            try:
+                data = resp.json()
+            except Exception:
+                last_error = f"API không trả về JSON hợp lệ từ {url}"
+                continue
+
+            raw_models = []
+            if isinstance(data, dict):
+                raw_models = data.get("data") or data.get("models") or []
+            elif isinstance(data, list):
+                raw_models = data
+
+            if not raw_models:
+                last_error = "Không tìm thấy danh sách models trong phản hồi API"
+                continue
+
+            extracted = []
+            excluded_keywords = [
+                "embedding", "embed", "text-embedding",
+                "dall-e", "image", "stable-diffusion", "midjourney",
+                "tts", "whisper", "audio", "transcription", "speech", "sound", "voice",
+                "moderation", "guardrail", "safety",
+                "realtime", "rerank", "babbage", "davinci", "curie", "ada",
+                "canary", "benchmark"
+            ]
+
+            for item in raw_models:
+                if isinstance(item, dict):
+                    mid = str(item.get("id") or item.get("name") or "").strip()
+                    owned_by = str(item.get("owned_by") or "")
+                else:
+                    mid = str(item).strip()
+                    owned_by = ""
+
+                if not mid:
+                    continue
+
+                mid_lower = mid.lower()
+
+                # Bỏ qua các model không phải chat / LLM
+                if any(ex in mid_lower for ex in excluded_keywords):
+                    continue
+
+                thinking = is_thinking_model(mid)
+                display_label = mid
+                if thinking:
+                    desc = "Model suy luận (Thinking / Reasoner) — Đã đánh dấu loại trừ"
+                    status = "thinking"
+                    msg = "Model tư duy (Thinking) — Loại trừ"
+                else:
+                    desc = f"Owner: {owned_by}" if owned_by else "Model Chat / Completion"
+                    status = "untested"
+                    msg = "Chưa test thực tế qua API"
+
+                extracted.append({
+                    "name": mid,
+                    "display_name": display_label,
+                    "description": desc,
+                    "is_thinking": thinking,
+                    "is_valid": not thinking,
+                    "enabled": not thinking,
+                    "status": status,
+                    "message": msg
+                })
+
+            if extracted:
+                # Sắp xếp theo alphabet (A-Z), gom nhóm model Thinking ở phía sau
+                def sort_key(item):
+                    n = item.get("name", "").lower()
+                    is_think = item.get("is_thinking", False)
+                    return (1 if is_think else 0, n)
+
+                extracted.sort(key=sort_key)
+                return True, extracted, f"Đã tự động tải {len(extracted)} models từ {resolved_base_url}"
+
+        except requests.exceptions.Timeout:
+            last_error = f"Quá thời gian chờ ({timeout}s) khi kết nối tới {url}"
+        except requests.exceptions.RequestException as e:
+            last_error = f"Lỗi kết nối mạng: {str(e)[:100]}"
+        except Exception as e:
+            last_error = f"Lỗi xử lý: {str(e)[:100]}"
+
+    return False, DEFAULT_OPENAI_MODELS.copy(), f"Không tải được models từ API: {last_error}"
 
 
 def is_thinking_model(model_name: str) -> bool:
@@ -239,10 +533,11 @@ def is_thinking_model(model_name: str) -> bool:
 def verify_single_model_pure_json(
     base_url: str,
     api_key: str,
-    model_name: str,
+    model_name: str = None,
     prompt: str = None,
     timeout: int = 15,
-    provider: str = "openai"
+    provider: str = "openai",
+    model: str = None
 ) -> tuple[bool, bool, str, dict]:
     """
     Kiểm tra thực tế qua API xem model có hoạt động và trả về JSON thuần chuẩn hay không.
@@ -250,9 +545,11 @@ def verify_single_model_pure_json(
       - is_valid=True khi model trả về HTTP 200 và kết quả parse được thành JSON thuần hợp lệ.
       - is_valid=False khi model gặp lỗi hoặc không trả về JSON thuần hoặc là model thinking.
     """
-    model_name = str(model_name).strip()
-    if not model_name:
+    actual_model = model_name or model or ""
+    actual_model = str(actual_model).strip()
+    if not actual_model:
         return False, False, "Tên model trống", {}
+    model_name = actual_model
     if not api_key or not api_key.strip():
         return False, False, "Thiếu AI API Key", {}
 
@@ -276,24 +573,33 @@ def verify_single_model_pure_json(
             {"role": "system", "content": test_system},
             {"role": "user", "content": test_user}
         ],
-        "temperature": 0.1
+        "temperature": 0.1,
+        "max_tokens": 1000,
+        "stream": False
     }
 
     try:
         response = requests.post(endpoint, headers=headers, json=payload, timeout=timeout)
+
+        # Nếu model không hỗ trợ role 'system' (ví dụ o1/o3 hoặc một số proxy), thử lại với role 'user'
+        if response.status_code == 400 and any(kw in response.text.lower() for kw in ["system", "developer", "messages[0].role", "unsupported value"]):
+            fallback_payload = {
+                "model": model_name,
+                "messages": [
+                    {"role": "user", "content": f"{test_system}\n\n{test_user}"}
+                ],
+                "max_tokens": 1000,
+                "stream": False
+            }
+            response = requests.post(endpoint, headers=headers, json=fallback_payload, timeout=timeout)
+
         if response.status_code != 200:
             err_msg = f"HTTP {response.status_code}: {response.text[:120]}"
             return False, False, err_msg, {}
 
-        res_json = response.json()
-        choices = res_json.get("choices") or []
-        if not choices:
-            return False, False, "API không trả về choices", {}
-
-        choice = choices[0]
-        msg_obj = choice.get("message") or {}
-        raw_content = msg_obj.get("content") or ""
-        reasoning_content = msg_obj.get("reasoning_content") or ""
+        res_json, raw_content, reasoning_content = extract_chat_completion_response(response)
+        if not raw_content and not res_json:
+            return False, False, f"API không trả về nội dung chat hợp lệ: {str(getattr(response, 'text', ''))[:100]}", {}
 
         # Kiểm tra dấu hiệu thinking (reasoning_content, <think> tags, hoặc model name)
         is_thinking = bool(
@@ -487,11 +793,25 @@ def analyze_post_with_fallback(
                 {"role": "system", "content": prompt.strip()},
                 {"role": "user", "content": user_message}
             ],
-            "temperature": 0.1
+            "temperature": 0.1,
+            "max_tokens": 2000,
+            "stream": False
         }
 
         try:
             response = requests.post(endpoint, headers=headers, json=payload, timeout=timeout)
+
+            # Nếu model không hỗ trợ role 'system' (ví dụ o1/o3 hoặc một số proxy), thử lại với role 'user'
+            if response.status_code == 400 and any(kw in response.text.lower() for kw in ["system", "developer", "messages[0].role", "unsupported value"]):
+                fallback_payload = {
+                    "model": current_model,
+                    "messages": [
+                        {"role": "user", "content": f"{prompt.strip()}\n\n{user_message}"}
+                    ],
+                    "max_tokens": 2000,
+                    "stream": False
+                }
+                response = requests.post(endpoint, headers=headers, json=fallback_payload, timeout=timeout)
 
             if response.status_code != 200:
                 err_text = f"HTTP {response.status_code}: {response.text[:180]}"
@@ -499,15 +819,13 @@ def analyze_post_with_fallback(
                 errors.append(f"Model '{current_model}': {err_text}")
                 continue
 
-            res_json = response.json()
-            choices = res_json.get("choices") or []
-            if not choices:
-                err_text = "AI không trả về choices"
-                log(f"  ⚠️ Model '{current_model}': {err_text}")
+            res_json, raw_content, _ = extract_chat_completion_response(response)
+            if not raw_content and not res_json:
+                err_text = f"API không trả về nội dung chat hợp lệ: {str(getattr(response, 'text', ''))[:100]}"
+                log(f"  ⚠️ Model '{current_model}' trả về lỗi: {err_text}")
                 errors.append(f"Model '{current_model}': {err_text}")
                 continue
 
-            raw_content = choices[0].get("message", {}).get("content", "")
             parsed_data = parse_json_from_response(raw_content)
 
             if not parsed_data:

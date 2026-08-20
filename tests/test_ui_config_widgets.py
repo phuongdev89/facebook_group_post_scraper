@@ -74,6 +74,9 @@ class TestUIConfigWidgets(unittest.TestCase):
 
         if hasattr(window, 'telegram_dispatcher') and window.telegram_dispatcher:
             window.telegram_dispatcher.stop()
+        if hasattr(window, 'ai_dispatcher') and window.ai_dispatcher:
+            window.ai_dispatcher.stop()
+        window.close()
 
     def test_gemini_model_selector_widget(self):
         from src.ui.components.gemini_model_selector import GeminiModelSelectorWidget
@@ -120,13 +123,77 @@ class TestUIConfigWidgets(unittest.TestCase):
         self.assertFalse(window.ai_base_url_input.isHidden())
         self.assertTrue(window.gemini_model_selector.isHidden())
         self.assertFalse(window.openai_models_container.isHidden())
+        self.assertIsNotNone(window.btn_fetch_openai_models)
+        self.assertEqual(window.btn_fetch_openai_models.text(), "🔄 Tải Models từ API")
+        
         # Default empty base_url resolves to OpenAI
         window.ai_base_url_input.clear()
         self.assertEqual(window.get_resolved_ai_base_url(), "https://api.openai.com/v1")
+        if hasattr(window, 'telegram_dispatcher') and window.telegram_dispatcher:
+            window.telegram_dispatcher.stop()
+        if hasattr(window, 'ai_dispatcher') and window.ai_dispatcher:
+            window.ai_dispatcher.stop()
+    def test_openai_model_selector_widget(self):
+        from src.ui.components.openai_model_selector import OpenAIModelSelectorWidget
+        widget = OpenAIModelSelectorWidget()
+
+        # Defaults should include gpt-4o-mini and gpt-4o
+        active = widget.get_active_models()
+        self.assertIn("gpt-4o-mini", active)
+        self.assertIn("gpt-4o", active)
+
+        # Test alphabetical sorting with custom model added
+        widget.add_model("claude-3-5-sonnet")
+        widget.add_model("deepseek-reasoner") # thinking model
+        widget.add_model("anthropic-claude-3")
+
+        all_names = [m["name"] for m in widget.models_list]
+        # Check that deepseek-reasoner is at the end (group thinking) and others are sorted A-Z
+        non_think = [m["name"] for m in widget.models_list if not m.get("is_thinking")]
+        self.assertEqual(non_think, sorted(non_think, key=lambda s: s.lower()))
+
+        # Active models should not include thinking model
+        active_after = widget.get_active_models()
+        self.assertNotIn("deepseek-reasoner", active_after)
+        self.assertIn("claude-3-5-sonnet", active_after)
+
+        # Test selecting/unselecting
+        widget.set_selected_models(["gpt-4o-mini"])
+        self.assertEqual(widget.get_active_models(), ["gpt-4o-mini"])
+
+        # Test select all
+        widget.toggle_select_all()
+        self.assertGreaterEqual(len(widget.get_active_models()), 3)
+
+        # Test update with live test results (marking model as invalid/error)
+        test_results = [
+            {"name": "gpt-4o-mini", "is_valid": True, "is_thinking": False, "status": "ok", "message": "OK"},
+            {"name": "claude-3-5-sonnet", "is_valid": False, "is_thinking": False, "status": "error", "message": "HTTP 404"}
+        ]
+        widget.update_with_test_results(test_results)
+        self.assertNotIn("claude-3-5-sonnet", widget.get_active_models())
+        self.assertIn("gpt-4o-mini", widget.get_active_models())
+
+        # Check that NO HTML <span> or <s> tags are present in any checkbox text
+        for name, cb in widget.checkboxes.items():
+            self.assertNotIn("<span", cb.text())
+        # Test untested state (yellow/amber color)
+        widget.add_model("custom-untested-model")
+        untested_cb = widget.checkboxes["custom-untested-model"]
+        self.assertIn("#D97706", untested_cb.styleSheet())
+        self.assertEqual(untested_cb.text(), "custom-untested-model")
+
+        # Test Clear All Models
+        self.assertIsNotNone(widget.btn_clear_all)
+        self.assertEqual(widget.btn_clear_all.text(), "🗑 Xóa tất cả")
+        widget.clear_all_models()
+        self.assertEqual(len(widget.models_list), 0)
+        self.assertEqual(len(widget.checkboxes), 0)
 
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 
