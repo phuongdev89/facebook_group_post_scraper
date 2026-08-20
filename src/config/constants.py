@@ -5,14 +5,19 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 
 def get_app_version() -> str:
     """Lấy phiên bản hiện tại của ứng dụng từ file .version"""
-    possible_paths = [
-        os.path.join(PROJECT_ROOT, ".version"),
-        os.path.join(getattr(sys, '_MEIPASS', ''), ".version") if hasattr(sys, '_MEIPASS') else "",
-        os.path.join(os.path.dirname(sys.executable), ".version") if getattr(sys, 'frozen', False) else "",
-        os.path.abspath(".version"),
-    ]
-    for p in possible_paths:
-        if p and os.path.exists(p):
+    base_dirs = []
+    if hasattr(sys, '_MEIPASS') and sys._MEIPASS:
+        base_dirs.append(sys._MEIPASS)
+    if getattr(sys, 'frozen', False) and sys.executable:
+        exe_dir = os.path.dirname(sys.executable)
+        base_dirs.append(exe_dir)
+        base_dirs.append(os.path.join(exe_dir, "_internal"))
+    base_dirs.append(PROJECT_ROOT)
+    base_dirs.append(os.path.abspath("."))
+
+    for b in base_dirs:
+        p = os.path.join(b, ".version")
+        if os.path.exists(p):
             try:
                 with open(p, "r", encoding="utf-8") as f:
                     ver = f.read().strip()
@@ -20,7 +25,8 @@ def get_app_version() -> str:
                         return ver
             except Exception:
                 pass
-    return "1.0.2"
+
+    return "1.0.3"
 
 APP_VERSION = get_app_version()
 

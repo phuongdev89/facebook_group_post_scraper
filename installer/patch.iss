@@ -56,6 +56,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Files]
 ; Ghi đè file exe khởi chạy
 Source: "..\dist\FacebookNotification\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+; Ghi đè file version
+Source: "..\.version"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\.version"; DestDir: "{app}\_internal"; Flags: ignoreversion
 ; Ghi đè toàn bộ mã nguồn và bytecode của ứng dụng (src)
 Source: "..\dist\FacebookNotification\_internal\src\*"; DestDir: "{app}\_internal\src"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; Ghi đè tài liệu hướng dẫn sử dụng mới nhất

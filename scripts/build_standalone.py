@@ -9,6 +9,12 @@ import sys
 import subprocess
 import shutil
 
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SPEC_FILE = os.path.join(PROJECT_ROOT, "facebook_notification.spec")
 DIST_DIR = os.path.join(PROJECT_ROOT, "dist")
@@ -57,6 +63,15 @@ def build():
 
     exe_path = os.path.join(OUTPUT_APP_DIR, "FacebookNotification.exe")
     if os.path.exists(exe_path):
+        # Ensure .version exists in both root and _internal
+        version_file = os.path.join(PROJECT_ROOT, ".version")
+        internal_dir = os.path.join(OUTPUT_APP_DIR, "_internal")
+
+        if os.path.exists(version_file):
+            shutil.copy2(version_file, os.path.join(OUTPUT_APP_DIR, ".version"))
+            if os.path.exists(internal_dir):
+                shutil.copy2(version_file, os.path.join(internal_dir, ".version"))
+
         print("\n" + "=" * 60)
         print("✅ [Build] ĐÓNG GÓI THÀNH CÔNG!")
         print(f"📍 Thư mục ứng dụng: {OUTPUT_APP_DIR}")

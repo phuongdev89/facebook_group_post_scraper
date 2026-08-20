@@ -35,7 +35,7 @@ def check_github_update(
     timeout: int = 10
 ) -> tuple[bool, dict, str]:
     """
-    Kiểm tra phiên bản mới nhất từ GitHub Releases API hoặc fallback qua file version.json trên nhánh main.
+    Kiểm tra phiên bản mới nhất từ GitHub Releases API hoặc fallback qua file .version trên nhánh main.
     Không cần máy chủ riêng!
     Trả về: (has_update: bool, update_info: dict, message: str)
     """
@@ -108,34 +108,28 @@ def check_github_update(
     except Exception:
         pass
 
-    # 2. Fallback qua raw version.json trên nhánh main
-    raw_json_url = f"https://raw.githubusercontent.com/{clean_repo}/main/version.json"
+    # 2. Fallback qua raw .version trên nhánh main
+    raw_version_url = f"https://raw.githubusercontent.com/{clean_repo}/main/.version"
     try:
-        resp = requests.get(raw_json_url, headers=headers, timeout=timeout)
+        resp = requests.get(raw_version_url, headers=headers, timeout=timeout)
         if resp.status_code == 200:
-            data = resp.json()
-            latest_ver = str(data.get("version", "")).lstrip("vV").strip() or cur_ver
-            changelog = data.get("changelog") or data.get("release_notes") or "Không có ghi chú."
-            download_url = data.get("download_url") or f"https://github.com/{clean_repo}/releases/latest"
-            release_url = data.get("release_url") or f"https://github.com/{clean_repo}/releases"
-            published_at = data.get("published_at") or data.get("release_date") or ""
+            latest_ver = resp.text.strip().lstrip("vV")
+            if latest_ver:
+                has_update = is_newer_version(latest_ver, cur_ver)
+                update_info.update({
+                    "latest_version": latest_ver,
+                    "release_name": f"Phiên bản v{latest_ver}",
+                    "changelog": "Vui lòng xem chi tiết cập nhật tại trang GitHub Releases.",
+                    "download_url": f"https://github.com/{clean_repo}/releases/latest",
+                    "release_url": f"https://github.com/{clean_repo}/releases/latest",
+                    "source": "raw_version"
+                })
 
-            has_update = is_newer_version(latest_ver, cur_ver)
-            update_info.update({
-                "latest_version": latest_ver,
-                "release_name": f"Phiên bản v{latest_ver}",
-                "changelog": changelog,
-                "download_url": download_url,
-                "release_url": release_url,
-                "published_at": published_at,
-                "source": "version_json"
-            })
-
-            if has_update:
-                msg = f"Đã có phiên bản mới v{latest_ver} (Hiện tại: v{cur_ver})"
-            else:
-                msg = f"Bạn đang sử dụng phiên bản mới nhất (v{cur_ver})"
-            return has_update, update_info, msg
+                if has_update:
+                    msg = f"Đã có phiên bản mới v{latest_ver} (Hiện tại: v{cur_ver})"
+                else:
+                    msg = f"Bạn đang sử dụng phiên bản mới nhất (v{cur_ver})"
+                return has_update, update_info, msg
 
     except Exception as e:
         return False, update_info, f"Lỗi kiểm tra cập nhật: {str(e)}"

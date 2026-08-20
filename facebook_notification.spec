@@ -26,6 +26,9 @@ datas = [
     ('guides', 'guides'),
 ]
 
+# Include version file
+if os.path.exists('.version'):
+    datas.append(('.version', '.'))
 
 # Optional certifi bundle
 try:

@@ -1,311 +1,147 @@
-# Facebook Scraper 🕷️
+# Facebook Notification & Scraper AI 🕷️
 
-A powerful Python-based Facebook scraping tool with a PyQt6 GUI interface for extracting posts, comments, and images from Facebook pages, groups, and individual posts without using the official Facebook API.
+**[🇻🇳 Tiếng Việt](README.md) | [🇬🇧 English](README.en.md)**
 
-## 🎯 Key Highlights
+Ứng dụng chuyên nghiệp thu thập (cào) bài viết, bình luận từ các hội nhóm Facebook, tự động phân tích và sàng lọc nội dung bằng AI (Google Gemini & OpenAI / OpenRouter / DeepSeek / Ollama), sau đó gửi cảnh báo tức thì qua Telegram Bot.
 
-- **Pure Requests-Based**: No browser automation or Selenium required - uses direct HTTP requests to Facebook's GraphQL API
-- **Lightweight & Fast**: Minimal dependencies, efficient memory usage, and faster execution
-- **No Browser Intervention**: Operates entirely through HTTP requests without spawning browser instances
-- **Headless Operation**: Perfect for servers and automated workflows
+---
 
-## ✨ Features
+## 🎯 Điểm Nổi Bật
 
-- **Multiple Scraping Modes**:
-  - 📄 Single post scraping (text, images, comments, and replies)
-  - 👤 Page/Profile posts scraping
-  - 👥 Facebook Group posts scraping
-  - 🖼️ High-quality image extraction
-  
-- **Rich Data Extraction**:
-  - Post content (text, reactions, shares)
-  - Comments and nested replies
-  - User information (names, IDs, profile links)
-  - Media content (images with multiple resolution support)
-  - Timestamps and engagement metrics
+- **Thuần HTTP Requests**: Hoạt động hoàn toàn qua Facebook GraphQL API và giao thức HTTP, không cần mở trình duyệt giả lập (Selenium/Playwright/Puppeteer), tiết kiệm tối đa RAM và CPU.
+- **Phân Tích AI Đa Nền Tảng**:
+  - Hỗ trợ cả **Google Gemini API** và toàn bộ các nhà cung cấp tương thích **OpenAI** (OpenAI chính hãng, OpenRouter, DeepSeek, Groq, Together AI, Ollama, vLLM, LM Studio).
+  - Tự động luân phiên (Fallback / Rotation) giữa các model để tránh lỗi nghẽn hạn mức (Rate Limit) và tối ưu độ trễ.
+  - Bộ bóc tách JSON siêu bền bỉ: Tự động lọc khối suy nghĩ (`<think>`), sửa dấu phẩy thừa, tự sửa cú pháp JSON thiếu ngoặc.
+- **Cảnh Báo Telegram Tức Thì**: Tích hợp luồng Dispatcher nền quét cơ sở dữ liệu và tự động bắn thông báo kèm định dạng HTML chuyên nghiệp khi AI đánh giá bài viết khớp từ khóa / nhu cầu.
+- **Quản Lý Nhóm Thông Minh**:
+  - Tự động cào danh sách toàn bộ các nhóm Facebook mà tài khoản đã tham gia thông qua Cookie (hỗ trợ dạng chuỗi thô, lệnh cURL hoặc JSON).
+  - Bộ lọc tìm kiếm nhóm theo thời gian thực, hỗ trợ gõ tiếng Việt không dấu.
+- **Cơ Sở Dữ Liệu SQLite Tối Ưu**: Lưu trữ dữ liệu an toàn tại thư mục người dùng (`~/.facebook-notification/`), bật chế độ ghi song song PRAGMA WAL, tự động khử trùng lặp và tự động dọn dẹp log quá 1 ngày.
+- **Tự Động Cập Nhật (OTA Updates)**: Kiểm tra và tải bản cập nhật mới nhất trực tiếp từ GitHub Releases hoặc máy chủ file tĩnh.
 
-- **User-Friendly GUI**:
-  - PyQt6-based desktop interface
-  - Real-time logging and progress tracking
-  - Tabbed interface for different scraping types
-  - Easy configuration and export
+---
 
-- **Robust Architecture**:
-  - Pure `requests` library implementation (no browser/Selenium)
-  - Automatic retry mechanism with exponential backoff
-  - Proxy support for privacy and rate limiting
-  - Pagination handling for large data sets
-  - JSON export for easy data processing
-  - Direct GraphQL API communication
+## 🚀 Cài Đặt & Sử Dụng
 
-## 🆕 Tính Năng Mới (v1.0.2)
+### 1. Dành cho người dùng (Chạy trực tiếp trên Windows)
 
-- **🌐 Tự Động Lấy Danh Sách Nhóm Đã Tham Gia Qua Cookie**:
-  - Hỗ trợ đa định dạng Cookie đầu vào: Chuỗi Cookie thô (`c_user=...; xs=...`), lệnh cURL copy từ DevTools (`curl ... -b ...`), hoặc mảng JSON.
-  - Tự động trích xuất toàn bộ các nhóm Facebook mà tài khoản đã tham gia (mbasic phân trang + desktop script parsing).
-  - Tự động khử trùng lặp và sắp xếp theo thứ tự bảng chữ cái A-Z.
-- **🔍 Bộ Lọc & Tìm Kiếm Nhóm Thời Gian Thực (Real-time Filter)**:
-  - Lọc tức thì theo tên nhóm, URL, hoặc ID nhóm.
-  - Hỗ trợ tiếng Việt không dấu (gõ `lap trinh` tự động khớp `Lập Trình Python`).
-  - Tích hợp thanh tìm kiếm ngay trong hộp thoại chọn nhóm và cửa sổ Phóng to quản lý nhóm (`GroupManagerDialog`).
-- **📋 Hộp Thoại Chọn Nhóm (GroupSelectDialog)**:
-  - Checkbox tùy biến sắc nét, độ tương phản cao (nền xanh biển `#2563EB` + dấu tích trắng `✓`).
-  - Các công cụ chọn nhanh: **Chọn tất cả**, **Bỏ chọn**, **Chọn nhóm đang lọc**, **Đảo chọn**.
-  - Chế độ nhập linh hoạt: Thêm vào danh sách hiện tại (giữ nhóm cũ, khử trùng link) hoặc Thay thế toàn bộ danh sách.
+Ứng dụng hỗ trợ chạy độc lập trên Windows mà **không cần cài đặt môi trường Python**:
 
-## 🎯 Key Highlights
-
-Ứng dụng hỗ trợ 2 hình thức cài đặt chạy độc lập trên Windows mà **hoàn toàn không cần cài đặt môi trường Python**:
-
-### Cách 1: Bộ cài đặt Windows Setup (Khuyến nghị)
-1. Tải file **`FacebookNotificationSetup.exe`** từ mục Releases / Bộ cài đặt.
-2. Nhấp đúp để tiến hành cài đặt theo wizard.
-3. Ứng dụng sẽ tự động tạo biểu tượng trên Desktop và Start Menu.
-4. Nhấp vào biểu tượng để khởi chạy ngay.
-
-### Cách 2: Gói Portable ZIP (Chạy ngay không cần cài đặt)
-1. Tải file **`FacebookNotification-v1.0.0-windows-x64-portable.zip`**.
-2. Giải nén vào một thư mục bất kỳ.
-3. Chạy file **`FacebookNotification.exe`**.
+- **Bộ cài đặt Windows Setup (Khuyến nghị)**:
+  1. Tải file `FacebookNotification_Setup_vX.X.X.exe` từ mục Releases.
+  2. Nhấp đúp để cài đặt theo hướng dẫn. Ứng dụng sẽ tự tạo biểu tượng trên Desktop và Start Menu.
+- **Gói Portable ZIP (Chạy ngay)**:
+  1. Tải file `FacebookNotification-vX.X.X-windows-x64-portable.zip`.
+  2. Giải nén vào thư mục bất kỳ và nhấp đúp file `FacebookNotification.exe`.
 
 > [!NOTE]
-> **Vị trí lưu trữ dữ liệu:** Toàn bộ cơ sở dữ liệu SQLite (`facebook_scraper.sqlite`), phiên đăng nhập và profile duyệt web được lưu tự động và an toàn tại thư mục:
+> **Vị trí lưu trữ dữ liệu:** Toàn bộ cơ sở dữ liệu SQLite (`facebook_scraper.sqlite`), cấu hình AI, token và lịch sử được lưu trữ tại thư mục:  
 > `~/.facebook-notification/` (tương đương `C:\Users\<Tên_User>\.facebook-notification`).
 
 ---
 
-## 🛠️ Hướng Dẫn Đóng Gói Ứng Dụng (Dành Cho Developer)
+### 2. Dành cho lập trình viên (Chạy từ mã nguồn)
 
-### 1. Đóng gói Standalone Executable (PyInstaller)
-Chạy script đóng gói tự động:
-```bash
-python scripts/build_standalone.py
-```
-Sau khi hoàn tất, thư mục độc lập chứa đầy đủ runtime và executable sẽ nằm tại `dist/FacebookNotification/`.
+#### Yêu cầu hệ thống:
+- Python 3.9 trở lên (đã kiểm thử tương thích tốt trên Python 3.11 - 3.13)
+- Hệ điều hành: Windows 10 / 11 (64-bit)
 
-### 2. Tạo gói Portable ZIP
-```bash
-python scripts/create_portable_zip.py
-```
-File nén sẽ được xuất ra `dist/FacebookNotification-v1.0.0-windows-x64-portable.zip`.
+#### Các bước cài đặt:
 
-### 3. Biên dịch Bộ cài đặt Setup .exe (Inno Setup)
-Mở file `installer/setup.iss` bằng phần mềm [Inno Setup Compiler](https://jrsoftware.org/isdl.php) và nhấn **Compile** (hoặc chạy lệnh `ISCC.exe installer/setup.iss`). File cài đặt sẽ được tạo tại `installer/Output/FacebookNotificationSetup.exe`.
+1. **Clone repository về máy**:
+   ```bash
+   git clone https://gitlab.com/phuongdev89/facebook_post_comment_scraper.git
+   cd facebook_post_comment_scraper
+   ```
+
+2. **Cài đặt thư viện phụ thuộc**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Khởi chạy giao diện người dùng (PyQt6)**:
+   ```bash
+   python run_gui.py
+   ```
+
+4. **Chạy kiểm thử tự động (Unit Tests)**:
+   ```bash
+   pytest
+   ```
 
 ---
 
-## 🚀 Cài Đặt Từ Mã Nguồn (Development Mode)
+## 🛠️ Đóng Gói Ứng Dụng (Build & Packaging)
 
-### Prerequisites
+Dự án cung cấp sẵn các công cụ đóng gói chuyên dụng tại thư mục gốc và thư mục `scripts/`:
 
-- Python 3.8 hoặc cao hơn
-- Hệ điều hành Windows / macOS / Linux
+| Kịch bản | Lệnh thực thi | Kết quả đầu ra |
+| :--- | :--- | :--- |
+| **Bản Standalone (PyInstaller)** | `python scripts/build_standalone.py` | Thư mục chạy độc lập `dist/FacebookNotification/` |
+| **Gói Portable ZIP** | `python scripts/create_portable_zip.py` | File nén `dist/FacebookNotification-vX.X.X-windows-x64-portable.zip` |
+| **Bản Patch siêu nhẹ (.zip & .exe)** | `build_patch.bat` *(hoặc `bash build_patch.sh`)* | File cập nhật đè siêu nhẹ (~14MB) `dist/FacebookNotification_Patch_vX.X.X.*` |
+| **Bộ cài đặt Setup (.exe)** | `build_installer.bat` *(hoặc `bash build_installer.sh`)* | Bộ cài đặt Inno Setup `dist/FacebookNotification_Setup_vX.X.X.exe` |
 
-### Cài đặt môi trường phát triển:
+---
 
-1. Clone repository:
-```bash
-git clone https://gitlab.com/phuongdev89/facebook_post_comment_scraper.git
-cd facebook_post_comment_scraper
-```
-
-2. Cài đặt các thư viện phụ thuộc:
-```bash
-pip install -r requirements.txt
-```
-
-
-## 📖 Usage
-
-### GUI Mode (Khởi chạy Giao diện)
-
-Khởi chạy ứng dụng đồ họa PyQt6 (4 Tab hoàn chỉnh):
-```bash
-python run_gui.py
-```
-*(Hoặc dùng `python facebook_notification_ui.py` để tương thích ngược)*
-
-Giao diện cung cấp 4 tab chức năng chuyên nghiệp:
-1. **📁 Group Posts**: Quét bài viết nhóm Facebook, trích xuất bình luận, theo dõi tiến trình và log thời gian thực
-2. **📜 Dữ liệu cào**: Xem toàn bộ bài viết đã lưu vào SQLite, phân trang, bộ lọc từng cột và dropdown nhóm Autocomplete
-3. **🤖 Lịch sử phân tích**: Xem danh sách các bài viết được AI đánh giá khớp tin bán máy (`should_notify=True`), lọc nâng cao, mở bài viết và xóa bản ghi
-4. **⚙️ Cấu hình**: Thiết lập thông báo Telegram Bot và cấu hình AI phân tích Đa Model Tagging (Random Fallback timeout 20s, hỗ trợ Hot-reload thời gian thực)
-
-### CLI Mode
-
-```python
-from src.utils.helpers import extract_post_id_from_url, extract_group_id_from_url
-from src.core.group_scraper import fetch_posts as fetch_group_posts
-from src.database.repository import save_or_update_post
-
-# Cào dữ liệu theo nhóm
-posts = fetch_group_posts(group_id="123456789", target_count=10)
-```
-
-## 📁 Cấu trúc Dự án Chuẩn (Project Architecture)
+## 📁 Cấu Trúc Dự Án
 
 ```
 facebook_post_comment_scraper/
-├── src/                                  # Mã nguồn chính của dự án
-│   ├── config/                           # Cấu hình & Hằng số
-│   │   ├── constants.py                  # Endpoints, regex, doc_ids, headers
-│   │   └── default_prompts.py            # DEFAULT_AI_PROMPT & DEFAULT_BUYER_AI_PROMPT
-│   ├── core/                             # Lõi nghiệp vụ (Scrapers, AI, Telegram, Proxy)
-│   │   ├── ai_analyzer.py                # Phân tích AI đa model & fallback
-│   │   ├── comment_scraper.py            # Cào bình luận và phản hồi
-│   │   ├── group_scraper.py              # Cào bài viết nhóm Facebook
-│   │   ├── page_scraper.py               # Cào bài viết Page/Profile Facebook
-│   │   ├── media_scraper.py              # Trích xuất ảnh & media
-│   │   ├── proxy_utils.py                # Quản lý proxy xoay vòng / tĩnh
-│   │   └── telegram_notifier.py          # Gửi cảnh báo & báo cáo Telegram
-│   ├── database/                         # Tầng cơ sở dữ liệu SQLite
-│   │   ├── connection.py                 # SQLite connection contextmanager & PRAGMA WAL
-│   │   ├── schema.py                     # Định nghĩa schema bảng & index
-│   │   └── repository.py                 # Các hàm CRUD thao tác dữ liệu
-│   ├── ui/                               # Giao diện người dùng PyQt6
-│   │   ├── app.py                        # MainWindow & điều phối ứng dụng
-│   │   ├── components/                   # Custom UI Widgets (TagWidget, GroupListWidget)
-│   │   ├── dialogs/                      # Popup modals (PostDetailDialog, CookieDialog)
-│   │   └── workers/                      # Các luồng xử lý ngầm (AI Worker, Scraper Worker)
-│   └── utils/                            # Tiện ích bổ trợ (Cookie parser, URL extractor)
-├── tests/                                # Bộ kiểm thử tự động (Unit & Integration tests)
-│   ├── test_database.py                  # Test SQLite CRUD, index, delete
-│   ├── test_ai_analyzer.py               # Test AI JSON bundle, fallback
-│   ├── test_telegram.py                  # Test Telegram formatting & alerts
-│   └── test_workers.py                   # Test worker concurrency & hot-reload
-├── run_gui.py                            # Entry point khởi chạy GUI nhanh: python run_gui.py
-├── main.py                               # CLI entry point & backward wrapper
-├── requirements.txt                      # Danh sách thư viện phụ thuộc
-├── .gitignore                            # Git ignore hoàn chỉnh
-└── README.md                             # Tài liệu hướng dẫn sử dụng
+├── src/                                  # Mã nguồn chính của ứng dụng
+│   ├── config/                           # Cấu hình hệ thống, phiên bản & prompt mặc định
+│   │   ├── constants.py                  # Endpoints, regex, hằng số và bộ nạp phiên bản
+│   │   └── default_prompts.py            # Prompt AI mẫu cho người mua và người bán
+│   ├── core/                             # Lõi nghiệp vụ (Scraper, AI, Telegram, Proxy, Updater)
+│   │   ├── ai_analyzer.py                # Phân tích bài viết bằng Gemini & OpenAI-compatible
+│   │   ├── comment_scraper.py            # Cào bình luận và các phản hồi lồng nhau
+│   │   ├── group_scraper.py              # Cào bài viết từ nhóm Facebook qua GraphQL
+│   │   ├── page_scraper.py               # Cào bài viết từ Fanpage / Profile
+│   │   ├── media_scraper.py              # Trích xuất hình ảnh chất lượng cao
+│   │   ├── proxy_utils.py                # Quản lý và kiểm tra danh sách Proxy
+│   │   ├── telegram_notifier.py          # Gửi tin nhắn và cảnh báo qua Telegram Bot
+│   │   └── updater.py                    # Kiểm tra và tải bản cập nhật OTA tự động
+│   ├── database/                         # Tầng lưu trữ cơ sở dữ liệu SQLite
+│   │   ├── connection.py                 # Quản lý kết nối SQLite & chế độ WAL
+│   │   ├── schema.py                     # Cấu trúc bảng, cột và chỉ mục (indexes)
+│   │   └── repository.py                 # Thao tác dữ liệu (CRUD, khử trùng lặp, nhật ký log)
+│   ├── ui/                               # Giao diện đồ họa PyQt6
+│   │   ├── app.py                        # Cửa sổ chính (MainWindow) và điều hướng 4 Tab
+│   │   ├── components/                   # Các Widget tùy biến (Gemini/OpenAI Model Selector, TagWidget...)
+│   │   ├── dialogs/                      # Hộp thoại popup (Cookie, GroupSelect, PromptGuide, Update...)
+│   │   └── workers/                      # Các luồng chạy ngầm QThread (Scraper, AI, Telegram, TestModel...)
+│   └── utils/                            # Tiện ích bổ trợ (Xử lý cookie, bóc tách ID, định dạng ngày giờ)
+├── guides/                               # Tài liệu hướng dẫn sử dụng tương tác (HTML)
+│   └── index.html                        # Giao diện Web hướng dẫn sử dụng chi tiết
+├── installer/                            # Kịch bản Inno Setup để tạo bộ cài đặt Windows
+│   ├── setup.iss                         # Kịch bản đóng gói bộ cài đặt chính (Full Setup)
+│   └── patch.iss                         # Kịch bản đóng gói bản cập nhật vá lỗi (Lightweight Patch)
+├── scripts/                              # Các kịch bản Python hỗ trợ đóng gói và phân phối
+│   ├── build_standalone.py               # Đóng gói PyInstaller kèm file metadata phiên bản
+│   ├── create_portable_zip.py            # Nén thư mục độc lập thành file Portable ZIP
+│   └── create_patch_zip.py               # Tạo file ZIP bản vá siêu nhẹ
+├── tests/                                # Bộ bài kiểm thử tự động (Unit Tests)
+├── build_installer.bat / .sh             # Lệnh 1-click tạo bộ cài đặt Full Setup
+├── build_patch.bat / .sh                 # Lệnh 1-click tạo bản cập nhật Patch
+├── facebook_notification.spec            # Cấu hình đóng gói PyInstaller
+├── run_gui.py                            # Điểm khởi chạy ứng dụng chính
+├── .version                              # File định danh phiên bản duy nhất của ứng dụng
+├── CHANGELOG.md                          # Chi tiết lịch sử thay đổi qua các phiên bản
+├── README.en.md                          # Tài liệu tiếng Anh (English Documentation)
+└── README.md                             # Tài liệu giới thiệu tổng quan dự án
 ```
-
-## 📊 Output Format
-
-Data is saved in JSON format with the following structure:
-
-### Post Data
-```json
-{
-  "post_id": "123456789",
-  "author": "User Name",
-  "author_id": "100001234567890",
-  "content": "Post text content",
-  "timestamp": "2024-01-01T12:00:00",
-  "reactions": 150,
-  "shares": 25,
-  "images": ["url1.jpg", "url2.jpg"],
-  "comments_count": 45
-}
-```
-
-### Comment Data
-```json
-{
-  "comment_id": "987654321",
-  "author": "Commenter Name",
-  "author_id": "100009876543210",
-  "text": "Comment text",
-  "timestamp": "2024-01-01T12:30:00",
-  "replies": [...]
-}
-```
-
-## ⚠️ Important Notes
-
-### Legal & Ethical Considerations
-
-- **Terms of Service**: This tool may violate Facebook's Terms of Service. Use at your own risk.
-- **Rate Limiting**: Implement appropriate delays between requests to avoid detection.
-- **Privacy**: Respect user privacy and data protection laws (GDPR, CCPA, etc.).
-- **Personal Use**: This tool is intended for educational and research purposes only.
-
-### Technical Limitations
-
-- **Doc IDs**: Facebook's GraphQL document IDs change frequently. You'll need to update them periodically.
-- **Authentication**: Requires valid Facebook session tokens that expire.
-- **Rate Limits**: Excessive requests may result in temporary blocks or account restrictions.
-- **Private Content**: Cannot access content that requires authentication beyond what's provided.
-
-## 🛠️ Troubleshooting
-
-### Common Issues
-
-**1. "Failed after 5 attempts" error**
-- Check your internet connection
-- Verify proxy settings
-- Update DOC_ID values
-- Ensure session tokens are valid
-
-**2. No data returned**
-- Verify the URL/ID is correct
-- Check if content is publicly accessible
-- Update authentication headers
-
-**3. GUI not launching**
-- Ensure PyQt6 is properly installed: `pip install --upgrade PyQt6`
-- Check Python version compatibility
-
-### Debug Mode
-
-Enable verbose logging by modifying the scripts:
-```python
-import logging
-logging.basicConfig(level=logging.DEBUG)
-```
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit pull requests or open issues for bugs and feature requests.
-
-### Development Setup
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## 📝 License
-
-This project is provided for educational purposes only. Users are responsible for ensuring compliance with Facebook's Terms of Service and applicable laws.
-
-## 🙏 Acknowledgments
-
-- Built with Python and PyQt6
-- Uses pure `requests` library for HTTP communication
-- Direct GraphQL API integration (unofficial)
-- No browser automation required
-- Inspired by the need for lightweight, efficient data research tools
-
-## 📞 Support
-
-For issues, questions, or suggestions:
-- Open an issue on GitHub
-- Check existing issues for solutions
-- Review the troubleshooting section
-
-## ⚡ Roadmap
-
-**Completed:**
-- [x] Enhanced comment count detection with 6 extraction paths
-- [x] Advanced Story node discovery in nested structures
-- [x] Complete album scraping (up to 50 images per post)
-- [x] Post deduplication for interrupted sessions
-- [x] Automatic retry logic for transient API errors
-- [x] Robust pagination with proper error handling
-- [x] Reel/video filtering
-- [x] Configurable comment threshold filtering
-
-**Upcoming:**
-- [ ] Add support for Facebook Stories
-- [ ] Implement video download functionality
-- [ ] Add data export to CSV/Excel
-- [ ] Improve authentication flow
-- [ ] Add scheduling and automation features
-- [ ] Create web-based interface
-- [ ] Add data analysis and visualization tools
 
 ---
 
-**Disclaimer**: This tool is not affiliated with or endorsed by Facebook/Meta. Use responsibly and ethically.
+## 📚 Tài Liệu Hướng Dẫn & Nhật Ký Thay Đổi
+
+- 📖 **Hướng Dẫn Sử Dụng Chi Tiết**: Vui lòng tham khảo tài liệu đầy đủ tại [`guides/index.html`](guides/index.html) *(bao gồm hướng dẫn lấy Cookie Facebook, tạo Telegram Bot, cấu hình API Key AI và mẹo sử dụng hiệu quả)*.
+- 📝 **Nhật Ký Cập Nhật (Changelog)**: Xem chi tiết toàn bộ tính năng mới, cải tiến và bản sửa lỗi qua từng phiên bản tại [`CHANGELOG.md`](CHANGELOG.md).
+
+---
+
+## ⚠️ Tuyên Bố Từ Chối Trách Nhiệm (Disclaimer)
+
+- Dự án này được phát triển hoàn toàn vì mục đích **học tập, nghiên cứu kỹ thuật và tự động hóa quy trình cá nhân**.
+- Tác giả không chịu trách nhiệm đối với bất kỳ hành vi sử dụng sai mục đích hoặc vi phạm Điều khoản Dịch vụ của Facebook / Meta. Người dùng tự chịu trách nhiệm khi triển khai và sử dụng ứng dụng.

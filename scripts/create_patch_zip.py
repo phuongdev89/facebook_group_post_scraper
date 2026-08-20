@@ -47,14 +47,19 @@ def create_patch_zip():
         # 1. Add exe
         zipf.write(exe_file, "FacebookNotification.exe")
 
-        # 2. Add _internal/src
+        # 2. Add .version to root and _internal
+        if os.path.exists(VERSION_FILE):
+            zipf.write(VERSION_FILE, ".version")
+            zipf.write(VERSION_FILE, os.path.join("_internal", ".version"))
+
+        # 3. Add _internal/src
         for root, dirs, files in os.walk(src_dir):
             for file in files:
                 file_path = os.path.join(root, file)
                 rel_path = os.path.relpath(file_path, APP_DIR)
                 zipf.write(file_path, rel_path)
 
-        # 3. Add guides
+        # 4. Add guides
         if os.path.exists(guides_dir):
             for root, dirs, files in os.walk(guides_dir):
                 for file in files:

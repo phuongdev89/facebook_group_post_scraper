@@ -53,6 +53,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "..\dist\FacebookNotification\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\FacebookNotification\_internal\*"; DestDir: "{app}\_internal"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\guides\*"; DestDir: "{app}\guides"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\.version"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\.version"; DestDir: "{app}\_internal"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

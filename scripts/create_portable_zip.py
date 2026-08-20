@@ -9,6 +9,12 @@ import sys
 import shutil
 import zipfile
 
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIST_DIR = os.path.join(PROJECT_ROOT, "dist")
 APP_DIR = os.path.join(DIST_DIR, "FacebookNotification")
@@ -30,6 +36,13 @@ def create_portable_zip():
     if not os.path.exists(APP_DIR):
         print(f"❌ [Zip] Không tìm thấy thư mục {APP_DIR}. Hãy chạy scripts/build_standalone.py trước.")
         sys.exit(1)
+
+    # Ensure .version exists in APP_DIR and _internal
+    if os.path.exists(VERSION_FILE):
+        shutil.copy2(VERSION_FILE, os.path.join(APP_DIR, ".version"))
+        internal_dir = os.path.join(APP_DIR, "_internal")
+        if os.path.exists(internal_dir):
+            shutil.copy2(VERSION_FILE, os.path.join(internal_dir, ".version"))
 
     print(f"📦 Đang nén thư mục '{APP_DIR}' thành '{ZIP_OUTPUT}'...")
     if os.path.exists(ZIP_OUTPUT):
