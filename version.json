@@ -1,0 +1,7 @@
+{
+  "version": "1.0.2",
+  "release_date": "2026-08-20",
+  "release_notes": "1. Thêm hệ thống bảng log và tự động dọn dẹp log > 1 ngày\n2. Bổ sung tính năng Xuất chẩn đoán cho Dev (.diagnose) bảo mật\n3. Thêm tính năng kiểm tra và cập nhật OTA qua GitHub\n4. Thêm Background Dispatcher Thread quét DB và tự động gửi thông báo Telegram khi AI hoàn tất",
+  "download_url": "https://github.com/phuongdev89/facebook_post_comment_scraper/releases/latest",
+  "release_url": "https://github.com/phuongdev89/facebook_post_comment_scraper/releases/latest"
+}

@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hướng Dẫn Sử Dụng - Facebook Post & Comment Scraper AI</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --primary-light: #eff6ff;
+            --secondary: #6366f1;
+            --accent: #0284c7;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --dark: #0f172a;
+            --gray-900: #1e293b;
+            --gray-700: #334155;
+            --gray-600: #475569;
+            --gray-500: #64748b;
+            --gray-200: #e2e8f0;
+            --gray-100: #f1f5f9;
+            --gray-50: #f8fafc;
+            --white: #ffffff;
+            --sidebar-width: 280px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: var(--gray-900);
+            background-color: #fdfdfd;
+            line-height: 1.65;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar Navigation */
+        #sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--gray-900);
+            color: var(--gray-200);
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            overflow-y: auto;
+            padding: 24px 16px;
+            z-index: 100;
+        }
+
+        .sidebar-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--gray-700);
+            margin-bottom: 20px;
+        }
+
+        .sidebar-brand h2 {
+            font-size: 16px;
+            color: var(--white);
+            font-weight: 700;
+            line-height: 1.3;
+        }
+
+        .sidebar-brand span {
+            font-size: 11px;
+            color: #38bdf8;
+            display: block;
+        }
+
+        .nav-group {
+            margin-bottom: 20px;
+        }
+
+        .nav-heading {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--gray-500);
+            font-weight: 700;
+            margin-bottom: 8px;
+            padding-left: 8px;
+        }
+
+        .nav-list {
+            list-style: none;
+        }
+
+        .nav-list li {
+            margin-bottom: 3px;
+        }
+
+        .nav-list a {
+            display: flex;
+            align-items: center;
+            padding: 7px 12px;
+            color: #cbd5e1;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .nav-list a:hover {
+            background-color: var(--gray-700);
+            color: var(--white);
+        }
+
+        /* Main Content Container */
+        #content {
+            margin-left: var(--sidebar-width);
+            flex: 1;
+            padding: 40px 60px;
+            max-width: 1100px;
+        }
+
+        /* Header Hero */
+        .hero {
+            background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #4f46e5 100%);
+            color: var(--white);
+            padding: 36px;
+            border-radius: 12px;
+            margin-bottom: 40px;
+            box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.25);
+        }
+
+        .hero h1 {
+            font-size: 28px;
+            font-weight: 800;
+            margin-bottom: 10px;
+        }
+
+        .hero p {
+            font-size: 15px;
+            color: #e0e7ff;
+            max-width: 750px;
+        }
+
+        .badge-list {
+            display: flex;
+            gap: 10px;
+            margin-top: 18px;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            background: rgba(255, 255, 255, 0.18);
+            backdrop-filter: blur(4px);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        /* Typography & Section Styles */
+        h2.section-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin-top: 45px;
+            margin-bottom: 18px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--gray-200);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        h3.subsection-title {
+            font-size: 17px;
+            font-weight: 600;
+            color: var(--primary-dark);
+            margin-top: 24px;
+            margin-bottom: 12px;
+        }
+
+        p {
+            margin-bottom: 14px;
+            color: var(--gray-700);
+            font-size: 14.5px;
+        }
+
+        /* Callout Alert Cards */
+        .callout {
+            border-left: 4px solid;
+            padding: 16px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+
+        .callout-info {
+            background-color: #f0f9ff;
+            border-color: #0284c7;
+            color: #0369a1;
+        }
+
+        .callout-success {
+            background-color: #f0fdf4;
+            border-color: #10b981;
+            color: #15803d;
+        }
+
+        .callout-warning {
+            background-color: #fffbeb;
+            border-color: #f59e0b;
+            color: #b45309;
+        }
+
+        .callout-danger {
+            background-color: #fef2f2;
+            border-color: #ef4444;
+            color: #b91c1c;
+        }
+
+        .callout strong {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: 700;
+        }
+
+        /* Step by Step List */
+        .step-list {
+            counter-reset: step-counter;
+            list-style: none;
+            margin: 20px 0;
+        }
+
+        .step-item {
+            position: relative;
+            padding-left: 45px;
+            margin-bottom: 24px;
+        }
+
+        .step-item::before {
+            counter-increment: step-counter;
+            content: counter(step-counter);
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 32px;
+            height: 32px;
+            background-color: var(--primary);
+            color: var(--white);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3);
+        }
+
+        .step-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin-bottom: 6px;
+        }
+
+        /* Feature Cards Grid */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+            transition: all 0.2s ease;
+        }
+
+        .card:hover {
+            border-color: #cbd5e1;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.05);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .card-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--gray-900);
+        }
+
+        /* Code & Tables */
+        code {
+            background-color: #f1f5f9;
+            color: #0f172a;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: "Consolas", "Courier New", monospace;
+            font-size: 13px;
+        }
+
+        pre {
+            background-color: var(--gray-900);
+            color: #e2e8f0;
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: "Consolas", monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            margin: 14px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+
+        th, td {
+            border: 1px solid var(--gray-200);
+            padding: 10px 14px;
+            text-align: left;
+        }
+
+        th {
+            background-color: var(--gray-100);
+            font-weight: 700;
+            color: var(--gray-900);
+        }
+
+        tr:nth-child(even) {
+            background-color: var(--gray-50);
+        }
+
+        /* Buttons & Shortcuts */
+        .btn-tag {
+            display: inline-block;
+            background-color: #e2e8f0;
+            color: #1e293b;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            border: 1px solid #cbd5e1;
+        }
+
+        .btn-blue {
+            background-color: #dbeafe;
+            color: #1d4ed8;
+            border-color: #bfdbfe;
+        }
+
+        .btn-purple {
+            background-color: #f3e8ff;
+            color: #6b21a8;
+            border-color: #e9d5ff;
+        }
+
+        .btn-green {
+            background-color: #dcfce7;
+            color: #15803d;
+            border-color: #bbf7d0;
+        }
+
+        /* Footer */
+        footer {
+            margin-top: 60px;
+            padding-top: 20px;
+            border-top: 1px solid var(--gray-200);
+            color: var(--gray-500);
+            font-size: 13px;
+            text-align: center;
+        }
+
+        @media (max-width: 900px) {
+            #sidebar {
+                display: none;
+            }
+            #content {
+                margin-left: 0;
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar Navigation -->
+    <nav id="sidebar">
+        <div class="sidebar-brand">
+            <div>
+                <h2>FB Scraper & AI</h2>
+                <span>Tài liệu hướng dẫn v1.0.2</span>
+            </div>
+        </div>
+
+        <div class="nav-group">
+            <div class="nav-heading">Bắt Đầu</div>
+            <ul class="nav-list">
+                <li><a href="#tong-quan">📌 Tổng quan phần mềm</a></li>
+                <li><a href="#khoi-dong">🚀 Cài đặt & Khởi động</a></li>
+                <li><a href="#giao-dien">🖥️ Bố cục 4 Tab giao diện</a></li>
+            </ul>
+        </div>
+
+        <div class="nav-group">
+            <div class="nav-heading">Tính Năng Cốt Lõi</div>
+            <ul class="nav-list">
+                <li><a href="#tab1-crawling">⚙️ Tab 1: Cấu hình Quét</a></li>
+                <li><a href="#nhom-private">🔒 Hướng dẫn cào Nhóm Kín (Private)</a></li>
+                <li><a href="#tab4-ai">🤖 Tab 4: Cấu hình AI Gemini / OpenAI</a></li>
+                <li><a href="#tab4-telegram">📱 Cấu hình Báo tin Telegram</a></li>
+                <li><a href="#tab4-proxy">🌐 Cấu hình Proxy chống chặn</a></li>
+            </ul>
+        </div>
+
+        <div class="nav-group">
+            <div class="nav-heading">Quản Lý Dữ Liệu</div>
+            <ul class="nav-list">
+                <li><a href="#tab2-data">📊 Tab 2: Dữ liệu bài viết & Xóa</a></li>
+                <li><a href="#cap-nhat-comment">💬 Cập nhật bình luận (Chọn / 24h)</a></li>
+                <li><a href="#tab3-ai-history">🧠 Tab 3: Lịch sử phân tích AI</a></li>
+            </ul>
+        </div>
+
+        <div class="nav-group">
+            <div class="nav-heading">Hỗ Trợ & Khắc Phục</div>
+            <ul class="nav-list">
+                <li><a href="#faq">❓ Câu hỏi thường gặp (FAQ)</a></li>
+                <li><a href="#troubleshooting">🛠️ Xử lý sự cố</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main id="content">
+
+        <!-- Hero Banner -->
+        <section class="hero">
+            <h1>📘 Hướng Dẫn Sử Dụng Chi Tiết</h1>
+            <p>Phần mềm tự động cào bài viết & bình luận Facebook đa nhóm, hỗ trợ cào nhóm công khai & nhóm kín, tích hợp AI lọc nội dung thông minh (Google AI Studio Gemini / OpenAI) và gửi cảnh báo tự động về Telegram.</p>
+            <div class="badge-list">
+                <span class="badge">⚡ Không dùng Chrome UI (Siêu nhẹ)</span>
+                <span class="badge">🤖 Google AI Studio (Gemini 2.0 / 2.5)</span>
+                <span class="badge">📱 Telegram Instant Alerts</span>
+                <span class="badge">💾 SQLite Local Database</span>
+                <span class="badge">🔒 Hỗ trợ Nhóm Kín (Private Groups)</span>
+            </div>
+        </section>
+
+        <!-- Section 1: Tổng quan -->
+        <section id="tong-quan">
+            <h2 class="section-title">📌 1. Tổng Quan Kiến Trúc & Tính Năng</h2>
+            <p>Phần mềm được thiết kế theo kiến trúc phi đồng bộ (Multi-threading), chia tách độc lập giữa <b>tiến trình cào dữ liệu</b> và <b>tiến trình AI phân tích</b>. Điều này giúp phần mềm hoạt động mượt mà, không bị nghẽn (freeze giao diện) ngay cả khi cào hàng chục nhóm Facebook liên tục.</p>
+
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-header">
+                        <span style="font-size: 20px;">🕷️</span>
+                        <div class="card-title">Cào Dữ Liệu Tự Động (Scraper Core)</div>
+                    </div>
+                    <p>Sử dụng cơ chế gửi GraphQL Request trực tiếp với Cookie & Token Facebook. Cào toàn bộ nội dung bài đăng, ảnh, số lượt thích/chia sẻ, toàn bộ bình luận và phản hồi bình luận lồng nhau.</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <span style="font-size: 20px;">🧠</span>
+                        <div class="card-title">Trí Tuệ Nhân Tạo AI (Multi-Model Fallback)</div>
+                    </div>
+                    <p>Hỗ trợ Google AI Studio (Gemini) và OpenAI. Tự động chuyển đổi sang model dự phòng nếu model chính bị lỗi hoặc quá hạn mức (Rate limit). Tự động tắt suy luận tư duy để trả về JSON thuần siêu tốc.</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <span style="font-size: 20px;">📱</span>
+                        <div class="card-title">Cảnh Báo Tức Thì Qua Telegram</div>
+                    </div>
+                    <p>Gửi thông báo định dạng HTML đẹp mắt về kênh hoặc nhóm chat Telegram ngay khi phát hiện bài viết hoặc bình luận khớp tiêu chí phân tích của AI.</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <span style="font-size: 20px;">💾</span>
+                        <div class="card-title">Lưu Trữ SQLite & Quản Lý Toàn Diện</div>
+                    </div>
+                    <p>Toàn bộ bài viết, bình luận, cấu hình và lịch sử phân tích AI được lưu trữ tại file SQLite nội bộ. Hỗ trợ lọc, tìm kiếm, xuất file Excel/CSV, cập nhật bình luận mới và xóa dữ liệu linh hoạt.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 2: Khởi động -->
+        <section id="khoi-dong">
+            <h2 class="section-title">🚀 2. Cài Đặt & Khởi Động</h2>
+            <ol class="step-list">
+                <li class="step-item">
+                    <div class="step-title">Chạy từ file thực thi (.exe)</div>
+                    <p>Vào thư mục <code>dist/FacebookNotification/</code>, nhấp đúp vào file <code>FacebookNotification.exe</code> để mở giao diện chương trình trực tiếp mà không cần cài Python.</p>
+                </li>
+                <li class="step-item">
+                    <div class="step-title">Chạy từ mã nguồn Python</div>
+                    <p>Nếu bạn là lập trình viên, mở Terminal tại thư mục gốc và chạy lệnh:</p>
+                    <pre><code># Cài đặt thư viện phụ thuộc (nếu chưa cài)
+pip install -r requirements.txt
+
+# Khởi chạy giao diện chính
+python -m src.main</code></pre>
+                </li>
+            </ol>
+        </section>
+
+        <!-- Section 3: Giao diện 4 Tab -->
+        <section id="giao-dien">
+            <h2 class="section-title">🖥️ 3. Bố Cục Giao Diện (4 Tab)</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 25%;">Tab</th>
+                        <th style="width: 25%;">Tên Tab</th>
+                        <th>Chức năng chính</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Tab 1</strong></td>
+                        <td><b>Quản lý Cào & Giám sát</b></td>
+                        <td>Nhập danh sách link nhóm, từ khóa cần quét, số lượng bài, bật/tắt quét lặp vô tận và xem Log thời gian thực.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Tab 2</strong></td>
+                        <td><b>Dữ liệu cào (Post & Comment)</b></td>
+                        <td>Xem bảng dữ liệu các bài viết đã cào, checkbox chọn từng dòng, xóa đã chọn, xóa tất cả, cập nhật bình luận cho các bài chọn hoặc bài trong 24h qua.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Tab 3</strong></td>
+                        <td><b>Lịch sử phân tích AI</b></td>
+                        <td>Xem chi tiết các bài viết đã được AI phân tích: Tên máy/sản phẩm, Giá tiền, Loại người bán, Trích dẫn chứng minh, Lý do AI quyết định.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Tab 4</strong></td>
+                        <td><b>Cấu hình Hệ thống</b></td>
+                        <td>Cấu hình Token & Chat ID Telegram, chọn Nhà cung cấp AI (Google AI Studio / OpenAI), danh sách models, System Prompt và Proxy.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Section 4: Tab 1 Cào & Cấu hình -->
+        <section id="tab1-crawling">
+            <h2 class="section-title">⚙️ 4. Hướng Dẫn Tab 1: Cấu Hình Quét & Quản Lý Nhóm</h2>
+            <ol class="step-list">
+                <li class="step-item">
+                    <div class="step-title">🌐 Cách 1: Tự động lấy danh sách Nhóm từ Cookie (Khuyên dùng)</div>
+                    <p>• Nhấn nút <span class="btn-tag btn-blue">🌐 Lấy nhóm từ Cookie</span> trên thanh tiêu đề danh sách nhóm (hoặc cấu hình Cookie và chọn "Tự động tải danh sách nhóm").<br>
+                    • Phần mềm sẽ tự động kết nối Facebook tải về danh sách toàn bộ các nhóm mà tài khoản đã tham gia.<br>
+                    • <b>Tìm kiếm & Lọc tức thì (Filter):</b> Gõ từ khóa tên nhóm, URL, hoặc ID (hỗ trợ tiếng Việt không dấu, ví dụ gõ <code>lap trinh</code> sẽ lọc ngay nhóm <i>Lập Trình Python</i>).<br>
+                    • <b>Chọn nhóm nhanh:</b> Sử dụng các nút <span class="btn-tag">✅ Chọn tất cả</span>, <span class="btn-tag">⬜ Bỏ chọn</span>, <span class="btn-tag">🔍 Chọn nhóm đang lọc</span> hoặc <span class="btn-tag">🔄 Đảo chọn</span>.<br>
+                    • <b>Chế độ nhập:</b> Chọn <i>"Thêm vào danh sách hiện tại"</i> (tự động giữ nhóm cũ và loại bỏ link trùng) hoặc <i>"Thay thế toàn bộ"</i> ➔ Nhấn <b>📥 Nhập nhóm đã chọn</b>.</p>
+                </li>
+                <li class="step-item">
+                    <div class="step-title">➕ Cách 2: Thêm URL Nhóm / Fanpage thủ công</div>
+                    <p>Bấm nút <span class="btn-tag btn-blue">+ Thêm nhóm</span>. Dán link nhóm (ví dụ <code>https://www.facebook.com/groups/123456789/</code>). Nhập tên gợi nhớ nếu muốn. Hoặc bấm <span class="btn-tag">⛶ Phóng to</span> để mở cửa sổ quản lý mở rộng có kèm thanh tìm kiếm/lọc.</p>
+                </li>
+                <li class="step-item">
+                    <div class="step-title">📥 Cách 3: Dán hàng loạt link nhóm (Batch Paste)</div>
+                    <p>Trong cửa sổ <span class="btn-tag">⛶ Phóng to</span>, bấm <b>📥 Dán nhiều link</b> ➔ Dán danh sách nhiều URL (mỗi dòng một link) ➔ Bấm <b>Thêm vào danh sách</b>.</p>
+                </li>
+                <li class="step-item">
+                    <div class="step-title">Nhập Từ Khóa Lọc (Keywords)</div>
+                    <p>Nhập từ khóa vào ô và nhấn <code>Enter</code> hoặc bấm <code>+</code>. Ví dụ: <code>bán ipad</code>, <code>pass máy</code>, <code>cần nhượng lại</code>. Bấm dấu <code>×</code> trên thẻ tag để xóa từ khóa.</p>
+                </li>
+                <li class="step-item">
+                    <div class="step-title">Thiết lập tham số quét</div>
+                    <p>• <b>Số bài cần cào / nhóm:</b> Số lượng bài viết gần nhất cần lấy (mặc định 5 - 10 bài).<br>
+                    • <b>Bình luận tối thiểu:</b> Bỏ qua các bài viết có ít hơn số bình luận này (đặt 0 nếu muốn lấy tất cả).<br>
+                    • <b>🔄 Quét lặp vô tận (Infinite Loop):</b> Bật tính năng này để phần mềm tự động quét lại theo chu kỳ định kỳ (ví dụ mỗi 60 giây).</p>
+                </li>
+            </ol>
+        </section>
+
+        <!-- Section 5: Nhóm Kín (Private Groups) -->
+        <section id="nhom-private">
+            <h2 class="section-title">🔒 5. Hướng Dẫn Cào Nhóm Kín & Cấu Hình Cookie</h2>
+            <div class="callout callout-info">
+                <strong>💡 Nguyên lý cào Nhóm Kín (Private Groups):</strong>
+                Facebook kiểm tra quyền thành viên trên từng yêu cầu truy vấn GraphQL. Để cào được nhóm kín, tài khoản Facebook dùng lấy Cookie <b>bắt buộc phải là thành viên</b> đã được duyệt vào nhóm đó.
+            </div>
+
+            <ol class="step-list">
+                <li class="step-item">
+                    <div class="step-title">Bước 1: Chuẩn bị tài khoản Facebook</div>
+                    <p>Đăng nhập tài khoản Facebook (khuyên dùng nick phụ/via/clone) đã tham gia nhóm kín đó trên trình duyệt Chrome/Edge.</p>
+                </li>
+                <li class="step-item">
+                    <div class="step-title">Bước 2: Lấy chuỗi Cookie & Token fb_dtsg (Hỗ trợ đa định dạng)</div>
+                    <p>• <b>Cách 1 (Lệnh cURL DevTools - Nhanh nhất):</b> Bấm <code>F12</code> ➔ Tab <b>Network</b> ➔ Lọc <code>graphql</code> ➔ Nhấp chuột phải vào request ➔ Chọn <b>Copy</b> ➔ <b>Copy as cURL</b>.<br>
+                    • <b>Cách 2 (Chuỗi Cookie thô):</b> Copy giá trị mục <code>Cookie</code> tại Request Headers (có chứa <code>c_user=...; xs=...;</code>).<br>
+                    • <b>Cách 3 (Mảng JSON):</b> Dùng extension xuất Cookie dạng JSON (như <i>EditThisCookie</i> hoặc <i>Cookie-Editor</i>).</p>
+                </li>
+                <li class="step-item">
+                    <div class="step-title">Bước 3: Dán vào phần mềm</div>
+                    <p>Trên Tab 1, bấm nút <span class="btn-tag btn-blue">🔑 Cấu hình Authentication (Cookie & Token)</span> ➔ Dán trực tiếp chuỗi Cookie hoặc lệnh cURL (phần mềm sẽ tự động nhận diện và trích xuất cả Cookie lẫn token <code>fb_dtsg</code>) ➔ Tích chọn <i>"Tự động tải danh sách nhóm sau khi lưu"</i> ➔ Bấm <b>Lưu lại</b>.</p>
+                </li>
+                <li class="step-item">
+                    <div class="step-title">Bước 4: Bắt đầu cào dữ liệu</div>
+                    <p>Sau khi chọn xong danh sách nhóm, nhấn <b>🚀 Bắt đầu cào</b>. Phần mềm sẽ tự động xác thực danh tính thành viên và lấy dữ liệu bài viết, bình luận mượt mà.</p>
+                </li>
+            </ol>
+
+            <div class="callout callout-warning">
+                <strong>⚠️ Lưu ý an toàn tài khoản:</strong>
+                • Không sử dụng tài khoản Facebook chính để cào tần suất cao.<br>
+                • Đặt thời gian nghỉ giữa các đợt quét (Loop interval) từ <b>60 giây</b> trở lên.<br>
+                • Kết hợp sử dụng Proxy tại Tab 4 để tránh bị hạn chế IP.
+            </div>
+        </section>
+
+        <!-- Section 6: Tab 4 Cấu hình AI -->
+        <section id="tab4-ai">
+            <h2 class="section-title">🤖 6. Cấu Hình AI Phân Tích Nội Dung (Tab 4)</h2>
+            <p>Phần mềm hỗ trợ 2 nhà cung cấp AI phổ biến: <b>Google AI Studio (Gemini)</b> và <b>OpenAI / Tương thích</b>.</p>
+
+            <h3 class="subsection-title">A. Sử dụng Google AI Studio (Gemini - Khuyên dùng)</h3>
+            <div class="callout callout-success">
+                <strong>Ưu điểm của Google AI Studio:</strong>
+                Cung cấp hạn mức miễn phí rất lớn (Free Tier), tốc độ phản hồi cực nhanh, hỗ trợ các model tiên tiến như Gemini 2.0 Flash, Gemini 2.5 Flash.
+            </div>
+
+            <ol class="step-list">
+                <li class="step-item">
+                    <div class="step-title">Lấy API Key Google AI Studio miễn phí</div>
+                    <p>Truy cập <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com/app/apikey</a> ➔ Đăng nhập tài khoản Google ➔ Bấm <b>Create API key</b> ➔ Copy mã Key (bắt đầu bằng <code>AIzaSy...</code>).</p>
+                </li>
+                <li class="step-item">
+                    <div class="step-title">Chọn nhà cung cấp trên phần mềm</div>
+                    <p>Tại Tab 4, ô <b>Nhà cung cấp AI</b> chọn: <span class="btn-tag btn-blue">✨ Google AI Studio (Gemini)</span>.<br>
+                    • Ô <i>Base URL</i> sẽ được tự động ẩn (mặc định dùng endpoint chính hãng của Google).<br>
+                    • Dán API Key vào ô <b>API Key</b>.</p>
+                </li>
+                <li class="step-item">
+                    <div class="step-title">Tự động tải danh sách Model qua API Key</div>
+                    <p>Ngay khi bạn dán API Key (hoặc bấm nút <span class="btn-tag btn-blue">🔄 Tải Models từ Key</span>), phần mềm sẽ tự động kết nối tới Google và tải toàn bộ các model Gemini khả dụng cho key của bạn vào <b>Bảng Checkbox</b>.</p>
+                </li>
+                <li class="step-item">
+                    <div class="step-title">Tích chọn Models cần dùng</div>
+                    <p>Bạn chỉ cần tích chọn các model mong muốn. Gợi ý:<br>
+                    • <code>☑️ gemini-2.0-flash</code>: Tốc độ phản hồi nhanh nhất, chuẩn JSON.<br>
+                    • <code>☑️ gemini-2.5-flash</code>: Model thông minh mới nhất.<br>
+                    • <code>☑️ gemini-1.5-flash</code>: Ổn định, tiết kiệm hạn mức.</p>
+                </li>
+            </ol>
+
+            <h3 class="subsection-title">B. Sử dụng OpenAI hoặc Proxy LLM tương thích</h3>
+            <ol class="step-list">
+                <li class="step-item">
+                    <div class="step-title">Cấu hình Endpoint & API Key</div>
+                    <p>Chọn nhà cung cấp: <span class="btn-tag btn-purple">🧠 OpenAI / OpenAI Tương thích</span>.<br>
+                    • <b>Base URL:</b> Nhập URL endpoint (ví dụ <code>https://api.openai.com/v1</code> hoặc proxy riêng). Nếu bỏ trống, phần mềm tự dùng OpenAI chính hãng.<br>
+                    • <b>API Key:</b> Nhập API Key OpenAI (bắt đầu bằng <code>sk-...</code>).</p>
+                </li>
+                <li class="step-item">
+                    <div class="step-title">Quản lý Models & Kiểm tra thực tế</div>
+                    <p>Nhập tên model (ví dụ <code>gpt-4o-mini</code>, <code>gpt-4o</code>) vào ô và bấm <code>+</code>. Bấm nút <span class="btn-tag btn-purple">🧪 Test AI & Kiểm tra Models</span> để phần mềm gửi request thực tế tới từng model và tự động gạch ngang loại trừ các model bị lỗi hoặc trả về sai định dạng.</p>
+                </li>
+            </ol>
+
+            <h3 class="subsection-title">C. Cấu hình System Prompt & Mẫu có sẵn</h3>
+            <p>Phần mềm tích hợp sẵn các mẫu Prompt chuẩn hóa chuyên sâu:</p>
+            <p>• <span class="btn-tag btn-blue">🏷 Mẫu Tìm Bán</span>: Chuyên phát hiện bài viết của người cần bán máy/sản phẩm, loại bỏ các tin spam hoặc người hỏi mua.<br>
+            • <span class="btn-tag btn-yellow">🏷 Mẫu Tìm Mua</span>: Chuyên phát hiện khách hàng đang có nhu cầu tìm mua sản phẩm.<br>
+            • <span class="btn-tag btn-green">💡 Hướng dẫn tạo Prompt mới</span>: Mở hộp thoại chứa mẫu Meta-Prompt để gửi cho ChatGPT/Claude/Gemini tự thiết kế Prompt mới theo bất kỳ ngành nghề nào (Bất động sản, Tuyển dụng, Ô tô, Gia sư...).</p>
+        </section>
+
+        <!-- Section 7: Telegram & Proxy -->
+        <section id="tab4-telegram">
+            <h2 class="section-title">📱 7. Cấu Hình Thông Báo Telegram</h2>
+            <ol class="step-list">
+                <li class="step-item">
+                    <div class="step-title">Tạo Bot và lấy Token</div>
+                    <p>Mở ứng dụng Telegram ➔ Tìm kiếm bot <code>@BotFather</code> ➔ Gửi lệnh <code>/newbot</code> ➔ Đặt tên cho bot ➔ Copy chuỗi <b>HTTP API Token</b> dán vào ô <b>Bot Token</b>.</p>
+                </li>
+                <li class="step-item">
+                    <div class="step-title">Lấy Chat ID nhận tin nhắn</div>
+                    <p>• <b>Nhận qua Chat riêng:</b> Tìm bot <code>@userinfobot</code> ➔ Bấm Start ➔ Copy số <b>Id</b> dán vào ô <b>Chat ID</b>.<br>
+                    • <b>Nhận qua Nhóm Telegram:</b> Thêm bot vừa tạo vào nhóm ➔ Thăng quyền Admin cho bot ➔ Lấy ID nhóm (thường có dấu <code>-</code> ở đầu, ví dụ <code>-100123456789</code>).</p>
+                </li>
+                <li class="step-item">
+                    <div class="step-title">Kiểm tra kết nối</div>
+                    <p>Bấm nút <span class="btn-tag btn-blue">🔔 Gửi thử nghiệm kết nối</span>. Nếu nhận được tin nhắn test trên Telegram là cấu hình thành công.</p>
+                </li>
+            </ol>
+        </section>
+
+        <section id="tab4-proxy">
+            <h2 class="section-title">🌐 8. Cấu Hình Proxy Chống Chặn IP</h2>
+            <p>Tại Tab 4, ô <b>Proxy (Tĩnh hoặc Xoay)</b> cho phép nhập proxy để bảo vệ địa chỉ IP máy chủ khi quét liên tục.</p>
+            <p><b>Định dạng được hỗ trợ:</b></p>
+            <pre><code># Proxy không có mật khẩu
+123.45.67.89:8080
+
+# Proxy có tài khoản & mật khẩu
+123.45.67.89:8080:username:password
+
+# Proxy có tiền tố giao thức
+http://username:password@123.45.67.89:8080
+socks5://username:password@123.45.67.89:1080</code></pre>
+        </section>
+
+        <!-- Section 8: Tab 2 Quản lý dữ liệu -->
+        <section id="tab2-data">
+            <h2 class="section-title">📊 9. Tab 2: Quản Lý Dữ Liệu & Thao Tác Xóa</h2>
+            <p>Tab 2 hiển thị toàn bộ bài viết đã cào kèm các công cụ quản lý dữ liệu mạnh mẽ:</p>
+
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-title">☑️ Checkbox & Chọn nhiều dòng</div>
+                    <p>Tích chọn ô vuông ở đầu bảng để chọn tất cả, hoặc tích chọn từng bài viết cụ thể để thao tác.</p>
+                </div>
+                <div class="card">
+                    <div class="card-title">🗑️ Xóa bản ghi linh hoạt</div>
+                    <p>• <b>Xóa lẻ:</b> Bấm nút Xóa ở cột Thao tác hoặc nhấp chuột phải ➔ Chọn <i>Xóa bài viết này</i>.<br>
+                    • <b>Xóa đã chọn:</b> Nút sáng khi có bài được chọn.<br>
+                    • <b>Xóa tất cả:</b> Xóa trắng toàn bộ bài viết trong SQLite.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 9: Cập nhật comment -->
+        <section id="cap-nhat-comment">
+            <h2 class="section-title">💬 10. Tính Năng Cập Nhật Bình Luận Mới</h2>
+            <div class="callout callout-info">
+                <strong>Tại sao cần cập nhật bình luận?</strong>
+                Nhiều khách hàng hoặc người bán không đăng thông tin ở bài viết gốc mà bình luận bên dưới bài viết sau đó vài giờ. Tính năng này giúp bạn quét lại toàn bộ bình luận mới nhất mà không cần cào lại từ đầu.
+            </div>
+
+            <ol class="step-list">
+                <li class="step-item">
+                    <div class="step-title">Cách 1: Cập nhật bình luận các bài đã chọn</div>
+                    <p>Tại Tab 2, tích chọn các bài viết bạn muốn theo dõi ➔ Bấm nút <span class="btn-tag btn-blue">💬 Cập nhật bình luận đã chọn</span>.</p>
+                </li>
+                <li class="step-item">
+                    <div class="step-title">Cách 2: Cập nhật bình luận 24h vừa qua</div>
+                    <p>Bấm nút <span class="btn-tag btn-purple">🕒 Cập nhật bình luận 24h vừa qua</span>. Hệ thống sẽ tự động lọc tất cả bài viết có thời gian đăng trong vòng 24 giờ qua và tiến hành cào lại bình luận.</p>
+                </li>
+                <li class="step-item">
+                    <div class="step-title">Tự động đẩy vào luồng AI & Telegram</div>
+                    <p>Toàn bộ bình luận mới cập nhật sẽ được chuyển ngay vào <b>AI Analysis Queue</b>. Nếu AI phát hiện có bình luận khớp tiêu chí, thông báo Telegram sẽ được gửi ngay lập tức.</p>
+                </li>
+            </ol>
+        </section>
+
+        <!-- Section 10: Tab 3 Lịch sử AI -->
+        <section id="tab3-ai-history">
+            <h2 class="section-title">🧠 11. Tab 3: Lịch Sử Phân Tích AI</h2>
+            <p>Tab 3 hiển thị kết quả phân tích có cấu trúc của AI cho từng bài viết:</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Cột</th>
+                        <th>Ý nghĩa</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><b>Kết quả</b></td>
+                        <td><code>Khớp [Gửi Tele]</code> (Màu xanh) hoặc <code>Bỏ qua [Không khớp]</code> (Màu xám).</td>
+                    </tr>
+                    <tr>
+                        <td><b>Thiết bị / Sản phẩm</b></td>
+                        <td>Tên máy cụ thể AI trích xuất được (ví dụ: <i>iPad Pro M1 128GB Wifi</i>).</td>
+                    </tr>
+                    <tr>
+                        <td><b>Giá</b></td>
+                        <td>Mức giá do người bán công bố (ví dụ: <i>13.500.000đ</i> hoặc <i>Thương lượng</i>).</td>
+                    </tr>
+                    <tr>
+                        <td><b>Loại người bán</b></td>
+                        <td>Chủ bài đăng hoặc Người bình luận (kèm trích dẫn câu từ thực tế).</td>
+                    </tr>
+                    <tr>
+                        <td><b>Lý do AI</b></td>
+                        <td>Giải thích tóm tắt vì sao AI đưa ra quyết định thông báo hay bỏ qua.</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p>Hỗ trợ đầy đủ các nút <b>Xóa lẻ</b>, <b>Xóa đã chọn</b> và <b>Xóa tất cả lịch sử AI</b>.</p>
+        </section>
+
+        <!-- Section 11: FAQ & Troubleshooting -->
+        <section id="faq">
+            <h2 class="section-title">❓ 12. Câu Hỏi Thường Gặp (FAQ)</h2>
+            <div class="card" style="margin-bottom: 12px;">
+                <div class="card-title">1. Cookie Facebook sống được bao lâu? Khi nào cần lấy lại?</div>
+                <p>Cookie thường có hiệu lực từ vài ngày đến vài tuần. Nếu bạn đăng xuất tài khoản trên trình duyệt hoặc đổi mật khẩu, Cookie sẽ hết hạn. Khi thấy thông báo lỗi xác thực hoặc không lấy được bài nhóm kín, hãy cập nhật lại Cookie mới.</p>
+            </div>
+            <div class="card" style="margin-bottom: 12px;">
+                <div class="card-title">2. Tôi có thể vừa cào vừa sửa System Prompt hoặc đổi Model AI được không?</div>
+                <p><b>Hoàn toàn được!</b> Phần mềm hỗ trợ tính năng <b>Hot-Reload</b>. Bạn chỉ cần sửa Prompt hoặc chọn Model tại Tab 4 rồi bấm <i>Lưu cấu hình</i>, tiến trình AI đang chạy sẽ ngay lập tức áp dụng cài đặt mới mà không cần dừng quét.</p>
+            </div>
+            <div class="card" style="margin-bottom: 12px;">
+                <div class="card-title">3. File cơ sở dữ liệu SQLite lưu ở đâu? Có mang sang máy khác được không?</div>
+                <p>File cơ sở dữ liệu nằm tại <code>data/facebook_scraper.db</code>. Bạn có thể sao chép thư mục <code>data/</code> sang máy tính khác để giữ nguyên toàn bộ bài viết và lịch sử đã cào.</p>
+            </div>
+        </section>
+
+        <section id="troubleshooting">
+            <h2 class="section-title">🛠️ 13. Xử Lý Sự Cố (Troubleshooting)</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 30%;">Hiện tượng / Lỗi</th>
+                        <th style="width: 35%;">Nguyên nhân</th>
+                        <th>Cách khắc phục</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><b>Không lấy được bài nhóm kín (0 bài)</b></td>
+                        <td>Tài khoản chưa vào nhóm kín hoặc Cookie bị hết hạn.</td>
+                        <td>Kiểm tra xem nick Facebook đã được duyệt vào nhóm chưa và cập nhật lại Cookie & fb_dtsg tại Tab 1.</td>
+                    </tr>
+                    <tr>
+                        <td><b>AI báo lỗi HTTP 429 (Rate Limit)</b></td>
+                        <td>Hết hạn mức gọi API trong phút của Model.</td>
+                        <td>Tích chọn thêm 2-3 model dự phòng (như Gemini 2.0 Flash, Gemini 1.5 Flash) để phần mềm tự động chuyển đổi khi gặp lỗi.</td>
+                    </tr>
+                    <tr>
+                        <td><b>Telegram không nhận được tin nhắn</b></td>
+                        <td>Sai Token hoặc chưa bấm <code>/start</code> bot.</td>
+                        <td>Mở chat với bot trên Telegram, bấm nút <b>Start</b> và kiểm tra lại Chat ID tại Tab 4.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Footer -->
+        <footer>
+            <p>Facebook Post & Comment Scraper AI • Tài liệu hướng dẫn sử dụng phiên bản 2.0 • Bản quyền © 2026</p>
+        </footer>
+
+    </main>
+
+</body>
+</html>

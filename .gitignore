@@ -1,0 +1,29 @@
+.idea
+.vscode
+.DS_Store
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+scratch/
+chromedata1/
+group_post/
+page_post/
+simple_post/
+
+# SQLite & Data files
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.db-wal
+*.db-shm
+facebook_data.sqlite
+
+# Logs & Environment
+*.log
+.env
+build
+installer/Output
+dist
