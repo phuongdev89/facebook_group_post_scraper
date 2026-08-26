@@ -15,7 +15,7 @@ A high-performance desktop application for extracting (scraping) posts and comme
   - Ultra-resilient JSON parser: Automatically strips thinking blocks (`<think>`), auto-fixes trailing commas, and repairs unclosed JSON structures.
 - **Instant Telegram Alerts**: Integrated background Dispatcher thread constantly monitors the database and delivers professionally formatted HTML alerts as soon as AI marks a post as matching user criteria/keywords.
 - **Smart Group Management**:
-  - Automatically scrapes the list of all Facebook groups joined by the account using Session Cookies (supports raw Cookie strings, cURL commands, or JSON arrays).
+  - Automatically scrapes the list of all Facebook groups joined by the account using Session Cookies JSON exported from browser extensions (Cookie-Editor, J2Team).
   - Real-time search and filter with Vietnamese accent-insensitive matching support.
 - **Optimized SQLite Engine**: Safely stored in the user home directory (`~/.facebook-notification/`) with PRAGMA WAL concurrent mode, automatic post deduplication, and automated log cleanup (> 1 day).
 - **Over-The-Air (OTA) Updates**: Automatically checks and downloads the latest release directly from GitHub Releases or static mirrors.

@@ -15,7 +15,7 @@
   - Bộ bóc tách JSON siêu bền bỉ: Tự động lọc khối suy nghĩ (`<think>`), sửa dấu phẩy thừa, tự sửa cú pháp JSON thiếu ngoặc.
 - **Cảnh Báo Telegram Tức Thì**: Tích hợp luồng Dispatcher nền quét cơ sở dữ liệu và tự động bắn thông báo kèm định dạng HTML chuyên nghiệp khi AI đánh giá bài viết khớp từ khóa / nhu cầu.
 - **Quản Lý Nhóm Thông Minh**:
-  - Tự động cào danh sách toàn bộ các nhóm Facebook mà tài khoản đã tham gia thông qua Cookie (hỗ trợ dạng chuỗi thô, lệnh cURL hoặc JSON).
+  - Tự động cào danh sách toàn bộ các nhóm Facebook mà tài khoản đã tham gia thông qua Cookie JSON từ extension (Cookie-Editor, J2Team).
   - Bộ lọc tìm kiếm nhóm theo thời gian thực, hỗ trợ gõ tiếng Việt không dấu.
 - **Cơ Sở Dữ Liệu SQLite Tối Ưu**: Lưu trữ dữ liệu an toàn tại thư mục người dùng (`~/.facebook-notification/`), bật chế độ ghi song song PRAGMA WAL, tự động khử trùng lặp và tự động dọn dẹp log quá 1 ngày.
 - **Tự Động Cập Nhật (OTA Updates)**: Kiểm tra và tải bản cập nhật mới nhất trực tiếp từ GitHub Releases hoặc máy chủ file tĩnh.

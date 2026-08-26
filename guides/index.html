@@ -605,14 +605,14 @@ python -m src.main</code></pre>
                     <p>Đăng nhập tài khoản Facebook (khuyên dùng nick phụ/via/clone) đã tham gia nhóm kín đó trên trình duyệt Chrome/Edge.</p>
                 </li>
                 <li class="step-item">
-                    <div class="step-title">Bước 2: Lấy chuỗi Cookie & Token fb_dtsg (Hỗ trợ đa định dạng)</div>
-                    <p>• <b>Cách 1 (Lệnh cURL DevTools - Nhanh nhất):</b> Bấm <code>F12</code> ➔ Tab <b>Network</b> ➔ Lọc <code>graphql</code> ➔ Nhấp chuột phải vào request ➔ Chọn <b>Copy</b> ➔ <b>Copy as cURL</b>.<br>
-                    • <b>Cách 2 (Chuỗi Cookie thô):</b> Copy giá trị mục <code>Cookie</code> tại Request Headers (có chứa <code>c_user=...; xs=...;</code>).<br>
-                    • <b>Cách 3 (Mảng JSON):</b> Dùng extension xuất Cookie dạng JSON (như <i>EditThisCookie</i> hoặc <i>Cookie-Editor</i>).</p>
+                    <div class="step-title">Bước 2: Lấy chuỗi Cookie JSON bằng Extension Cookie-Editor</div>
+                    <p>• Cài đặt tiện ích mở rộng <b>Cookie-Editor</b> (hoặc <b>J2Team Cookies</b>) trên trình duyệt Chrome, Edge, Firefox hoặc Cốc Cốc.<br>
+                    • Mở tab Facebook đã đăng nhập tài khoản ➔ Bấm vào icon <b>Cookie-Editor</b> trên thanh công cụ.<br>
+                    • Chọn <b>Export</b> ➔ Chọn <b>Export as JSON</b> (chuỗi JSON Cookie sẽ tự động được sao chép vào bộ nhớ tạm).</p>
                 </li>
                 <li class="step-item">
                     <div class="step-title">Bước 3: Dán vào phần mềm</div>
-                    <p>Trên Tab 1, bấm nút <span class="btn-tag btn-blue">🔑 Cấu hình Authentication (Cookie & Token)</span> ➔ Dán trực tiếp chuỗi Cookie hoặc lệnh cURL (phần mềm sẽ tự động nhận diện và trích xuất cả Cookie lẫn token <code>fb_dtsg</code>) ➔ Tích chọn <i>"Tự động tải danh sách nhóm sau khi lưu"</i> ➔ Bấm <b>Lưu lại</b>.</p>
+                    <p>Trên Tab 1, bấm nút <span class="btn-tag btn-blue">🔑 Cấu hình Authentication (Cookie JSON Facebook)</span> ➔ Dán chuỗi JSON Cookie vừa sao chép ➔ Tích chọn <i>"Tự động tải danh sách nhóm sau khi lưu"</i> ➔ Bấm <b>Lưu cấu hình</b>.</p>
                 </li>
                 <li class="step-item">
                     <div class="step-title">Bước 4: Bắt đầu cào dữ liệu</div>

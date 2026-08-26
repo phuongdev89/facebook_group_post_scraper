@@ -55,6 +55,7 @@ from src.ui.components.gemini_model_selector import GeminiModelSelectorWidget
 from src.ui.components.openai_model_selector import OpenAIModelSelectorWidget
 from src.ui.dialogs.telegram_guide_dialog import TelegramGuideDialog
 from src.ui.dialogs.prompt_guide_dialog import PromptGuideDialog
+from src.ui.dialogs.cookie_dialog import CookieDialog
 from src.ui.dialogs.group_select_dialog import GroupSelectDialog
 from src.ui.dialogs.update_dialog import UpdateDialog
 from src.ui.workers.group_fetch_worker import GroupFetchWorker
@@ -80,279 +81,6 @@ def parse_cookies(cookie_string):
             cookies[key.strip()] = value.strip()
     
     return cookies
-
-
-# ==============================================================================
-# Dialog: Cookie & FB_DTSG Configuration
-# ==============================================================================
-class CookieDialog(QDialog):
-    """Dialog for automated Facebook login or pasting cookies/cURL to extract cookies and fb_dtsg"""
-    
-    def __init__(self, parent=None, current_cookies="", current_dtsg=""):
-        super().__init__(parent)
-        self.setWindowTitle("🔑 Cấu hình Authentication (Cookie & fb_dtsg Facebook)")
-        self.setGeometry(200, 200, 740, 620)
-        
-        self.cookies_str = current_cookies
-        self.dtsg_str = current_dtsg
-        
-        layout = QVBoxLayout()
-        layout.setSpacing(10)
-        self.setLayout(layout)
-        
-        # Instructions banner
-        instructions = QLabel(
-            "<b>🔐 Cấu hình xác thực Facebook (Cookie & Token)</b><br>"
-            "<span style='color: #4B5563; font-size: 11px;'>"
-            "Chọn một trong hai cách dưới đây để cấu hình Cookie và Token <code>fb_dtsg</code>:</span>"
-        )
-        instructions.setWordWrap(True)
-        instructions.setStyleSheet("background-color: #EFF6FF; border: 1px solid #BFDBFE; padding: 10px 14px; border-radius: 6px; font-size: 12px; color: #1E40AF;")
-        layout.addWidget(instructions)
-
-        # Method 1: Chrome login
-        method1_label = QLabel("Cách 1 — Đăng nhập tự động bằng Chrome (Automated Login)")
-        method1_label.setStyleSheet("font-weight: bold; font-size: 12px; color: #1565C0; margin-top: 2px;")
-        layout.addWidget(method1_label)
-
-        chrome_desc = QLabel("Tự động mở trình duyệt Chrome. Bạn đăng nhập vào Facebook, sau đó bấm OK ở thông báo để tự động lấy Cookie & Token.")
-        chrome_desc.setWordWrap(True)
-        chrome_desc.setStyleSheet("font-size: 11px; color: #6B7280; margin-bottom: 2px;")
-        layout.addWidget(chrome_desc)
-
-        self.launch_btn = QPushButton("🚀 Mở Chrome & Đăng Nhập Facebook")
-        self.launch_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #10B981;
-                color: white;
-                font-size: 12px;
-                font-weight: bold;
-                padding: 8px 14px;
-                border-radius: 5px;
-            }
-            QPushButton:hover { background-color: #059669; }
-        """)
-        self.launch_btn.clicked.connect(self.launch_chrome_login)
-        layout.addWidget(self.launch_btn)
-
-        # Divider
-        divider = QFrame()
-        divider.setFrameShape(QFrame.Shape.HLine)
-        divider.setFrameShadow(QFrame.Shadow.Sunken)
-        divider.setStyleSheet("margin: 6px 0; color: #E5E7EB;")
-        layout.addWidget(divider)
-
-        # Method 2: Paste Cookie string or cURL
-        method2_label = QLabel("Cách 2 — Dán chuỗi Cookie hoặc lệnh cURL (Tự động nhận diện)")
-        method2_label.setStyleSheet("font-weight: bold; font-size: 12px; color: #7C3AED; margin-top: 2px;")
-        layout.addWidget(method2_label)
-
-        curl_desc = QLabel(
-            "Dán chuỗi Cookie thô (<code>c_user=...; xs=...</code>) hoặc lệnh cURL copy từ DevTools Network. "
-            "Hệ thống sẽ tự động bóc tách Cookie và fb_dtsg."
-        )
-        curl_desc.setWordWrap(True)
-        curl_desc.setStyleSheet("font-size: 11px; color: #6B7280; margin-bottom: 2px;")
-        layout.addWidget(curl_desc)
-
-        self.curl_input = QTextEdit()
-        self.curl_input.setPlaceholderText(
-            "Dán một trong các định dạng sau:\n"
-            "1. Chuỗi Cookie: c_user=123456789; xs=2%3A...; datr=...;\n"
-            "2. Lệnh cURL: curl 'https://www.facebook.com/api/graphql/' -b '...' --data-raw 'fb_dtsg=...'\n"
-            "3. Mảng JSON cookies từ extension"
-        )
-        self.curl_input.setMinimumHeight(95)
-        self.curl_input.setMaximumHeight(120)
-        self.curl_input.setStyleSheet("font-family: Consolas, monospace; font-size: 11px;")
-        if self.cookies_str:
-            self.curl_input.setPlainText(self.cookies_str)
-        layout.addWidget(self.curl_input)
-
-        parse_row = QHBoxLayout()
-        self.parse_btn = QPushButton("🔍 Phân tích Cookie (Parse)")
-        self.parse_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #8B5CF6;
-                color: white;
-                font-size: 12px;
-                font-weight: bold;
-                padding: 7px 16px;
-                border-radius: 5px;
-            }
-            QPushButton:hover { background-color: #7C3AED; }
-        """)
-        self.parse_btn.clicked.connect(self.parse_input_content)
-        parse_row.addWidget(self.parse_btn)
-
-        self.auto_fetch_cb = QCheckBox("🌐 Tự động tải danh sách nhóm Facebook sau khi lưu")
-        self.auto_fetch_cb.setChecked(True)
-        self.auto_fetch_cb.setStyleSheet("font-size: 12px; color: #1E3A8A; font-weight: 500;")
-        parse_row.addWidget(self.auto_fetch_cb)
-
-        parse_row.addStretch()
-        layout.addLayout(parse_row)
-
-        # Status label
-        self.status_label = QLabel("")
-        self.status_label.setWordWrap(True)
-        self.status_label.setStyleSheet("padding: 4px; font-size: 11px;")
-        layout.addWidget(self.status_label)
-
-        # Display extracted values
-        self.result_display = QTextEdit()
-        self.result_display.setReadOnly(True)
-        self.result_display.setMaximumHeight(80)
-        self.result_display.setPlaceholderText("Thông tin Cookie và fb_dtsg đã bóc tách sẽ hiển thị ở đây...")
-        layout.addWidget(self.result_display)
-        
-        # Buttons
-        self.buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | 
-            QDialogButtonBox.StandardButton.Cancel
-        )
-        self.buttons.accepted.connect(self.accept)
-        self.buttons.rejected.connect(self.reject)
-        self.buttons.button(QDialogButtonBox.StandardButton.Ok).setEnabled(bool(self.cookies_str or self.dtsg_str))
-        layout.addWidget(self.buttons)
-    
-    def launch_chrome_login(self):
-        """Launch Chrome with seleniumbase for automated login"""
-        try:
-            from seleniumbase import SB
-            
-            self.status_label.setText("🌐 Đang mở trình duyệt Chrome...")
-            self.status_label.setStyleSheet("padding: 4px; font-size: 11px; color: #2563EB;")
-            self.launch_btn.setEnabled(False)
-            ensure_data_dir()
-            chrome_data_dir = os.path.abspath(CHROME_DATA_DIR)
-            os.makedirs(chrome_data_dir, exist_ok=True)
-            
-            with SB(headless=False, log_cdp_events=True, user_data_dir=chrome_data_dir) as sb:
-                sb.open("https://www.facebook.com/")
-                
-                self.status_label.setText("⏳ Vui lòng đăng nhập Facebook trên Chrome, sau đó bấm OK ở thông báo bên dưới...")
-                self.status_label.setStyleSheet("padding: 4px; font-size: 11px; color: #D97706;")
-                QApplication.processEvents()
-                
-                login_msg = QMessageBox(self)
-                login_msg.setIcon(QMessageBox.Icon.Information)
-                login_msg.setWindowTitle("Đăng nhập Facebook")
-                login_msg.setText("🔐 Hoàn tất đăng nhập Facebook")
-                login_msg.setInformativeText(
-                    "Cửa sổ Chrome đã được mở.\n\n"
-                    "Các bước:\n"
-                    "1. Đăng nhập tài khoản Facebook của bạn\n"
-                    "2. Chờ trang Facebook tải xong hoàn toàn\n"
-                    "3. Bấm OK dưới đây để trích xuất Cookie và fb_dtsg"
-                )
-                login_msg.setStandardButtons(QMessageBox.StandardButton.Ok)
-                login_msg.setStyleSheet("QLabel{min-width: 400px;}")
-                login_msg.exec()
-                
-                self.status_label.setText("🔍 Đang trích xuất cookies và token fb_dtsg...")
-                self.status_label.setStyleSheet("padding: 4px; font-size: 11px; color: #7C3AED;")
-                QApplication.processEvents()
-                
-                cdp_logs = sb.driver.get_log("performance")
-                
-                fb_dtsg = None
-                for entry in cdp_logs:
-                    log = json.loads(entry["message"])["message"]
-                    
-                    if log["method"] == "Network.requestWillBeSent":
-                        request = log["params"]["request"]
-                        url = request.get("url", "")
-                        
-                        if "graphql" in url:
-                            post_data = request.get("postData", "")
-                            if post_data and not fb_dtsg:
-                                params = parse_qs(post_data)
-                                if "fb_dtsg" in params:
-                                    fb_dtsg = params["fb_dtsg"][0]
-                                    break
-                
-                cookies = sb.get_cookies()
-                cookie_parts = []
-                for cookie in cookies:
-                    cookie_parts.append(f"{cookie['name']}={cookie['value']}")
-                
-                static_cookies = ["ps_l=1", "ps_n=1", "dpr=1", "ar_debug=1"]
-                cookie_parts.extend(static_cookies)
-                
-                self.cookies_str = "; ".join(cookie_parts)
-                self.dtsg_str = fb_dtsg if fb_dtsg else ""
-                
-                total_cookies = len(cookies) + len(static_cookies)
-                display_text = f"✅ Trích xuất thành công từ Chrome!\n\n"
-                display_text += f"Cookies : {total_cookies} cookies tìm thấy\n"
-                display_text += f"FB_DTSG : {'Đã tìm thấy ✓' if fb_dtsg else 'Chưa tìm thấy ✗'}\n\n"
-                display_text += f"Xem trước: {self.cookies_str[:100]}..."
-                
-                self.result_display.setPlainText(display_text)
-                self.status_label.setText("✅ Trích xuất hoàn tất! Bấm OK để lưu cấu hình.")
-                self.status_label.setStyleSheet("padding: 4px; font-size: 11px; color: #10B981; font-weight: bold;")
-                self.buttons.button(QDialogButtonBox.StandardButton.Ok).setEnabled(True)
-                
-        except ImportError as e:
-            QMessageBox.critical(self, "Thiếu thư viện", f"Lỗi SeleniumBase:\n{str(e)}\n\nVui lòng cài đặt:\npip install seleniumbase")
-            self.launch_btn.setEnabled(True)
-        except Exception as e:
-            QMessageBox.critical(self, "Lỗi", f"Không thể trích xuất cookies:\n{str(e)}")
-            self.status_label.setText(f"❌ Lỗi: {str(e)}")
-            self.status_label.setStyleSheet("padding: 4px; font-size: 11px; color: #DC2626;")
-            self.launch_btn.setEnabled(True)
-    
-    def parse_input_content(self):
-        """Phân tích chuỗi Cookie, lệnh cURL, hoặc JSON cookies dán vào"""
-        raw_text = self.curl_input.toPlainText().strip()
-        if not raw_text:
-            self.status_label.setText("⚠️ Vui lòng dán chuỗi Cookie hoặc lệnh cURL trước.")
-            self.status_label.setStyleSheet("padding: 4px; font-size: 11px; color: #D97706;")
-            return
-
-        cookies_dict, cookies_str, fb_dtsg = parse_cookies_from_any(raw_text)
-
-        if not cookies_dict and not fb_dtsg:
-            self.status_label.setText("❌ Không tìm thấy Cookie hoặc fb_dtsg hợp lệ trong nội dung đã dán.")
-            self.status_label.setStyleSheet("padding: 4px; font-size: 11px; color: #DC2626;")
-            return
-
-        self.cookies_str = cookies_str
-        self.dtsg_str = fb_dtsg if fb_dtsg else self.dtsg_str
-
-        cookie_count = len(cookies_dict)
-        c_user = cookies_dict.get("c_user", "")
-
-        display_text = "✅ Đã phân tích thành công!\n\n"
-        display_text += f"Cookies  : {'Tìm thấy ✓ (' + str(cookie_count) + ' cookies)' if cookies_str else 'Chưa có'}"
-        if c_user:
-            display_text += f" [UID: {c_user}]"
-        display_text += "\n"
-        display_text += f"FB_DTSG  : {'Tìm thấy ✓' if self.dtsg_str else 'Không có'}\n"
-        if self.dtsg_str:
-            dtsg_preview = self.dtsg_str[:40] + ('...' if len(self.dtsg_str) > 40 else '')
-            display_text += f"           {dtsg_preview}\n"
-        if cookies_str:
-            display_text += f"\nXem trước Cookie: {cookies_str[:100]}..."
-
-        self.result_display.setPlainText(display_text)
-        self.status_label.setText("✅ Phân tích thành công! Bấm OK để lưu cấu hình.")
-        self.status_label.setStyleSheet("padding: 4px; font-size: 11px; color: #10B981; font-weight: bold;")
-        self.buttons.button(QDialogButtonBox.StandardButton.Ok).setEnabled(True)
-
-    def parse_curl_command(self):
-        """Backward compatibility alias"""
-        self.parse_input_content()
-
-    def get_cookies(self):
-        return self.cookies_str
-
-    def get_dtsg(self):
-        return self.dtsg_str
-
-    def should_fetch_groups(self) -> bool:
-        return self.auto_fetch_cb.isChecked()
 
 
 # ==============================================================================
@@ -4730,11 +4458,11 @@ class FacebookNotificationUI(QMainWindow):
                 
                 # Tự động tải nhóm nếu được chọn
                 if dialog.should_fetch_groups():
-                    self.fetch_groups_from_cookie(self.cookies, self.fb_dtsg)
+                    self.fetch_groups_from_cookie(self.cookies, self.fb_dtsg, use_browser=dialog.should_use_browser())
             else:
                 self.log("⚠️ Đã xóa cấu hình authentication.")
 
-    def fetch_groups_from_cookie(self, cookies=None, fb_dtsg=None, callback=None):
+    def fetch_groups_from_cookie(self, cookies=None, fb_dtsg=None, callback=None, use_browser: bool = False):
         """Khởi chạy worker tải danh sách nhóm Facebook từ Cookie và mở GroupSelectDialog"""
         cookies_to_use = cookies or self.cookies or parse_cookies(self.cookie_string)
         dtsg_to_use = fb_dtsg if fb_dtsg is not None else self.fb_dtsg
@@ -4751,7 +4479,8 @@ class FacebookNotificationUI(QMainWindow):
             return
 
         # Hiển thị progress dialog trong lúc tải
-        progress_dlg = QProgressDialog("Đang kết nối tới Facebook để lấy danh sách nhóm...", "Hủy", 0, 0, self)
+        loading_text = "Đang mở trình duyệt tự động để tải toàn bộ danh sách nhóm..." if use_browser else "Đang kết nối tới Facebook để lấy danh sách nhóm..."
+        progress_dlg = QProgressDialog(loading_text, "Hủy", 0, 0, self)
         progress_dlg.setWindowTitle("⏳ Đang tải nhóm Facebook...")
         progress_dlg.setWindowModality(Qt.WindowModality.WindowModal)
         progress_dlg.setMinimumDuration(0)
@@ -4759,14 +4488,16 @@ class FacebookNotificationUI(QMainWindow):
         progress_dlg.setAutoReset(True)
         progress_dlg.show()
         
-        self.log("🌐 Đang khởi chạy tiến trình lấy danh sách nhóm từ Cookie...")
+        mode_desc = "Trình duyệt tự động (Selenium)" if use_browser else "HTTP API & mbasic"
+        self.log(f"🌐 Đang khởi chạy tiến trình lấy danh sách nhóm từ Cookie ({mode_desc})...")
 
         # Tạo worker thread
         self.group_fetch_worker = GroupFetchWorker(
             cookies=cookies_to_use,
             fb_dtsg=dtsg_to_use,
-            max_pages=25,
+            max_pages=40,
             proxy=select_proxy(has_cookies=True),
+            use_browser=use_browser,
             parent=self
         )
         
