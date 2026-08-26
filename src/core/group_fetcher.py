@@ -111,6 +111,17 @@ def parse_cookies_from_any(text: str) -> tuple[dict, str, str]:
                 if m_field:
                     cookies_dict[field] = m_field.group(1).strip()
 
+    # 5. Fallback nếu text là dạng cookie header string: 'c_user=123; xs=abc; ...'
+    if not cookies_dict:
+        for part in text.split(';'):
+            part = part.strip()
+            if '=' in part:
+                k, v = part.split('=', 1)
+                k_clean = k.strip().strip('"\'')
+                v_clean = v.strip().strip('"\'')
+                if k_clean and v_clean and k_clean not in cookies_dict:
+                    cookies_dict[k_clean] = v_clean
+
     # Tạo cookie_str chuẩn
     if cookies_dict:
         parts = [f"{k}={v}" for k, v in cookies_dict.items() if k and v]
@@ -125,7 +136,11 @@ def parse_cookies_from_json(text: str) -> tuple[dict, str, str]:
 
 
 def _clean_group_name(name: str) -> str:
-    """Làm sạch tên nhóm Facebook từ HTML text hoặc JSON escaped string"""
+    """
+    Làm sạch tên nhóm Facebook từ HTML/DOM text:
+    Loại bỏ triệt để các chuỗi rác như 'Chưa đọc', 'Lần hoạt động gần nhất:...',
+    mốc thời gian, số lượng thành viên, badge thông báo, v.v.
+    """
     if not name:
         return ""
     # Giải mã chuỗi unicode escape (như \u0110 -> Đ, \u1ed9 -> ộ)
@@ -134,11 +149,47 @@ def _clean_group_name(name: str) -> str:
     except Exception:
         pass
     name = html.unescape(name).strip()
-    name = re.sub(r'\s+', ' ', name)
+    
+    # Nếu text nhiều dòng (do DOM innerText lấy cả thẻ con), dòng đầu tiên là tên nhóm
+    lines = [line.strip() for line in name.splitlines() if line.strip()]
+    if lines:
+        name = lines[0]
+
     name = re.sub(r'<[^>]+>', '', name)
     name = re.sub(r'\\u003[cC].*?\\u003[eE]', '', name)
-    # Loại bỏ số lượng thành viên hoặc badge kèm theo nếu có (vd: "Tên Nhóm · 123K thành viên")
-    name = re.sub(r'\s*·\s*[\d,.]+[KkMm]?\s*(thành viên|members?|bài viết|posts?).*$', '', name, flags=re.IGNORECASE)
+
+    # Danh sách các pattern chuỗi thừa cần loại bỏ triệt để
+    garbage_patterns = [
+        # Hoạt động gần nhất / Active status
+        r'[\(\[]?\s*(?:Lần\s+)?hoạt\s+động\s+gần\s+(?:nhất|đây)\s*:\s*[^)\]]+[\)\]]?',
+        r'[\(\[]?\s*(?:Last\s+)?active(?:\s*:|\s+\d+)[^)\]]*[\)\]]?',
+        r'[\(\[]\s*(?:Last\s+)?active\s+[^)\]]+[\)\]]',
+        r'[\(\[]\s*hoạt\s+động\s+[^)\]]+[\)\]]',
+
+        # Nhóm/Thành viên/Quyền riêng tư
+        r'\s*·\s*[\d,.]+[KkMm]?\s*(thành viên|members?|bài viết|posts?).*$',
+        r'\s*·\s*(Nhóm công khai|Nhóm riêng tư|Public group|Private group).*$',
+        r'\s*·\s*(Chưa đọc|Chưa xem|Mới|Unread|New).*$',
+        
+        # Mốc thời gian (vd: 2 giờ trước, 5 ngày trước, Hôm qua lúc...)
+        r'\s*·?\s*\d+\s*(phút|giờ|ngày|tuần|tháng|năm|mins?|minutes?|hours?|hrs?|days?|weeks?|months?|years?)\s*(trước|ago).*$',
+        r'\s*·?\s*(Hôm qua lúc|Yesterday at|Vừa xong|Just now).*$',
+        
+        # Bài viết mới / Trạng thái đọc
+        r'\s*·?\s*\d+\+?\s*(bài viết mới|new posts?|tin mới).*$',
+        r'^\s*(Chưa đọc|Chưa xem|Mới|Unread|New)\s*·?\s*',
+        r'\s*·?\s*(Chưa đọc|Chưa xem|Mới|Unread|New)\s*$',
+        
+        # Badge số thông báo ví dụ (5) Tên nhóm
+        r'^\s*\(\d+\)\s*'
+    ]
+
+    for pat in garbage_patterns:
+        name = re.sub(pat, '', name, flags=re.IGNORECASE).strip()
+
+    # Dọn dẹp dấu chấm giữa thừa hoặc gạch ngang ở đầu/cuối
+    name = re.sub(r'^[\s·•\-_|:]+|[\s·•\-_|:]+$', '', name).strip()
+    name = re.sub(r'\s+', ' ', name)
     return name.strip()
 
 
@@ -486,10 +537,11 @@ def _crawl_mbasic_category(session: requests.Session, category_name: str, desc: 
             break
 
 
-def fetch_groups_via_browser(cookies: dict, logger=None, headless: bool = False, max_scrolls: int = 50) -> list[dict]:
+def fetch_groups_via_browser(cookies: dict, logger=None, headless: bool = True, max_scrolls: int = 40) -> list[dict]:
     """
-    Sử dụng trình duyệt tự động (Chrome Driver) gắn Cookie JSON của tài khoản,
-    truy cập https://www.facebook.com/groups/joins/ và cuộn trang liên tục để tải toàn bộ 100% danh sách nhóm.
+    Sử dụng trình duyệt Headless (SeleniumBase Chrome Driver) gắn Cookie Facebook,
+    truy cập trực tiếp https://www.facebook.com/groups/joins/, cuộn trang để tải toàn bộ danh sách nhóm
+    và trích xuất tên nhóm sạch sẽ (loại bỏ mọi từ rác).
     """
     def log(msg: str):
         if logger:
@@ -501,7 +553,7 @@ def fetch_groups_via_browser(cookies: dict, logger=None, headless: bool = False,
         log("❌ Không có Cookies hợp lệ để mở trình duyệt.")
         return []
 
-    log("🌐 Đang khởi động trình duyệt Chrome gắn Cookie Facebook...")
+    log("🌐 Đang khởi động trình duyệt Headless gắn Cookie Facebook...")
     import time
     from seleniumbase import Driver
 
@@ -538,6 +590,44 @@ def fetch_groups_via_browser(cookies: dict, logger=None, headless: bool = False,
         no_new_cycles = 0
 
         for scroll_idx in range(1, max_scrolls + 1):
+            # 1. Trích xuất trực tiếp từ các thẻ DOM bằng JavaScript
+            try:
+                dom_items = driver.execute_script("""
+                    const results = [];
+                    const elements = document.querySelectorAll('a[href*="/groups/"]');
+                    for (const el of elements) {
+                        const href = el.getAttribute('href') || el.href || '';
+                        const text = el.innerText || el.textContent || '';
+                        results.push({href: href, text: text});
+                    }
+                    return results;
+                """)
+                if dom_items:
+                    for item in dom_items:
+                        href = item.get("href", "")
+                        raw_text = item.get("text", "")
+                        m = re.search(r'/groups/([a-zA-Z0-9._-]+)', href)
+                        if not m:
+                            continue
+                        slug = m.group(1).strip()
+                        if slug.lower() in IGNORED_SLUGS or any(sub in slug.lower() for sub in ('posts', 'permalink', 'user', 'chats', 'messages', 'direct', 'threads', 'thread', 'feed', 'create', 'search', 'notifications', 'settings', 'joins', 'discover')):
+                            continue
+                        
+                        clean_name = _clean_group_name(raw_text)
+                        url = f"https://www.facebook.com/groups/{slug}/"
+                        gid = slug if slug.isdigit() else ""
+                        if url not in groups_map:
+                            groups_map[url] = {
+                                "name": clean_name if clean_name else (f"Nhóm {gid}" if gid else url),
+                                "url": url,
+                                "group_id": gid
+                            }
+                        elif clean_name and (groups_map[url]["name"].startswith("Nhóm ") or len(clean_name) > len(groups_map[url]["name"])):
+                            groups_map[url]["name"] = clean_name
+            except Exception:
+                pass
+
+            # 2. Bóc tách bổ sung từ page_source
             page_html = driver.page_source
             _extract_groups_from_text(page_html, groups_map)
             _extract_groups_from_mbasic_html(page_html, groups_map)
@@ -574,262 +664,6 @@ def fetch_groups_via_browser(cookies: dict, logger=None, headless: bool = False,
 
 def fetch_user_joined_groups(cookies: dict, fb_dtsg: str = "", max_pages: int = 40, logger=None, proxy=None, allow_browser_fallback: bool = True) -> list[dict]:
     """
-    Gửi request tới Facebook qua tất cả các kênh (Desktop Relay all_joined_groups, GraphQL Pagination, mbasic seemore chain, và Browser Fallback)
-    để lấy danh sách toàn bộ 100% tất cả các nhóm (100-200+ nhóm) mà tài khoản đã tham gia.
-
-    Returns:
-        list[dict]: Danh sách nhóm [{"name": str, "url": str, "group_id": str}, ...]
+    Lấy danh sách toàn bộ các nhóm Facebook đã tham gia bằng trình duyệt Headless mở trực tiếp https://www.facebook.com/groups/joins/
     """
-    if not cookies or not isinstance(cookies, dict):
-        if logger:
-            logger("⚠️ Không có cookies hợp lệ để lấy danh sách nhóm.")
-        return []
-
-    def log(msg: str):
-        if logger:
-            logger(msg)
-        else:
-            print(f"[GroupFetcher] {msg}")
-
-    user_id = str(cookies.get("c_user") or "")
-    xs = str(cookies.get("xs") or "")
-    if not user_id or not xs:
-        log("❌ Cookies thiếu c_user hoặc xs. Vui lòng đăng nhập Facebook và xuất lại JSON từ extension.")
-        return []
-
-    proxies = proxy if proxy else select_proxy(has_cookies=True)
-    session = requests.Session()
-    session.cookies.update(cookies)
-    if proxies:
-        session.proxies.update(proxies)
-
-    groups_map: dict[str, dict] = {}
-    extracted_dtsg = fb_dtsg
-
-    headers_desktop = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Sec-Fetch-Site": "same-origin",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Dest": "document",
-    }
-
-    headers_mobile = {
-        "User-Agent": "Mozilla/5.0 (Linux; Android 13; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Sec-Fetch-Site": "same-origin",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Dest": "document",
-    }
-
-    headers_graphql = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept": "*/*",
-        "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Origin": "https://www.facebook.com",
-        "Referer": "https://www.facebook.com/groups/joins/",
-        "Sec-Fetch-Site": "same-origin",
-        "Sec-Fetch-Mode": "cors",
-        "Sec-Fetch-Dest": "empty",
-        "X-FB-Friendly-Name": "GroupsTabJoinedSectionPaginationQuery"
-    }
-
-    log("🌐 Đang kết nối tới Facebook để lấy danh sách toàn bộ các nhóm bạn đã tham gia...")
-
-    # --------------------------------------------------------------------------
-    # GIAI ĐOẠN 1: Quét Desktop Joined Groups & Bóc tách Tokens / DocIDs / Cursors
-    # --------------------------------------------------------------------------
-    found_doc_ids = set()
-    initial_joined_cursor = None
-    all_cursors = []
-
-    try:
-        log("   📄 Đang tải trang Nhóm đã tham gia (Desktop)...")
-        resp = session.get("https://www.facebook.com/groups/joins/", headers=headers_desktop, timeout=20)
-        if "login.php" in resp.url or "checkpoint" in resp.url:
-            log("   ⚠️ Phiên đăng nhập Facebook không hợp lệ hoặc đã hết hạn (chuyển hướng sang trang đăng nhập).")
-        elif resp.status_code == 200:
-            desktop_joins_html = resp.text
-            _extract_groups_from_text(desktop_joins_html, groups_map)
-            log(f"   ✅ Giao diện Desktop ban đầu: Đã trích xuất {len(groups_map)} nhóm.")
-
-            # Bóc tách fb_dtsg từ mọi biến thể
-            if not extracted_dtsg:
-                for pattern in [
-                    r'["\']DTSGInitialData["\'][^}]+?["\']token["\']\s*:\s*["\']([^"\']+)["\']',
-                    r'["\']DTSGInitData["\'][^}]+?["\']token["\']\s*:\s*["\']([^"\']+)["\']',
-                    r'["\']token["\']\s*:\s*["\']([a-zA-Z0-9:_-]{10,})["\']',
-                    r'name=["\']fb_dtsg["\']\s+value=["\']([^"\']+)["\']',
-                    r'["\']async_get_token["\']\s*:\s*["\']([^"\']+)["\']',
-                    r'["\']DTSG_TOKEN["\']\s*:\s*["\']([^"\']+)["\']'
-                ]:
-                    dtsg_m = re.search(pattern, desktop_joins_html)
-                    if dtsg_m:
-                        extracted_dtsg = dtsg_m.group(1)
-                        break
-
-            # Bóc tách doc_id từ HTML nếu có
-            for m in re.finditer(r'["\'](?:Groups(?:CometAllJoinedGroupsSection|CometJoinsRoot|TabJoined|CometLeftRail|Joined)[\w]*)PaginationQuery_facebookRelayOperation["\'][^}]+?["\']doc_id["\']\s*:\s*["\'](\d+)["\']', desktop_joins_html):
-                found_doc_ids.add(m.group(1))
-            for m in re.finditer(r'__d\(\"GroupsCometAllJoinedGroupsSectionPaginationQuery_facebookRelayOperation\"[^;]+?\\\"(\d+)\\\"', desktop_joins_html):
-                found_doc_ids.add(m.group(1))
-
-            # Bóc tách con trỏ phân trang all_joined_groups từ Relay cache
-            cursor_m = re.search(r'all_joined_groups[\s\S]*?\"end_cursor\"\s*:\s*\"([^\"]+)\"', desktop_joins_html)
-            if cursor_m:
-                initial_joined_cursor = cursor_m.group(1)
-            
-            for m in re.finditer(r'\"end_cursor\"\s*:\s*\"([^\"]+)\"', desktop_joins_html):
-                all_cursors.append(m.group(1))
-            if not initial_joined_cursor and all_cursors:
-                initial_joined_cursor = all_cursors[0]
-    except Exception as e:
-        log(f"   ⚠️ Lỗi truy vấn desktop joins: {str(e)}")
-
-    # --------------------------------------------------------------------------
-    # GIAI ĐOẠN 2: GraphQL Pagination (Lấy toàn bộ các trang nhóm tiếp theo qua Relay)
-    # --------------------------------------------------------------------------
-    if extracted_dtsg:
-        log("🚀 Đang chạy GraphQL Pagination để lấy toàn bộ các trang nhóm tiếp theo...")
-        PRIMARY_PAGINATION_DOC_ID = "9974006939348139"
-        doc_ids_to_try = [PRIMARY_PAGINATION_DOC_ID]
-        for d in found_doc_ids:
-            if d not in doc_ids_to_try:
-                doc_ids_to_try.append(d)
-
-        jazoest = "2" + str(sum(ord(c) for c in extracted_dtsg))
-        cursor = initial_joined_cursor
-        graphql_page = 1
-        consecutive_empty = 0
-
-        while cursor and graphql_page <= max_pages:
-            try:
-                variables = {
-                    "count": 50,
-                    "cursor": cursor,
-                    "ordering": ["integrity_signals"],
-                    "scale": 1
-                }
-                payload = {
-                    "av": user_id,
-                    "__user": user_id,
-                    "__a": "1",
-                    "fb_dtsg": extracted_dtsg,
-                    "jazoest": jazoest,
-                    "doc_id": PRIMARY_PAGINATION_DOC_ID,
-                    "variables": json.dumps(variables)
-                }
-                g_resp = session.post(
-                    "https://www.facebook.com/api/graphql/",
-                    headers=headers_graphql,
-                    data=payload,
-                    timeout=25
-                )
-                if g_resp.status_code != 200:
-                    break
-
-                prev_count = len(groups_map)
-                for line in g_resp.text.split("\n"):
-                    line = line.strip()
-                    if line.startswith("for (;;);"):
-                        line = line[len("for (;;);"):].strip()
-                    if line.startswith("{"):
-                        _extract_groups_from_text(line, groups_map)
-
-                new_added = len(groups_map) - prev_count
-                if new_added > 0:
-                    consecutive_empty = 0
-                    log(f"   ✅ GraphQL Phân trang {graphql_page}: Tìm thấy thêm {new_added} nhóm (Tổng: {len(groups_map)} nhóm).")
-                else:
-                    consecutive_empty += 1
-                    if consecutive_empty >= 2:
-                        break
-
-                next_cursor = None
-                has_next = False
-                for line in g_resp.text.split("\n"):
-                    line = line.strip()
-                    if line.startswith("for (;;);"):
-                        line = line[len("for (;;);"):].strip()
-                    if not line.startswith("{"):
-                        continue
-                    try:
-                        data = json.loads(line)
-                        tab_list = data.get("data", {}).get("viewer", {}).get("all_joined_groups", {}).get("tab_groups_list", {})
-                        page_info = tab_list.get("page_info", {})
-                        if page_info:
-                            has_next = page_info.get("has_next_page", False)
-                            next_cursor = page_info.get("end_cursor")
-                            break
-                    except Exception:
-                        pass
-
-                if not next_cursor:
-                    next_cursor_m = re.search(r'\"end_cursor\"\s*:\s*\"([^\"]+)\"', g_resp.text)
-                    has_next_m = re.search(r'\"has_next_page\"\s*:\s*(true|false)', g_resp.text, re.IGNORECASE)
-                    has_next = (has_next_m.group(1).lower() == "true") if has_next_m else False
-                    next_cursor = next_cursor_m.group(1) if next_cursor_m else None
-
-                if not has_next or not next_cursor or next_cursor == cursor:
-                    break
-                cursor = next_cursor
-                graphql_page += 1
-            except Exception as e:
-                log(f"   ⚠️ Lỗi phân trang GraphQL trang {graphql_page}: {e}")
-                break
-
-    # --------------------------------------------------------------------------
-    # GIAI ĐOẠN 3: Quét Toàn Bộ Danh Mục mbasic Qua Chuỗi Seemore Link Chuyên Sâu
-    # --------------------------------------------------------------------------
-    categories = [
-        ("membership", "Nhóm đã tham gia"),
-        ("admin", "Nhóm bạn quản lý"),
-        ("pinned", "Nhóm đã ghim"),
-    ]
-
-    log("🌐 Đang quét danh sách nhóm mbasic qua chuỗi liên kết xem thêm...")
-    for cat_name, desc in categories:
-        _crawl_mbasic_category(session, cat_name, desc, groups_map, headers_mobile, log)
-
-    # --------------------------------------------------------------------------
-    # GIAI ĐOẠN 4: Quét Thêm Mobile Web & Trang Nhóm User Profile
-    # --------------------------------------------------------------------------
-    extra_urls = [
-        f"https://mbasic.facebook.com/{user_id}/groups/",
-        f"https://m.facebook.com/groups/joins/",
-        f"https://mbasic.facebook.com/groups/joins/",
-    ]
-    for e_url in extra_urls:
-        try:
-            prev_count = len(groups_map)
-            resp = session.get(e_url, headers=headers_mobile, timeout=12)
-            if resp.status_code == 200 and "login.php" not in resp.url:
-                _extract_groups_from_mbasic_html(resp.text, groups_map)
-                _extract_groups_from_text(resp.text, groups_map)
-                new_found = len(groups_map) - prev_count
-                if new_found > 0:
-                    log(f"   ✅ Quét bổ sung ({e_url}): Thêm {new_found} nhóm (Tổng: {len(groups_map)} nhóm).")
-        except Exception:
-            pass
-
-    # Khử trùng lặp đa tầng & sắp xếp danh sách nhóm
-    raw_list = list(groups_map.values())
-    result = _deduplicate_and_clean_groups(raw_list)
-
-    # --------------------------------------------------------------------------
-    # GIAI ĐOẠN 5: Browser Automation Fallback (Nếu HTTP bị Facebook giới hạn < 50 nhóm)
-    # --------------------------------------------------------------------------
-    if allow_browser_fallback and len(result) < 50:
-        log(f"ℹ️ HTTP lấy được {len(result)} nhóm (< 50 nhóm). Đang tự động mở trình duyệt gắn Cookie để cuộn lấy 100% đầy đủ...")
-        try:
-            browser_result = fetch_groups_via_browser(cookies=cookies, logger=log, headless=True, max_scrolls=40)
-            if len(browser_result) > len(result):
-                result = browser_result
-        except Exception as e:
-            log(f"⚠️ Trình duyệt tự động gặp lỗi: {e}")
-
-    log(f"🎉 Hoàn tất! Đã trích xuất thành công {len(result)} nhóm Facebook.")
-    return result
+    return fetch_groups_via_browser(cookies=cookies, logger=logger, headless=True, max_scrolls=max_pages)

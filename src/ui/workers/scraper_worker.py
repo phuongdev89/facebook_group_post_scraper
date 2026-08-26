@@ -48,13 +48,23 @@ class ScraperThread(QThread):
         else:
             self.log("⚠️  No proxy configured")
 
+        # Đồng bộ proxy tới tất cả scraper modules
+        import src.core.comment_scraper as comment_scraper
+        import src.core.group_scraper as group_scraper
+        import src.core.page_scraper as page_scraper
+        import src.core.media_scraper as media_scraper
+        comment_scraper.PROXIES = proxies
+        group_scraper.PROXIES = proxies
+        page_scraper.PROXIES = proxies
+        media_scraper.PROXIES = proxies
+
     def run(self):
         self.ai_worker.start()
         try:
             self._apply_proxy()
             start_time = time.time()
             groups = self.params.get("groups") or self.params.get("group_urls") or self.params.get("urls") or []
-            post_count = self.params.get("post_count", 5)
+            post_count = self.params.get("count") or self.params.get("post_count") or 5
             min_comments = self.params.get("min_comments", 0)
             keywords = self.params.get("keywords", [])
             infinite_loop = self.params.get("infinite_loop", False)
@@ -76,23 +86,28 @@ class ScraperThread(QThread):
                     if isinstance(group_item, dict):
                         group_url = group_item.get("url", "")
                         configured_name = group_item.get("name", "").strip()
+                        raw_gid = str(group_item.get("group_id") or "").strip()
                     else:
                         group_url = str(group_item)
                         configured_name = ""
-
-                    if configured_name.startswith("http://") or configured_name.startswith("https://"):
-                        configured_name = ""
+                        raw_gid = ""
 
                     self.log(f"\n[Nhóm {idx+1}/{total_groups}] Đang quét: {group_url}")
-                    group_id = extract_group_id_from_url(group_url, self.cookies)
+                    if not raw_gid or not raw_gid.isdigit():
+                        self.log(f"🔄 Đang tự động phân giải Group ID cho: {group_url}...")
+                        group_id = extract_group_id_from_url(group_url, self.cookies)
+                    else:
+                        group_id = raw_gid
+
                     if not group_id:
-                        self.log(f"❌ Không tìm thấy Group ID cho: {group_url}")
+                        self.log(f"❌ Không tìm thấy Group ID cho: {group_url}. (Gợi ý: Cấu hình Cookie nếu đây là nhóm kín/riêng tư).")
                         continue
                         
                     self.log(f"🔍 Group ID: {group_id}")
                     posts = fetch_group_posts(
                         group_id=group_id,
                         group_name=configured_name,
+                        limit=post_count,
                         target_count=post_count,
                         cookies=self.cookies,
                         fb_dtsg=self.fb_dtsg,
@@ -115,17 +130,17 @@ class ScraperThread(QThread):
                             post["group_name"] = configured_name
                             
                         comments = []
-                        if min_comments > 0:
-                            try:
-                                comments, _ = fetch_comments(
-                                    post_id,
-                                    target_count=min_comments,
-                                    cookies=self.cookies,
-                                    fb_dtsg=self.fb_dtsg,
-                                    logger=self.log
-                                )
-                            except Exception as e:
-                                self.log(f"⚠️ Lỗi lấy comment bài {post_id}: {e}")
+                        try:
+                            target_cmt_count = max(min_comments, 20)
+                            comments, _ = fetch_comments(
+                                post_id,
+                                target_count=target_cmt_count,
+                                cookies=self.cookies,
+                                fb_dtsg=self.fb_dtsg,
+                                logger=self.log
+                            )
+                        except Exception as e:
+                            self.log(f"⚠️ Lỗi lấy comment bài {post_id}: {e}")
                                 
                         res = save_or_update_post(
                             post_type="group_post",

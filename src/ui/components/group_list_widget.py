@@ -8,28 +8,44 @@ class AddGroupDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Thêm Nhóm Facebook mới")
-        self.setFixedWidth(400)
+        self.setFixedWidth(420)
         layout = QVBoxLayout(self)
         
-        layout.addWidget(QLabel("Tên Nhóm:"))
+        layout.addWidget(QLabel("URL Nhóm hoặc Link Bài Viết:"))
+        self.url_input = QLineEdit()
+        self.url_input.setPlaceholderText("VD: https://www.facebook.com/groups/congdongin3d/ hoặc ID nhóm")
+        self.url_input.editingFinished.connect(self._on_url_blur)
+        layout.addWidget(self.url_input)
+
+        layout.addWidget(QLabel("Tên Nhóm (Tự động điền khi nhập link):"))
         self.name_input = QLineEdit()
-        self.name_input.setPlaceholderText("VD: Chợ Mua Bán Đồ Cũ Hà Nội")
+        self.name_input.setPlaceholderText("VD: Cộng Đồng In 3D")
         layout.addWidget(self.name_input)
         
-        layout.addWidget(QLabel("URL Nhóm:"))
-        self.url_input = QLineEdit()
-        self.url_input.setPlaceholderText("https://www.facebook.com/groups/123456789")
-        layout.addWidget(self.url_input)
-        
+        self.resolved_group_id = ""
+
         btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         btns.accepted.connect(self.accept)
         btns.rejected.connect(self.reject)
         layout.addWidget(btns)
+
+    def _on_url_blur(self):
+        from src.utils.helpers import resolve_group_details
+        raw = self.url_input.text().strip()
+        if not raw:
+            return
+        res = resolve_group_details(raw)
+        if res.get("resolved") and res.get("group_id"):
+            self.resolved_group_id = res["group_id"]
+            self.url_input.setText(res["url"])
+            if not self.name_input.text().strip() and res.get("name"):
+                self.name_input.setText(res["name"])
         
     def get_data(self):
         return {
             "name": self.name_input.text().strip(),
-            "url": self.url_input.text().strip()
+            "url": self.url_input.text().strip(),
+            "group_id": self.resolved_group_id
         }
 
 class GroupListWidget(QWidget):

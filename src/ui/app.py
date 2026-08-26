@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QTableWidget, QTableWidgetItem, QHeaderView,
                              QAbstractItemView, QMenu, QCompleter, QProgressDialog,
                              QFileDialog)
-from PyQt6.QtCore import QThread, pyqtSignal, Qt, QUrl
+from PyQt6.QtCore import QThread, pyqtSignal, Qt, QUrl, QTimer
 from PyQt6.QtGui import QFont, QTextCursor, QDesktopServices, QCursor, QTextDocument, QIntValidator, QColor
 
 # Ensure stdout and stderr handle utf-8 on Windows
@@ -69,17 +69,25 @@ from src.ui.workers.scraper_worker import ScraperThread
 # Helper: Cookie Management
 # ==============================================================================
 def parse_cookies(cookie_string):
-    """Parse cookie string in format 'key1=value1;key2=value2' into dictionary"""
-    cookies = {}
+    """Parse cookie string in format 'key1=value1;key2=value2' or JSON format into dictionary"""
     if not cookie_string:
-        return cookies
+        return {}
+    if isinstance(cookie_string, dict):
+        return cookie_string
     
-    for cookie in cookie_string.split(';'):
+    try:
+        c_dict, _, _ = parse_cookies_from_any(str(cookie_string))
+        if c_dict:
+            return c_dict
+    except Exception:
+        pass
+
+    cookies = {}
+    for cookie in str(cookie_string).split(';'):
         cookie = cookie.strip()
         if '=' in cookie:
             key, value = cookie.split('=', 1)
             cookies[key.strip()] = value.strip()
-    
     return cookies
 
 
@@ -280,14 +288,44 @@ def show_group_help_dialog(parent=None):
     QMessageBox.information(parent, "❓ Hướng dẫn nhập URL nhóm", msg)
 
 
+class GroupSlugResolverWorker(QThread):
+    """Worker chạy ngầm để phân giải Group Slug thành Group ID số và tên nhóm"""
+    resolved_signal = pyqtSignal(dict)
+
+    def __init__(self, raw_url: str, cookies: dict = None, parent=None):
+        super().__init__(parent)
+        self.raw_url = raw_url
+        self.cookies = cookies or {}
+
+    def run(self):
+        try:
+            from src.utils.helpers import resolve_group_details
+            res = resolve_group_details(self.raw_url, self.cookies)
+            res["input_url"] = self.raw_url
+            self.resolved_signal.emit(res)
+        except Exception:
+            self.resolved_signal.emit({
+                "input_url": self.raw_url,
+                "group_id": "",
+                "name": "",
+                "url": self.raw_url,
+                "resolved": False
+            })
+
+
 class GroupRowWidget(QWidget):
-    """Một dòng trong danh sách nhóm: Tên group, URL group (tự parse link bài viết khi blur), Nút Xóa"""
+    """Một dòng trong danh sách nhóm: Tên group, URL group (tự resolve slug thành ID số khi paste/gõ & loading), Nút Xóa"""
     changed = pyqtSignal()
     delete_requested = pyqtSignal(QWidget)
+    deduplicate_requested = pyqtSignal()
 
     def __init__(self, name="", url="", group_id="", parent=None):
         super().__init__(parent)
-        self.group_id = group_id
+        self.group_id = str(group_id) if group_id else ""
+        self.resolver_worker = None
+        self.resolve_timer = QTimer(self)
+        self.resolve_timer.setSingleShot(True)
+        self.resolve_timer.timeout.connect(self._on_url_blur)
         self.init_ui(name, url)
 
     def init_ui(self, name, url):
@@ -298,18 +336,25 @@ class GroupRowWidget(QWidget):
 
         # Name input
         self.name_input = QLineEdit(name)
-        self.name_input.setPlaceholderText("Tên group (tùy chọn)")
+        self.name_input.setPlaceholderText("Tên group (tự động điền)")
         self.name_input.setStyleSheet("padding: 6px; font-size: 12px; border: 1px solid #D1D5DB; border-radius: 4px;")
         self.name_input.textChanged.connect(lambda: self.changed.emit())
         layout.addWidget(self.name_input, stretch=2)
 
-        # URL input (với auto-parse khi blur / editingFinished)
+        # URL input (với auto-parse khi paste / gõ / blur)
         self.url_input = QLineEdit(url)
         self.url_input.setPlaceholderText("URL group (vd: https://www.facebook.com/groups/...) hoặc link bài viết")
         self.url_input.setStyleSheet("padding: 6px; font-size: 12px; border: 1px solid #D1D5DB; border-radius: 4px;")
-        self.url_input.textChanged.connect(lambda: self.changed.emit())
+        self.url_input.textChanged.connect(self._on_url_text_changed)
         self.url_input.editingFinished.connect(self._on_url_blur)
         layout.addWidget(self.url_input, stretch=6)
+
+        # Loading / Status label
+        self.status_label = QLabel("")
+        self.status_label.setFixedWidth(24)
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status_label.setStyleSheet("font-size: 13px;")
+        layout.addWidget(self.status_label)
 
         # Delete button '🗑️'
         self.delete_btn = QPushButton("🗑️")
@@ -328,17 +373,97 @@ class GroupRowWidget(QWidget):
         self.delete_btn.clicked.connect(lambda: self.delete_requested.emit(self))
         layout.addWidget(self.delete_btn)
 
+    def _on_url_text_changed(self):
+        self.changed.emit()
+        raw = self.url_input.text().strip()
+        if raw.startswith("http") or "facebook.com" in raw or "/groups/" in raw:
+            # Tự động kích hoạt phân giải sau 350ms khi dán hoặc gõ xong
+            self.resolve_timer.start(350)
+
+    def _get_parent_cookies(self):
+        # 1. Tìm từ widget cha
+        p = self.parent()
+        while p:
+            if hasattr(p, 'cookies') and p.cookies:
+                return p.cookies
+            if hasattr(p, 'cookie_string') and p.cookie_string:
+                return parse_cookies(p.cookie_string)
+            p = p.parent()
+        # 2. Tìm từ database settings
+        try:
+            from src.database.repository import get_all_settings
+            st = get_all_settings()
+            c_str = st.get("cookies", "")
+            if c_str:
+                return parse_cookies(c_str)
+        except Exception:
+            pass
+        return {}
+
     def _on_url_blur(self):
-        """Tự động phân tích và chuyển đổi link bài viết -> link group khi blur"""
+        """Tự động phân tích, phân giải slug -> ID số và chuẩn hóa link group"""
         raw = self.url_input.text().strip()
         if not raw:
             return
         parsed = parse_and_clean_fb_url(raw)
-        if parsed and parsed != raw:
-            self.url_input.blockSignals(True)
-            self.url_input.setText(parsed)
-            self.url_input.blockSignals(False)
+
+        # 1. Nếu đã là URL chứa ID số (vd: /groups/123456789/)
+        m_num = re.search(r'/groups/(\d{4,})(?:/|$)', parsed)
+        if m_num:
+            gid = m_num.group(1)
+            self.group_id = gid
+            clean_canonical = f"https://www.facebook.com/groups/{gid}/"
+            if clean_canonical != raw:
+                self.url_input.blockSignals(True)
+                self.url_input.setText(clean_canonical)
+                self.url_input.blockSignals(False)
+            self.status_label.setText("✓")
+            self.status_label.setStyleSheet("color: #059669; font-weight: bold;")
+            QTimer.singleShot(2500, lambda: self.status_label.setText(""))
             self.changed.emit()
+            self.deduplicate_requested.emit()
+            return
+
+        # 2. Nếu là slug (vd: /groups/congdongin3dvietnam/) hoặc link chia sẻ
+        m_slug = re.search(r'/groups/([a-zA-Z0-9._-]+)', parsed)
+        if m_slug:
+            slug = m_slug.group(1).strip()
+            if slug not in ('create', 'discover', 'feed', 'notifications', 'joins'):
+                self.status_label.setText("⏳")
+                self.status_label.setStyleSheet("color: #D97706; font-weight: bold;")
+                self.status_label.setToolTip("Đang tìm ID số của nhóm từ Facebook...")
+                cookies = self._get_parent_cookies()
+
+                self.resolver_worker = GroupSlugResolverWorker(parsed, cookies=cookies)
+                self.resolver_worker.resolved_signal.connect(self._on_slug_resolved)
+                self.resolver_worker.start()
+                return
+
+    def _on_slug_resolved(self, res: dict):
+        self.status_label.setText("")
+        if res.get("resolved") and res.get("group_id"):
+            gid = res["group_id"]
+            self.group_id = gid
+            canonical_url = f"https://www.facebook.com/groups/{gid}/"
+            self.url_input.blockSignals(True)
+            self.url_input.setText(canonical_url)
+            self.url_input.blockSignals(False)
+
+            if not self.name_input.text().strip() and res.get("name"):
+                self.name_input.blockSignals(True)
+                self.name_input.setText(res["name"])
+                self.name_input.blockSignals(False)
+
+            self.status_label.setText("✓")
+            self.status_label.setStyleSheet("color: #059669; font-weight: bold;")
+            QTimer.singleShot(2500, lambda: self.status_label.setText(""))
+        else:
+            self.status_label.setText("⚠️")
+            self.status_label.setStyleSheet("color: #DC2626;")
+            self.status_label.setToolTip("Không tìm được ID số. Nhóm có thể yêu cầu Cookie hoặc là nhóm kín.")
+
+        self.changed.emit()
+        self.deduplicate_requested.emit()
 
     def get_data(self) -> dict:
         return {
@@ -352,7 +477,7 @@ class GroupRowWidget(QWidget):
         self.url_input.blockSignals(True)
         self.name_input.setText(name)
         self.url_input.setText(url)
-        self.group_id = group_id
+        self.group_id = str(group_id) if group_id else ""
         self.name_input.blockSignals(False)
         self.url_input.blockSignals(False)
 
@@ -620,10 +745,29 @@ class GroupManagerDialog(QDialog):
         row = GroupRowWidget(name=name, url=url, group_id=group_id, parent=self)
         row.delete_requested.connect(self.remove_row)
         row.changed.connect(self.update_count_badge)
+        row.deduplicate_requested.connect(self.deduplicate_rows)
         self.row_widgets.append(row)
         self.rows_layout.addWidget(row)
         self.update_count_badge()
         return row
+
+    def deduplicate_rows(self):
+        """Khử trùng lặp giữa các dòng nhóm (theo Group ID hoặc URL)"""
+        seen = set()
+        to_remove = []
+        for r in self.row_widgets:
+            data = r.get_data()
+            gid = str(data.get("group_id") or "").strip()
+            url = str(data.get("url") or "").strip()
+            if not gid and not url:
+                continue
+            key = f"id:{gid}" if gid else f"url:{url}"
+            if key in seen:
+                to_remove.append(r)
+            else:
+                seen.add(key)
+        for r in to_remove:
+            self.remove_row(r)
 
     def remove_row(self, row_widget: GroupRowWidget):
         if row_widget in self.row_widgets:
@@ -821,12 +965,36 @@ class GroupListWidget(QWidget):
         row = GroupRowWidget(name=name, url=url, group_id=group_id, parent=self)
         row.changed.connect(self._on_row_changed)
         row.delete_requested.connect(self.remove_row)
+        row.deduplicate_requested.connect(self.deduplicate_groups)
         self.row_widgets.append(row)
         self.rows_layout.addWidget(row)
         if auto_save and self._sync_enabled:
             self.save_to_db()
             self.groups_changed.emit()
         return row
+
+    def deduplicate_groups(self):
+        """Khử trùng lặp giữa các dòng nhóm (theo Group ID hoặc URL)"""
+        seen = set()
+        to_remove = []
+        for r in self.row_widgets:
+            data = r.get_data()
+            gid = str(data.get("group_id") or "").strip()
+            url = str(data.get("url") or "").strip()
+            if not gid and not url:
+                continue
+            key = f"id:{gid}" if gid else f"url:{url}"
+            if key in seen:
+                to_remove.append(r)
+            else:
+                seen.add(key)
+        if to_remove:
+            self._sync_enabled = False
+            for r in to_remove:
+                self.remove_row(r)
+            self._sync_enabled = True
+            self.save_to_db()
+            self.groups_changed.emit()
 
     def remove_row(self, row_widget: GroupRowWidget):
         if row_widget in self.row_widgets:

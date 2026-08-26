@@ -3,6 +3,7 @@ import json
 import time
 import os
 import sys
+import re
 import uuid
 # Ensure stdout and stderr handle utf-8 on Windows
 if hasattr(sys.stdout, 'reconfigure'):
@@ -467,21 +468,89 @@ def post_already_exists(post_id, base_folder=None):
     return database.post_exists(str(post_id))
 
 
+def extract_story_post_id(node):
+    """Trích xuất post_id từ nhiều nguồn khả dĩ trong Story node của Facebook GraphQL"""
+    if not node or not isinstance(node, dict):
+        return None
+    
+    # 1. Trực tiếp từ post_id
+    if node.get('post_id'):
+        return str(node['post_id']).strip()
+    
+    # 2. legacy_story_hideable_id
+    if node.get('legacy_story_hideable_id'):
+        return str(node['legacy_story_hideable_id']).strip()
+
+    # 3. legacy_fbid
+    if node.get('legacy_fbid'):
+        return str(node['legacy_fbid']).strip()
+
+    # 4. feedback legacy_token
+    feedback = node.get('feedback', {})
+    if isinstance(feedback, dict) and feedback.get('legacy_token'):
+        return str(feedback['legacy_token']).strip()
+
+    # 5. Regex từ permalink_url hoặc url
+    permalink = node.get('permalink_url') or node.get('url') or ''
+    if permalink:
+        for p in [r'/posts/(\d+)', r'/permalink/(\d+)', r'story_fbid=([^&]+)', r'fbid=(\d+)', r'multi_permalinks=(\d+)']:
+            m = re.search(p, str(permalink))
+            if m:
+                return m.group(1).strip()
+
+    # 6. Base64 decode feedback id (e.g. feedback:<post_id>)
+    feedback_id = feedback.get('id') if isinstance(feedback, dict) else None
+    if feedback_id and isinstance(feedback_id, str):
+        try:
+            import base64
+            decoded = base64.b64decode(feedback_id).decode('utf-8', errors='ignore')
+            if 'feedback:' in decoded:
+                f_id = decoded.split('feedback:', 1)[1].strip()
+                if f_id.isdigit():
+                    return f_id
+        except Exception:
+            pass
+
+    # 7. Base64 decode node id
+    node_id = node.get('id')
+    if node_id and isinstance(node_id, str):
+        if node_id.isdigit():
+            return node_id
+        try:
+            import base64
+            decoded = base64.b64decode(node_id).decode('utf-8', errors='ignore')
+            for prefix in ['Story:', 'post:', 'feedback:']:
+                if prefix in decoded:
+                    sub_id = decoded.split(prefix, 1)[1].strip()
+                    if sub_id.isdigit():
+                        return sub_id
+        except Exception:
+            pass
+
+    return None
+
+
 def extract_post_data(node, group_name=None):
     """Extract relevant data from a post node (in-memory only, no disk files)"""
     if not node or node.get('__typename') != 'Story':
+        return None
+    
+    post_id = extract_story_post_id(node)
+    if not post_id:
         return None
     
     content_story = node.get('comet_sections', {}).get('content', {}).get('story', {})
     
     message = ''
     message_obj = content_story.get('message', {})
-    if message_obj:
+    if message_obj and isinstance(message_obj, dict):
         message = message_obj.get('text', '')
-    
-    post_id = node.get('post_id')
-    if not post_id:
-        return None
+    if not message:
+        comet_msg = node.get('comet_sections', {}).get('message', {}).get('story', {}).get('message', {})
+        if comet_msg and isinstance(comet_msg, dict):
+            message = comet_msg.get('text', '')
+        elif isinstance(node.get('message'), dict):
+            message = node.get('message', {}).get('text', '')
     
     comment_count = extract_comment_count(node)
     
@@ -489,14 +558,15 @@ def extract_post_data(node, group_name=None):
         group_name = extract_group_name(node)
     
     creation_time = extract_creation_time(node)
+    permalink = node.get('permalink_url') or f"https://www.facebook.com/groups/{GROUP_ID}/posts/{post_id}/"
 
     post_data = {
-        'id': node.get('id'),
+        'id': node.get('id') or post_id,
         'post_id': post_id,
         'message': message,
         'comment_count': comment_count,
         'group_name': group_name,
-        'permalink': node.get('permalink_url', ''),
+        'permalink': permalink,
         'creation_time': creation_time,
         'photos': extract_media(node, post_id)['photos'],
         'videos': extract_media(node, post_id)['videos']
@@ -534,19 +604,25 @@ def fetch_posts(limit=10, min_comments=0, batch_size=10, on_batch_complete=None,
     # Reset GROUP_NAME per fetch to avoid leaking previous group name
     GROUP_NAME = group_name.strip() if (group_name and str(group_name).strip()) else None
 
+    def log(msg: str):
+        if logger:
+            logger(str(msg))
+        else:
+            print(str(msg))
+
     all_posts = []
     batch_posts = []
     cursor = None
     page_num = 1
     
     if min_comments > 0:
-        print(f"📊 Filtering posts with at least {min_comments} comments")
+        log(f"📊 Filtering posts with at least {min_comments} comments")
     
     if batch_size > 0 and batch_size < limit:
-        print(f"📦 Processing in batches of {batch_size} posts")
+        log(f"📦 Processing in batches of {batch_size} posts")
     
     while len(all_posts) < limit:
-        print(f"\nFetching page {page_num}...")
+        log(f"📄 Đang tải trang bài viết {page_num} qua GraphQL (Nhóm ID: {GROUP_ID})...")
         
         fetch_count = max(3, min(limit - len(all_posts), 10))
         variables = {
@@ -585,7 +661,7 @@ def fetch_posts(limit=10, min_comments=0, batch_size=10, on_batch_complete=None,
                 r = retry_request(GRAPHQL_URL, HEADERS, payload, PROXIES)
                 r.raise_for_status()
             except requests.RequestException as e:
-                print(f"Request failed: {e}")
+                log(f"❌ GraphQL Request failed: {e}")
                 break
             
             # Parse the response
@@ -597,19 +673,14 @@ def fetch_posts(limit=10, min_comments=0, batch_size=10, on_batch_complete=None,
             else:
                 empty_retry_count += 1
                 if empty_retry_count < max_empty_retries:
-                    print(f"  ⚠️ Empty response, retrying ({empty_retry_count}/{max_empty_retries})...")
+                    log(f"  ⚠️ Facebook trả về dữ liệu rỗng, đang thử lại ({empty_retry_count}/{max_empty_retries})...")
                     time.sleep(2)  # Wait before retry
                 else:
-                    print(f"  ❌ Empty response after {max_empty_retries} attempts, skipping page")
+                    log(f"  ❌ Không nhận được dữ liệu sau {max_empty_retries} lần thử, bỏ qua trang")
         
         if not data or len(data) == 0:
-            print("❌ No data received after retries, stopping pagination")
+            log("❌ Không nhận được phản hồi từ Facebook GraphQL sau khi thử lại.")
             break
-        
-        # Save raw response for debugging
-        # with open(f"scratch/group_raw_page_{page_num}.json", "w", encoding="utf-8") as f:
-        #     json.dump(data, f, ensure_ascii=False, indent=2)
-        # print(f"Saved scratch/group_raw_page_{page_num}.json")
         
         # Extract posts from the response array
         posts_found = 0
@@ -641,26 +712,25 @@ def fetch_posts(limit=10, min_comments=0, batch_size=10, on_batch_complete=None,
             for story_node in story_nodes:
                 # Skip reels and video posts
                 if is_reel_or_video_post(story_node):
-                    print(f"  ⏭️  Skipping reel/video post")
                     continue
                 
                 # Check comment count threshold
                 comment_count = extract_comment_count(story_node)
                 if min_comments > 0 and comment_count < min_comments:
-                    print(f"  ⏭️  Skipping post with only {comment_count} comments (need {min_comments}+)")
+                    log(f"  ⏭️ Bỏ qua bài viết chỉ có {comment_count} bình luận (yêu cầu tối thiểu {min_comments}+)")
                     continue
                 
                 # Extract group name from first post if not set
                 if not GROUP_NAME:
                     GROUP_NAME = extract_group_name(story_node)
                     if GROUP_NAME:
-                        print(f"📂 Group name: {GROUP_NAME}")
+                        log(f"📂 Tên nhóm: {GROUP_NAME}")
                 
                 # Check if post already exists
-                temp_post_id = story_node.get('post_id')
-                is_existing = post_already_exists(temp_post_id)
-                if is_existing:
-                    print(f"  ℹ️  Post {temp_post_id} already exists in DB -> will fetch to update comments")
+                temp_post_id = extract_story_post_id(story_node)
+                is_existing = post_already_exists(temp_post_id) if temp_post_id else False
+                if is_existing and temp_post_id:
+                    log(f"  ℹ️ Bài viết {temp_post_id} đã có trong CSDL -> sẽ cào để cập nhật bình luận")
                 
                 post_data = extract_post_data(story_node, GROUP_NAME)
                 if post_data:
@@ -668,12 +738,12 @@ def fetch_posts(limit=10, min_comments=0, batch_size=10, on_batch_complete=None,
                     batch_posts.append(post_data)
                     all_posts.append(post_data)
                     posts_found += 1
-                    status_str = "existing -> update comments" if is_existing else "new"
-                    print(f"  - Process post: {post_data['post_id']} ({status_str})")
+                    status_str = "đã tồn tại -> cập nhật" if is_existing else "mới"
+                    log(f"  ✅ Tìm thấy bài viết: {post_data['post_id']} ({status_str}) - {comment_count} cmt")
                     
                     # Check if we should process this batch
                     if batch_size > 0 and len(batch_posts) >= batch_size and on_batch_complete:
-                        print(f"\n📦 Batch complete: {len(batch_posts)} posts. Total: {len(all_posts)}/{limit}")
+                        log(f"📦 Hoàn thành nhóm bài: {len(batch_posts)} bài. Tổng: {len(all_posts)}/{limit}")
                         on_batch_complete(batch_posts, len(all_posts), limit)
                         batch_posts = []  # Reset batch
                     
@@ -690,11 +760,11 @@ def fetch_posts(limit=10, min_comments=0, batch_size=10, on_batch_complete=None,
                 if page_info.get('has_next_page'):
                     next_cursor = page_info.get('end_cursor')
         
-        print(f"Found {posts_found} posts on this page")
+        log(f"   => Lấy được {posts_found} bài viết ở trang {page_num}")
         
         # Check if we should continue
         if not next_cursor or len(all_posts) >= limit:
-            print("No more pages or reached limit. Stopping.")
+            log("🏁 Đã lấy đủ số lượng bài viết yêu cầu hoặc đã hết trang.")
             break
         
         cursor = next_cursor
@@ -703,7 +773,7 @@ def fetch_posts(limit=10, min_comments=0, batch_size=10, on_batch_complete=None,
     
     # Process any remaining posts in the final batch
     if batch_posts and on_batch_complete:
-        print(f"\n📦 Final batch: {len(batch_posts)} posts. Total: {len(all_posts)}/{limit}")
+        log(f"📦 Xử lý nhóm bài cuối: {len(batch_posts)} bài.")
         on_batch_complete(batch_posts, len(all_posts), limit)
     
     return all_posts

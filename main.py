@@ -98,104 +98,12 @@ def extract_clean_group_url(url: str) -> str:
 
 def extract_group_id_from_url(url, cookies=None):
     """Extract Facebook Group ID from a group URL or a group post URL (supports numeric ID and vanity/slug names)"""
-    if not url:
-        return None
-    url = url.strip()
-
-    # 1. First, try to extract ID directly from URL
-    url_patterns = [
-        r'/groups/(\d+)(?:/|posts|permalink|\?|$)',
-        r'/groups/(\d+)',
-        r'[?&]group_id=(\d+)',
-        r'[?&]gid=(\d+)'
-    ]
-    
-    for pattern in url_patterns:
-        match = re.search(pattern, url)
-        if match:
-            group_id = match.group(1)
-            print(f"  ✅ Found Group ID in URL: {group_id}")
-            return group_id
-
-    clean_group_url = extract_clean_group_url(url)
-    slug_match = re.search(r'/groups/([^/?#]+)', url)
-    if slug_match:
-        slug = slug_match.group(1)
-        if slug.isdigit():
-            return slug
-
-    # 2. For vanity names (e.g. /groups/elegoovietnam/), fetch via m.facebook.com with mobile User-Agent
-    mobile_headers = {
-        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-    }
-    
-    target_urls = [clean_group_url, url] if clean_group_url != url else [url]
-    for target_url in target_urls:
-        m_url = re.sub(r'https?://(www\.|web\.)?facebook\.com', 'https://m.facebook.com', target_url)
-        try:
-            print(f"  Resolving vanity group URL via mobile endpoint: {m_url}")
-            response = requests.get(m_url, headers=mobile_headers, cookies=cookies, proxies=PROXIES, timeout=15)
-            if response.status_code == 200:
-                html = response.text
-                patterns = [
-                    r'fb://group/(?:id=|\?id=)?(\d+)',
-                    r'group_id=(\d+)',
-                    r'/groups/(\d+)',
-                    r'"groupID":"(\d+)"',
-                    r'"group_id":"(\d+)"',
-                    r'"groupID":(\d+)',
-                    r'"entity_id":"(\d+)"',
-                    r'"targetID":"(\d+)"',
-                ]
-                for pattern in patterns:
-                    match = re.search(pattern, html)
-                    if match:
-                        group_id = match.group(1)
-                        print(f"  ✅ Resolved Vanity Group ID: {group_id}")
-                        return group_id
-        except Exception as e:
-            print(f"  ⚠️ Error fetching mobile URL: {e}")
-
-    # 3. Fallback to desktop page fetch
-    desktop_headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept-Language": "en-US,en;q=0.9"
-    }
-    
-    for target_url in target_urls:
-        try:
-            print(f"  Falling back to desktop group page: {target_url}")
-            response = requests.get(target_url, headers=desktop_headers, cookies=cookies, proxies=PROXIES, timeout=20)
-            html = response.text
-            
-            # Try multiple patterns to find group ID in HTML
-            patterns = [
-                r'fb://group/(\d+)',              # BEST signal
-                r'fb://group/\?id=(\d+)',         # iOS URL format
-                r'"group_id":"(\d+)"',
-                r'"groupID":"(\d+)"',
-                r'"groupId":"(\d+)"',
-                r'"group_id":(\d+)',
-                r'"groupID":(\d+)',
-                r'"id":"(\d+)","__typename":"Group"',
-                r'"__typename":"Group","id":"(\d+)"',
-                r'{"id":"(\d+)","name":"[^"]+","__typename":"Group"',
-                r'"entity_id":"(\d+)"',
-                r'"entityID":"(\d+)"',
-                r'"targetID":"(\d+)"',
-            ]
-            
-            for pattern in patterns:
-                match = re.search(pattern, html)
-                if match:
-                    group_id = match.group(1)
-                    print(f"  ✅ Found Group ID in desktop page: {group_id}")
-                    return group_id
-        except Exception as e:
-            print(f"  ❌ Error fetching URL: {e}")
-            
+    from src.utils.helpers import resolve_group_details
+    details = resolve_group_details(url, cookies=cookies)
+    gid = details.get("group_id")
+    if gid:
+        print(f"  ✅ Resolved Group ID: {gid}")
+        return gid
     print("  ❌ Group ID not found (group may be private or login wall)")
     return None
 
