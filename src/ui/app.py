@@ -3480,15 +3480,20 @@ class FacebookNotificationUI(QMainWindow):
             item_stt.setData(Qt.ItemDataRole.UserRole + 1, analysis_id)
 
             # Col 2: Post ID
+            comment_id = str(item.get("comment_id") or "").strip()
             try:
                 pid_key = int(post_id)
             except ValueError:
                 pid_key = post_id
             item_id = SmartTableWidgetItem(post_id, sort_key=pid_key)
             item_id.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            item_id.setToolTip(post_id)
+            if comment_id:
+                item_id.setToolTip(f"Post ID: {post_id}\nComment/Reply ID: {comment_id}")
+            else:
+                item_id.setToolTip(post_id)
             item_id.setData(Qt.ItemDataRole.UserRole, post_id)
             item_id.setData(Qt.ItemDataRole.UserRole + 1, analysis_id)
+            item_id.setData(Qt.ItemDataRole.UserRole + 2, comment_id)
 
             # Col 3: Nhóm / Trang (Shortened with full tooltip)
             item_group = SmartTableWidgetItem(group_name)

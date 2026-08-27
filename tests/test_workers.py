@@ -79,11 +79,12 @@ class TestWorkers(unittest.TestCase):
 
     @patch("requests.post")
     def test_ai_worker_deduplication_and_role_change(self, mock_req):
-        from src.database.repository import save_or_update_post, get_ai_analysis_by_post_id
+        from src.database.repository import save_or_update_post, get_ai_analysis_by_post_id, ai_analysis_exists
+        from src.database.repository import get_all_ai_analyses
 
         save_or_update_post("group_post", "888", {"post_id": "888", "group_name": "Test", "message": "Bài 888"}, [])
 
-        # 1. First analysis -> Role: "Người bán"
+        # 1. First analysis -> Post 888, comment_id = None
         mock_resp1 = MagicMock()
         mock_resp1.status_code = 200
         mock_resp1.json.return_value = {
@@ -102,25 +103,23 @@ class TestWorkers(unittest.TestCase):
         )
         worker.start()
 
-        worker.enqueue({"post_id": "888", "group_name": "Test", "message": "Bài 888"}, [], "bán", "Bài viết")
+        worker.enqueue({"post_id": "888", "group_name": "Test", "message": "Bài 888"}, [], "bán", "Bài viết", matched_comment_id=None)
         time.sleep(0.3)
         QCoreApplication.processEvents()
 
         first_analysis = get_ai_analysis_by_post_id("888")
         self.assertIsNotNone(first_analysis)
         self.assertEqual(first_analysis["actor_role"], "Người bán")
-        self.assertEqual(first_analysis["telegram_sent"], 0) # Needs to be sent
+        self.assertIsNone(first_analysis["comment_id"])
+        self.assertEqual(mock_req.call_count, 1)
 
-        # 2. Re-analysis with UNCHANGED role ("Người bán") -> telegram_sent must be 1 (suppressed)
-        worker.enqueue({"post_id": "888", "group_name": "Test", "message": "Bài 888"}, [{"text": "Bình luận mới"}], "bán", "Bình luận")
+        # 2. Re-enqueue with comment_id=None (duplicate post) -> AI must NOT be called again
+        worker.enqueue({"post_id": "888", "group_name": "Test", "message": "Bài 888"}, [], "bán", "Bài viết", matched_comment_id=None)
         time.sleep(0.3)
         QCoreApplication.processEvents()
+        self.assertEqual(mock_req.call_count, 1) # Still 1, skipped!
 
-        second_analysis = get_ai_analysis_by_post_id("888")
-        self.assertEqual(second_analysis["actor_role"], "Người bán")
-        self.assertEqual(second_analysis["telegram_sent"], 1) # Unchanged role -> suppressed!
-
-        # 3. Re-analysis with CHANGED role ("Người mua") -> telegram_sent must be 0 (re-sent)
+        # 3. Enqueue with a new comment_id ("c_101") -> AI MUST be called
         mock_resp2 = MagicMock()
         mock_resp2.status_code = 200
         mock_resp2.json.return_value = {
@@ -133,13 +132,21 @@ class TestWorkers(unittest.TestCase):
         }
         mock_req.return_value = mock_resp2
 
-        worker.enqueue({"post_id": "888", "group_name": "Test", "message": "Bài 888"}, [{"text": "Bình luận tìm mua"}], "mua", "Bình luận")
+        worker.enqueue({"post_id": "888", "group_name": "Test", "message": "Bài 888"}, [{"comment_id": "c_101", "text": "Bình luận tìm mua"}], "mua", "Bình luận", matched_comment_id="c_101")
         time.sleep(0.3)
         QCoreApplication.processEvents()
 
-        third_analysis = get_ai_analysis_by_post_id("888")
-        self.assertEqual(third_analysis["actor_role"], "Người mua")
-        self.assertEqual(third_analysis["telegram_sent"], 0) # Role changed -> trigger new Telegram alert!
+        comment_analysis = get_ai_analysis_by_post_id("888", comment_id="c_101")
+        self.assertIsNotNone(comment_analysis)
+        self.assertEqual(comment_analysis["actor_role"], "Người mua")
+        self.assertEqual(comment_analysis["comment_id"], "c_101")
+        self.assertEqual(mock_req.call_count, 2) # Incremented to 2
+
+        # 4. Re-enqueue same comment_id ("c_101") -> AI must NOT be called again
+        worker.enqueue({"post_id": "888", "group_name": "Test", "message": "Bài 888"}, [{"comment_id": "c_101", "text": "Bình luận tìm mua"}], "mua", "Bình luận", matched_comment_id="c_101")
+        time.sleep(0.3)
+        QCoreApplication.processEvents()
+        self.assertEqual(mock_req.call_count, 2) # Still 2, skipped!
 
         worker.stop()
         worker.wait(1000)

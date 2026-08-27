@@ -7,7 +7,7 @@ from src.core.proxy_utils import select_proxy
 from src.core.group_scraper import fetch_posts as fetch_group_posts
 from src.core.comment_scraper import fetch_comments
 from src.utils.helpers import extract_group_id_from_url
-from src.database.repository import save_or_update_post, mark_post_ai_pending, update_group_last_scraped
+from src.database.repository import save_or_update_post, mark_post_ai_pending, update_group_last_scraped, ai_analysis_exists
 from src.ui.workers.ai_worker import AIAnalysisWorker
 
 # group_scraper dùng global state (COOKIES, FB_DTSG) nên serialize fetch_posts,
@@ -165,10 +165,13 @@ class ScraperThread(QThread):
 
                 kw_hit = None
                 kw_source = "Bài viết"
+                kw_comment_id = None
                 post_msg = (post.get("message") or post.get("text") or "").lower()
                 for kw in keywords:
                     if kw.lower() in post_msg:
                         kw_hit = kw
+                        kw_source = "Bài viết"
+                        kw_comment_id = None
                         break
 
                 if not kw_hit and comments:
@@ -178,14 +181,28 @@ class ScraperThread(QThread):
                             if kw.lower() in c_text:
                                 kw_hit = kw
                                 kw_source = "Bình luận"
+                                kw_comment_id = str(c.get("comment_id") or c.get("id") or "")
                                 break
                         if kw_hit:
                             break
+                        for r in (c.get("replies") or []):
+                            r_text = (r.get("text") or "").lower()
+                            for kw in keywords:
+                                if kw.lower() in r_text:
+                                    kw_hit = kw
+                                    kw_source = "Phản hồi bình luận"
+                                    kw_comment_id = str(r.get("reply_id") or r.get("id") or c.get("comment_id") or "")
+                                    break
+                            if kw_hit:
+                                break
 
                 if kw_hit:
-                    self.log(f"   🎯 Khớp từ khóa '{kw_hit}' ({kw_source}) tại bài {post_id} -> Đưa vào hàng đợi AI.")
-                    mark_post_ai_pending(post_id, kw_hit, kw_source)
-                    self.ai_worker.enqueue(post, comments, kw_hit, kw_source)
+                    if ai_analysis_exists(post_id, kw_comment_id):
+                        self.log(f"   ℹ️ Bài {post_id} ({kw_source} ID: {kw_comment_id or post_id}) khớp '{kw_hit}' nhưng đã được AI phân tích trước đó -> Bỏ qua.")
+                    else:
+                        self.log(f"   🎯 Khớp từ khóa '{kw_hit}' ({kw_source}) tại bài {post_id} -> Đưa vào hàng đợi AI.")
+                        mark_post_ai_pending(post_id, kw_hit, kw_source, kw_comment_id)
+                        self.ai_worker.enqueue(post, comments, kw_hit, kw_source, kw_comment_id)
 
         return saved
 

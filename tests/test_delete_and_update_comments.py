@@ -159,24 +159,27 @@ def test_comment_update_worker_keyword_check():
     # 1. Match in post text
     post_data = {"post_id": "p1", "message": "Cần bán máy ảnh Sony A7"}
     comments = [{"text": "Bao nhiêu vậy shop"}]
-    matched, kw, src = worker.check_keyword_match(post_data, comments, worker.keywords)
+    matched, kw, src, cid = worker.check_keyword_match(post_data, comments, worker.keywords)
     assert matched is True
     assert kw in ["máy ảnh", "sony"]
     assert src == "Bài viết"
+    assert cid is None
 
     # 2. Match in comment text
     post_data2 = {"post_id": "p2", "message": "Xin chào cả nhà"}
-    comments2 = [{"text": "Mình có máy ảnh cần bán nè"}]
-    matched2, kw2, src2 = worker.check_keyword_match(post_data2, comments2, worker.keywords)
+    comments2 = [{"comment_id": "c_202", "text": "Mình có máy ảnh cần bán nè"}]
+    matched2, kw2, src2, cid2 = worker.check_keyword_match(post_data2, comments2, worker.keywords)
     assert matched2 is True
     assert kw2 == "máy ảnh"
     assert src2 == "Bình luận"
+    assert cid2 == "c_202"
 
     # 3. No match
     post_data3 = {"post_id": "p3", "message": "Hôm nay trời đẹp"}
     comments3 = [{"text": "Chào bạn"}]
-    matched3, kw3, src3 = worker.check_keyword_match(post_data3, comments3, worker.keywords)
+    matched3, kw3, src3, cid3 = worker.check_keyword_match(post_data3, comments3, worker.keywords)
     assert matched3 is False
+    assert cid3 is None
 
 
 def test_comment_update_worker_post_status_signal(temp_db):

@@ -125,6 +125,13 @@ class PostDetailDialog(QDialog):
             grid.addWidget(QLabel("<b>Model AI:</b>"), 1, 2)
             grid.addWidget(QLabel(f"<code>{model_used}</code>"), 1, 3)
             
+            comment_id = ai_data.get("comment_id")
+            if comment_id:
+                grid.addWidget(QLabel("<b>Comment / Reply ID:</b>"), 2, 0)
+                grid.addWidget(QLabel(f"<code>{comment_id}</code>"), 2, 1)
+                grid.addWidget(QLabel("<b>Nguồn khớp:</b>"), 2, 2)
+                grid.addWidget(QLabel(f"<code>{ai_data.get('matched_source') or 'Bình luận'}</code>"), 2, 3)
+            
             ai_layout.addLayout(grid)
 
             

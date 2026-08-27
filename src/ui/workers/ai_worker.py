@@ -7,6 +7,7 @@ from src.core.telegram_notifier import send_keyword_match_alert
 from src.database.repository import (
     save_ai_analysis,
     get_ai_analysis_by_post_id,
+    ai_analysis_exists,
     get_pending_ai_posts,
     mark_post_ai_status,
     mark_post_ai_pending,
@@ -20,7 +21,7 @@ class AIAnalysisWorker(QThread):
     Background Thread chuyên trách quét DB & phân tích AI cho các bài viết đang chờ:
     - Quét bảng posts với ai_status = 1 (Pending AI).
     - Tách biệt hoàn toàn khỏi luồng cào bài viết / cập nhật bình luận giúp tốc độ cào tối đa.
-    - Tự động so sánh vai trò cũ/mới để chống spam thông báo Telegram.
+    - Kiểm tra chống trùng lặp trong ai_analyses (post_id nếu comment_id null, cả 2 nếu comment_id <> null).
     - Lưu kết quả vào ai_analyses và chuyển tiếp cho Telegram Dispatcher.
     """
     log_signal = pyqtSignal(str)
@@ -45,11 +46,11 @@ class AIAnalysisWorker(QThread):
         """Kích hoạt quét DB và phân tích ngay lập tức"""
         self._wake_event.set()
 
-    def enqueue(self, post_data: dict, comments_data: list, matched_keyword: str, matched_source: str):
+    def enqueue(self, post_data: dict, comments_data: list, matched_keyword: str, matched_source: str, matched_comment_id: str = None):
         """Đưa bài viết vào hàng đợi phân tích (lưu vào SQLite và kích hoạt worker)"""
         post_id = str(post_data.get("post_id", ""))
         if post_id:
-            mark_post_ai_pending(post_id, matched_keyword, matched_source)
+            mark_post_ai_pending(post_id, matched_keyword, matched_source, matched_comment_id)
         self.trigger_check_now()
 
     def stop(self):
@@ -61,8 +62,18 @@ class AIAnalysisWorker(QThread):
         self.log_signal.emit(message)
         add_log(message, level="INFO", module="AI_WORKER")
 
-    def _process_single_post(self, post: dict, comments: list, kw_hit: str, kw_source: str):
+    def _process_single_post(self, post: dict, comments: list, kw_hit: str, kw_source: str, kw_comment_id: str = None):
         post_id = str(post.get("post_id", "N/A"))
+        clean_comment_id = str(kw_comment_id).strip() if kw_comment_id and str(kw_comment_id).strip() else None
+
+        # 1. Kiểm tra trong db nếu trùng rồi thì đừng phân tích nữa
+        # (check trùng post_id nếu comment_id null, check trùng cả 2 nếu comment_id <> null)
+        if ai_analysis_exists(post_id, clean_comment_id):
+            target_desc = f"comment_id: {clean_comment_id}" if clean_comment_id else "Bài viết"
+            self.log(f"   ℹ️ [AI Trùng Lặp] Bài {post_id} ({target_desc}) đã tồn tại trong bảng ai_analyses -> BỎ QUA phân tích.")
+            mark_post_ai_status(post_id, 2)
+            return
+
         ai_enabled = self.ai_config.get("enabled", False)
         ai_provider = self.ai_config.get("provider", "openai")
         ai_base_url = self.ai_config.get("base_url", "")
@@ -81,18 +92,15 @@ class AIAnalysisWorker(QThread):
         notify_on_keyword = self.telegram_config.get("notify_on_keyword", False)
 
         try:
-            # 1. Kiểm tra bài viết đã từng được AI phân tích trước đó chưa
-            existing_analysis = get_ai_analysis_by_post_id(post_id)
-            old_actor_role = (existing_analysis.get("actor_role") or existing_analysis.get("seller_type") or "").strip() if existing_analysis else ""
-
-            # 2. Nếu comments rỗng, thử load từ SQLite
+            # Nếu comments rỗng, thử load từ SQLite
             if not comments:
                 comments = get_post_comments_with_replies(post_id)
 
             payload_json = format_post_and_comments_payload(post, comments)
 
             if ai_enabled and ai_api_key:
-                self.log(f"🤖 [AI Worker] Đang phân tích bài {post_id} qua AI ({ai_provider}, timeout {ai_timeout}s)...")
+                target_desc = f" (Comment: {clean_comment_id})" if clean_comment_id else ""
+                self.log(f"🤖 [AI Worker] Đang phân tích bài {post_id}{target_desc} qua AI ({ai_provider}, timeout {ai_timeout}s)...")
                 should_notify, _, ai_result, ai_reason, model_used = analyze_post_with_fallback(
                     base_url=ai_base_url,
                     api_key=ai_api_key,
@@ -111,27 +119,15 @@ class AIAnalysisWorker(QThread):
                 reason = ai_result.get("reason", "") if ai_result else ai_reason
                 raw_resp = ai_result.get("raw_response", "") if ai_result else ""
 
-                # Kiểm tra trùng lặp và thay đổi vai trò
-                if existing_analysis:
-                    role_changed = (new_actor_role.lower() != old_actor_role.lower()) if old_actor_role else True
-                    if not role_changed:
-                        should_send_telegram = False
-                        self.log(f"   ℹ️ [AI Trùng Lặp] Bài {post_id} đã được phân tích trước đó (Vai trò '{old_actor_role}' không đổi) -> Cập nhật dữ liệu, BỎ QUA thông báo Telegram.")
-                    else:
-                        should_send_telegram = should_notify
-                        if should_notify:
-                            self.log(f"   🎯 [AI Alert - Vai trò mới] Bài {post_id} thay đổi vai trò: '{old_actor_role}' ➔ '{new_actor_role}'! Đã xếp hàng gửi Telegram.")
-                        else:
-                            self.log(f"   ℹ️ [AI Worker] Bài {post_id} thay đổi vai trò thành '{new_actor_role}' nhưng AI đánh giá không cần thông báo.")
+                should_send_telegram = should_notify
+                if should_notify:
+                    self.log(f"   🎯 [AI Alert] Bài {post_id}{target_desc} phát hiện THÔNG TIN KHỚP: {target_name} ({price}) [Model: {model_used}] -> Đã xếp hàng gửi Telegram.")
                 else:
-                    should_send_telegram = should_notify
-                    if should_notify:
-                        self.log(f"   🎯 [AI Alert] Bài {post_id} phát hiện THÔNG TIN KHỚP: {target_name} ({price}) [Model: {model_used}] -> Đã xếp hàng gửi Telegram.")
-                    else:
-                        self.log(f"   ℹ️ [AI Worker] Bài {post_id}: AI đánh giá không khớp yêu cầu (BỎ QUA thông báo).")
+                    self.log(f"   ℹ️ [AI Worker] Bài {post_id}{target_desc}: AI đánh giá không khớp yêu cầu (BỎ QUA thông báo).")
 
                 analysis_id = save_ai_analysis(
                     post_id=post_id,
+                    comment_id=clean_comment_id,
                     group_name=post.get("group_name") or post.get("page_name") or "",
                     matched_keyword=kw_hit,
                     matched_source=kw_source,
@@ -151,6 +147,7 @@ class AIAnalysisWorker(QThread):
                 self.analysis_completed_signal.emit({
                     "id": analysis_id,
                     "post_id": post_id,
+                    "comment_id": clean_comment_id,
                     "should_notify": should_notify,
                     "target_name": target_name,
                     "device_name": target_name,
@@ -161,9 +158,7 @@ class AIAnalysisWorker(QThread):
                 })
 
             else:
-                if existing_analysis:
-                    self.log(f"   ℹ️ [Trùng Lặp] Bài {post_id} đã tồn tại trong dữ liệu -> Bỏ qua gửi thông báo Telegram.")
-                elif tg_enabled and tg_token and tg_chat_id and notify_on_keyword:
+                if tg_enabled and tg_token and tg_chat_id and notify_on_keyword:
                     self.log(f"   📱 [Thông báo] AI tắt, gửi cảnh báo từ khóa '{kw_hit}' bài {post_id} sang Telegram...")
                     send_keyword_match_alert(
                         token=tg_token,
@@ -189,9 +184,10 @@ class AIAnalysisWorker(QThread):
                         post_id = p.get("post_id")
                         kw_hit = p.get("matched_keyword") or ""
                         kw_source = p.get("matched_source") or "Bài viết"
+                        kw_comment_id = p.get("matched_comment_id") or None
                         mark_post_ai_status(post_id, 3)
                         comments = get_post_comments_with_replies(post_id)
-                        self._process_single_post(p, comments, kw_hit, kw_source)
+                        self._process_single_post(p, comments, kw_hit, kw_source, kw_comment_id)
             except Exception as ex:
                 self.log(f"⚠️ [AI Worker] Lỗi quét danh sách bài chờ AI: {ex}")
 

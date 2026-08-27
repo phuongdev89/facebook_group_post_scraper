@@ -217,6 +217,69 @@ class TestDatabase(unittest.TestCase):
         all_res = get_all_ai_analyses(db_path=TEST_DB)
         self.assertEqual(all_res[0]["telegram_sent"], 1)
 
+    def test_ai_analysis_exists_and_comment_id_deduplication(self):
+        from src.database.repository import (
+            save_ai_analysis,
+            ai_analysis_exists,
+            get_ai_analysis_by_post_id,
+            get_all_ai_analyses
+        )
+
+        save_or_update_post("group_post", "555", {"post_id": "555", "message": "Test post 555", "group_name": "Gr5"}, [], db_path=TEST_DB)
+
+        # Initially, neither post nor comment exists in ai_analyses
+        self.assertFalse(ai_analysis_exists("555", None, db_path=TEST_DB))
+        self.assertFalse(ai_analysis_exists("555", "c_1", db_path=TEST_DB))
+
+        # 1. Save post-level analysis (comment_id is None)
+        aid1 = save_ai_analysis(
+            post_id="555",
+            comment_id=None,
+            group_name="Gr5",
+            matched_keyword="ban",
+            should_notify=True,
+            target_name="Item 1",
+            db_path=TEST_DB
+        )
+        self.assertGreater(aid1, 0)
+
+        # Now post-level exists, but comment_id="c_1" does not
+        self.assertTrue(ai_analysis_exists("555", None, db_path=TEST_DB))
+        self.assertTrue(ai_analysis_exists("555", "", db_path=TEST_DB))
+        self.assertFalse(ai_analysis_exists("555", "c_1", db_path=TEST_DB))
+
+        # 2. Save comment-level analysis (comment_id="c_1")
+        aid2 = save_ai_analysis(
+            post_id="555",
+            comment_id="c_1",
+            group_name="Gr5",
+            matched_keyword="mua",
+            should_notify=True,
+            target_name="Item Comment",
+            db_path=TEST_DB
+        )
+        self.assertGreater(aid2, 0)
+
+        # Now both exist
+        self.assertTrue(ai_analysis_exists("555", None, db_path=TEST_DB))
+        self.assertTrue(ai_analysis_exists("555", "c_1", db_path=TEST_DB))
+        self.assertFalse(ai_analysis_exists("555", "c_2", db_path=TEST_DB))
+        self.assertFalse(ai_analysis_exists("999", "c_1", db_path=TEST_DB))
+
+        # Verify get_ai_analysis_by_post_id with comment_id
+        res_post = get_ai_analysis_by_post_id("555", db_path=TEST_DB)
+        self.assertIsNotNone(res_post)
+
+        res_comment = get_ai_analysis_by_post_id("555", comment_id="c_1", db_path=TEST_DB)
+        self.assertIsNotNone(res_comment)
+        self.assertEqual(res_comment["comment_id"], "c_1")
+        self.assertEqual(res_comment["target_name"], "Item Comment")
+
+        # Verify get_all_ai_analyses filter by comment_id
+        filtered_by_cid = get_all_ai_analyses(filters={"comment_id": "c_1"}, db_path=TEST_DB)
+        self.assertEqual(len(filtered_by_cid), 1)
+        self.assertEqual(filtered_by_cid[0]["comment_id"], "c_1")
+
 
 if __name__ == "__main__":
     unittest.main()

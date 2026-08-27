@@ -158,6 +158,7 @@ def init_db(db_path: str = None):
             CREATE TABLE IF NOT EXISTS ai_analyses (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 post_id TEXT NOT NULL,
+                comment_id TEXT,
                 group_name TEXT,
                 matched_keyword TEXT,
                 matched_source TEXT,
@@ -187,13 +188,16 @@ def init_db(db_path: str = None):
             );
         """)
 
-        # Migration kiểm tra và thêm cột telegram_sent nếu bảng ai_analyses đã tồn tại từ trước
+        # Migration kiểm tra và thêm cột telegram_sent, comment_id nếu bảng ai_analyses đã tồn tại từ trước
         cols = [r[1] for r in cursor.execute("PRAGMA table_info(ai_analyses)").fetchall()]
-        if cols and "telegram_sent" not in cols:
-            cursor.execute("ALTER TABLE ai_analyses ADD COLUMN telegram_sent INTEGER DEFAULT 0")
-            cursor.execute("UPDATE ai_analyses SET telegram_sent = 1 WHERE telegram_sent IS NULL OR telegram_sent = 0")
+        if cols:
+            if "telegram_sent" not in cols:
+                cursor.execute("ALTER TABLE ai_analyses ADD COLUMN telegram_sent INTEGER DEFAULT 0")
+                cursor.execute("UPDATE ai_analyses SET telegram_sent = 1 WHERE telegram_sent IS NULL OR telegram_sent = 0")
+            if "comment_id" not in cols:
+                cursor.execute("ALTER TABLE ai_analyses ADD COLUMN comment_id TEXT")
 
-        # Migration bảng posts bổ sung ai_status, matched_keyword, matched_source
+        # Migration bảng posts bổ sung ai_status, matched_keyword, matched_source, matched_comment_id
         cols_posts = [r[1] for r in cursor.execute("PRAGMA table_info(posts)").fetchall()]
         if cols_posts:
             if "ai_status" not in cols_posts:
@@ -202,6 +206,8 @@ def init_db(db_path: str = None):
                 cursor.execute("ALTER TABLE posts ADD COLUMN matched_keyword TEXT DEFAULT ''")
             if "matched_source" not in cols_posts:
                 cursor.execute("ALTER TABLE posts ADD COLUMN matched_source TEXT DEFAULT ''")
+            if "matched_comment_id" not in cols_posts:
+                cursor.execute("ALTER TABLE posts ADD COLUMN matched_comment_id TEXT DEFAULT ''")
 
         # Migration bảng facebook_groups bổ sung last_scraped_at
         cols_groups = [r[1] for r in cursor.execute("PRAGMA table_info(facebook_groups)").fetchall()]
@@ -216,6 +222,8 @@ def init_db(db_path: str = None):
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_posts_creation_time ON posts(creation_time);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_posts_ai_status ON posts(ai_status);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_analyses_post_id ON ai_analyses(post_id);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_analyses_comment_id ON ai_analyses(comment_id);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_analyses_post_comment ON ai_analyses(post_id, comment_id);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_analyses_should_notify ON ai_analyses(should_notify);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_analyses_telegram_sent ON ai_analyses(telegram_sent, should_notify);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_analyses_created_at ON ai_analyses(created_at);")
@@ -798,6 +806,7 @@ def get_distinct_group_names(db_path: str = None) -> list[str]:
 
 def save_ai_analysis(
     post_id: str,
+    comment_id: str = None,
     group_name: str = "",
     matched_keyword: str = "",
     matched_source: str = "",
@@ -816,7 +825,7 @@ def save_ai_analysis(
     telegram_sent: int = None,
     db_path: str = None
 ) -> int:
-    """Lưu một bản ghi phân tích AI mới vào bảng ai_analyses (hỗ trợ cả schema đa năng mới lẫn schema cũ và trạng thái telegram_sent)"""
+    """Lưu một bản ghi phân tích AI mới vào bảng ai_analyses (hỗ trợ comment_id, schema đa năng mới lẫn cũ và telegram_sent)"""
     if not post_id:
         return 0
     if is_seller is None:
@@ -827,17 +836,19 @@ def save_ai_analysis(
     final_target = target_name or device_name or ""
     final_role = actor_role or seller_type or ""
     final_snippet = matched_snippet or seller_snippet or ""
+    final_comment_id = str(comment_id).strip() if comment_id and str(comment_id).strip() else None
 
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO ai_analyses (
-                post_id, group_name, matched_keyword, matched_source, model_used,
+                post_id, comment_id, group_name, matched_keyword, matched_source, model_used,
                 should_notify, is_seller, device_name, price, seller_type,
                 seller_snippet, reason, raw_response, telegram_sent, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
         """, (
             str(post_id),
+            final_comment_id,
             group_name or "",
             matched_keyword or "",
             matched_source or "",
@@ -856,6 +867,30 @@ def save_ai_analysis(
         return cursor.lastrowid
 
 
+def ai_analysis_exists(post_id: str, comment_id: str = None, db_path: str = None) -> bool:
+    """
+    Kiểm tra xem bài viết hoặc bình luận/reply đã từng được AI phân tích hay chưa:
+    - Nếu comment_id là None hoặc rỗng: kiểm tra post_id có bản ghi ai_analyses với (comment_id IS NULL hoặc comment_id = '').
+    - Nếu comment_id có giá trị: kiểm tra cả post_id và comment_id.
+    """
+    if not post_id:
+        return False
+    clean_post_id = str(post_id).strip()
+    clean_comment_id = str(comment_id).strip() if comment_id and str(comment_id).strip() else None
+
+    with get_connection(db_path) as conn:
+        if clean_comment_id:
+            row = conn.execute(
+                "SELECT 1 FROM ai_analyses WHERE post_id = ? AND comment_id = ? LIMIT 1",
+                (clean_post_id, clean_comment_id)
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT 1 FROM ai_analyses WHERE post_id = ? AND (comment_id IS NULL OR comment_id = '') LIMIT 1",
+                (clean_post_id,)
+            ).fetchone()
+        return bool(row)
+
 
 def build_ai_analyses_filter_clause(search_query: str = None, filters: dict = None) -> tuple[str, list]:
     """Xây dựng mệnh đề WHERE và parameters cho tìm kiếm lịch sử phân tích AI"""
@@ -865,8 +900,8 @@ def build_ai_analyses_filter_clause(search_query: str = None, filters: dict = No
     # Tìm kiếm chung
     if search_query and search_query.strip():
         sq = f"%{search_query.strip()}%"
-        clauses.append("(a.post_id LIKE ? OR a.group_name LIKE ? OR a.matched_keyword LIKE ? OR a.device_name LIKE ? OR a.reason LIKE ? OR a.seller_snippet LIKE ?)")
-        params.extend([sq, sq, sq, sq, sq, sq])
+        clauses.append("(a.post_id LIKE ? OR a.comment_id LIKE ? OR a.group_name LIKE ? OR a.matched_keyword LIKE ? OR a.device_name LIKE ? OR a.reason LIKE ? OR a.seller_snippet LIKE ?)")
+        params.extend([sq, sq, sq, sq, sq, sq, sq])
 
     if filters:
         # Lọc should_notify (mặc định 1 trong tab Lịch sử phân tích)
@@ -878,6 +913,11 @@ def build_ai_analyses_filter_clause(search_query: str = None, filters: dict = No
         if filters.get("post_id"):
             clauses.append("a.post_id LIKE ?")
             params.append(f"%{filters['post_id'].strip()}%")
+
+        # Lọc theo Comment ID
+        if filters.get("comment_id"):
+            clauses.append("a.comment_id LIKE ?")
+            params.append(f"%{filters['comment_id'].strip()}%")
 
         # Lọc theo Nhóm/Trang
         if filters.get("group_name"):
@@ -927,7 +967,7 @@ def get_all_ai_analyses(limit: int = 50, offset: int = 0, search_query: str = No
     """Lấy danh sách các bản ghi phân tích AI phân trang (kèm permalink, message từ posts và telegram_sent)"""
     where_sql, params = build_ai_analyses_filter_clause(search_query, filters)
     query = f"""
-        SELECT a.id, a.post_id, a.group_name, a.matched_keyword, a.matched_source, a.model_used,
+        SELECT a.id, a.post_id, a.comment_id, a.group_name, a.matched_keyword, a.matched_source, a.model_used,
                a.should_notify, a.is_seller, a.device_name, a.price, a.seller_type,
                a.seller_snippet, a.reason, a.raw_response, a.telegram_sent, a.created_at,
                p.message as post_message, p.permalink, p.comment_count
@@ -950,14 +990,22 @@ def get_all_ai_analyses(limit: int = 50, offset: int = 0, search_query: str = No
         return res
 
 
-def get_ai_analysis_by_post_id(post_id: str, db_path: str = None) -> dict:
-    """Lấy bản ghi phân tích AI mới nhất của một bài viết cụ thể"""
+def get_ai_analysis_by_post_id(post_id: str, comment_id: str = None, db_path: str = None) -> dict:
+    """Lấy bản ghi phân tích AI mới nhất của một bài viết / bình luận cụ thể"""
     if not post_id:
         return None
+    clean_post_id = str(post_id).strip()
+    clean_comment_id = str(comment_id).strip() if comment_id and str(comment_id).strip() else None
+
     with get_connection(db_path) as conn:
-        row = conn.execute("""
-            SELECT * FROM ai_analyses WHERE post_id = ? ORDER BY id DESC LIMIT 1
-        """, (str(post_id),)).fetchone()
+        if clean_comment_id is not None:
+            row = conn.execute("""
+                SELECT * FROM ai_analyses WHERE post_id = ? AND comment_id = ? ORDER BY id DESC LIMIT 1
+            """, (clean_post_id, clean_comment_id)).fetchone()
+        else:
+            row = conn.execute("""
+                SELECT * FROM ai_analyses WHERE post_id = ? ORDER BY id DESC LIMIT 1
+            """, (clean_post_id,)).fetchone()
         if not row:
             return None
         d = dict(row)
@@ -1267,19 +1315,21 @@ def export_diagnostics_sql(output_file_path: str, db_path: str = None) -> tuple[
 # AI Queue Helpers for Background Dispatcher
 # ==============================================================================
 
-def mark_post_ai_pending(post_id: str, matched_keyword: str = "", matched_source: str = "", db_path: str = None) -> bool:
+def mark_post_ai_pending(post_id: str, matched_keyword: str = "", matched_source: str = "", matched_comment_id: str = None, db_path: str = None) -> bool:
     """Đưa bài viết vào hàng đợi phân tích AI (ai_status = 1)"""
     if not post_id:
         return False
+    clean_comment_id = str(matched_comment_id).strip() if matched_comment_id and str(matched_comment_id).strip() else ""
     with get_connection(db_path) as conn:
         cursor = conn.execute("""
             UPDATE posts 
             SET ai_status = 1, 
                 matched_keyword = ?, 
                 matched_source = ?,
+                matched_comment_id = ?,
                 updated_at = datetime('now', 'localtime')
             WHERE post_id = ?
-        """, (matched_keyword or "", matched_source or "", str(post_id)))
+        """, (matched_keyword or "", matched_source or "", clean_comment_id, str(post_id)))
         return cursor.rowcount > 0
 
 
@@ -1301,7 +1351,7 @@ def get_pending_ai_posts(limit: int = 5, db_path: str = None) -> list[dict]:
     """Lấy danh sách các bài viết đang chờ phân tích AI (ai_status = 1)"""
     with get_connection(db_path) as conn:
         rows = conn.execute("""
-            SELECT post_id, group_name, page_name, message, permalink, comment_count, creation_time, post_type, matched_keyword, matched_source
+            SELECT post_id, group_name, page_name, message, permalink, comment_count, creation_time, post_type, matched_keyword, matched_source, matched_comment_id
             FROM posts 
             WHERE ai_status = 1
             ORDER BY updated_at ASC
