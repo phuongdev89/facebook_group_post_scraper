@@ -4633,8 +4633,6 @@ class FacebookNotificationUI(QMainWindow):
             if manual:
                 QMessageBox.warning(self, "Lỗi kiểm tra cập nhật", f"Không thể kiểm tra cập nhật: {e}")
             self.log(f"⚠️ [OTA Update] Lỗi kiểm tra cập nhật: {e}")
-            QMessageBox.information(self, "Thành công", "✅ Đã lưu toàn bộ cấu hình vào SQLite thành công!")
-        self.log("💾 Đã lưu cấu hình vào SQLite.")
 
     def toggle_infinite_loop(self, checked):
         self.loop_interval_label.setEnabled(checked)

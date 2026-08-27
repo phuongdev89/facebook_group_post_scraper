@@ -407,44 +407,53 @@
         <div class="sidebar-brand">
             <div>
                 <h2>FB Scraper & AI</h2>
-                <span>Tài liệu hướng dẫn v1.0.2</span>
+                <span>Tài liệu hướng dẫn v1.0.4</span>
             </div>
         </div>
 
         <div class="nav-group">
             <div class="nav-heading">Bắt Đầu</div>
             <ul class="nav-list">
-                <li><a href="#tong-quan">📌 Tổng quan phần mềm</a></li>
-                <li><a href="#khoi-dong">🚀 Cài đặt & Khởi động</a></li>
-                <li><a href="#giao-dien">🖥️ Bố cục 4 Tab giao diện</a></li>
+                <li><a href="#tong-quan">📌 1. Tổng quan & Kiến trúc</a></li>
+                <li><a href="#khoi-dong">🚀 2. Cài đặt & Khởi động</a></li>
+                <li><a href="#giao-dien">🖥️ 3. Bố cục 4 Tab giao diện</a></li>
             </ul>
         </div>
 
         <div class="nav-group">
-            <div class="nav-heading">Tính Năng Cốt Lõi</div>
+            <div class="nav-heading">Quét Dữ Liệu & Nhóm</div>
             <ul class="nav-list">
-                <li><a href="#tab1-crawling">⚙️ Tab 1: Cấu hình Quét</a></li>
-                <li><a href="#nhom-private">🔒 Hướng dẫn cào Nhóm Kín (Private)</a></li>
-                <li><a href="#tab4-ai">🤖 Tab 4: Cấu hình AI Gemini / OpenAI</a></li>
-                <li><a href="#tab4-telegram">📱 Cấu hình Báo tin Telegram</a></li>
-                <li><a href="#tab4-proxy">🌐 Cấu hình Proxy chống chặn</a></li>
+                <li><a href="#tab1-crawling">⚙️ 4. Tab 1: Quản lý Quét & Nhóm</a></li>
+                <li><a href="#nhom-private">🔒 5. Cào Nhóm Kín & Cookie</a></li>
+            </ul>
+        </div>
+
+        <div class="nav-group">
+            <div class="nav-heading">Cấu Hình AI & Hệ Thống</div>
+            <ul class="nav-list">
+                <li><a href="#tab4-ai">🤖 6. Cấu hình AI Gemini / OpenAI</a></li>
+                <li><a href="#tab4-prompts">🏷️ 7. Mẫu System Prompt chuẩn hóa</a></li>
+                <li><a href="#tab4-telegram">📱 8. Cấu hình Báo tin Telegram</a></li>
+                <li><a href="#tab4-proxy">🌐 9. Cấu hình Proxy chống chặn</a></li>
+                <li><a href="#tab4-diagnostics">🩺 10. Chẩn đoán kỹ thuật (.diagnose)</a></li>
+                <li><a href="#tab4-ota">🔄 11. Cập nhật OTA tự động</a></li>
             </ul>
         </div>
 
         <div class="nav-group">
             <div class="nav-heading">Quản Lý Dữ Liệu</div>
             <ul class="nav-list">
-                <li><a href="#tab2-data">📊 Tab 2: Dữ liệu bài viết & Xóa</a></li>
-                <li><a href="#cap-nhat-comment">💬 Cập nhật bình luận (Chọn / 24h)</a></li>
-                <li><a href="#tab3-ai-history">🧠 Tab 3: Lịch sử phân tích AI</a></li>
+                <li><a href="#tab2-data">📊 12. Tab 2: Dữ liệu bài viết & Xóa</a></li>
+                <li><a href="#cap-nhat-comment">💬 13. Cập nhật bình luận mới (24h)</a></li>
+                <li><a href="#tab3-ai-history">🧠 14. Tab 3: Lịch sử phân tích AI</a></li>
             </ul>
         </div>
 
         <div class="nav-group">
             <div class="nav-heading">Hỗ Trợ & Khắc Phục</div>
             <ul class="nav-list">
-                <li><a href="#faq">❓ Câu hỏi thường gặp (FAQ)</a></li>
-                <li><a href="#troubleshooting">🛠️ Xử lý sự cố</a></li>
+                <li><a href="#faq">❓ 15. Câu hỏi thường gặp (FAQ)</a></li>
+                <li><a href="#troubleshooting">🛠️ 16. Xử lý sự cố</a></li>
             </ul>
         </div>
     </nav>
@@ -455,20 +464,26 @@
         <!-- Hero Banner -->
         <section class="hero">
             <h1>📘 Hướng Dẫn Sử Dụng Chi Tiết</h1>
-            <p>Phần mềm tự động cào bài viết & bình luận Facebook đa nhóm, hỗ trợ cào nhóm công khai & nhóm kín, tích hợp AI lọc nội dung thông minh (Google AI Studio Gemini / OpenAI) và gửi cảnh báo tự động về Telegram.</p>
+            <p>Phần mềm tự động cào bài viết & bình luận Facebook đa nhóm, hỗ trợ cào nhóm công khai & nhóm kín, tích hợp AI lọc nội dung thông minh (Google AI Studio Gemini / OpenAI) và gửi cảnh báo tức thì về Telegram.</p>
             <div class="badge-list">
-                <span class="badge">⚡ Không dùng Chrome UI (Siêu nhẹ)</span>
-                <span class="badge">🤖 Google AI Studio (Gemini 2.0 / 2.5)</span>
+                <span class="badge">⚡ Direct GraphQL (Siêu nhẹ)</span>
+                <span class="badge">🤖 Google AI Studio (Gemini 2.0 / 2.5 Flash Thinking:0)</span>
                 <span class="badge">📱 Telegram Instant Alerts</span>
-                <span class="badge">💾 SQLite Local Database</span>
+                <span class="badge">💾 SQLite Local Database (~/.facebook-notification/)</span>
                 <span class="badge">🔒 Hỗ trợ Nhóm Kín (Private Groups)</span>
+                <span class="badge">🔄 Cập nhật OTA qua GitHub Releases</span>
+                <span class="badge">🩺 Xuất Chẩn Đoán An Toàn (.diagnose)</span>
             </div>
         </section>
 
         <!-- Section 1: Tổng quan -->
         <section id="tong-quan">
             <h2 class="section-title">📌 1. Tổng Quan Kiến Trúc & Tính Năng</h2>
-            <p>Phần mềm được thiết kế theo kiến trúc phi đồng bộ (Multi-threading), chia tách độc lập giữa <b>tiến trình cào dữ liệu</b> và <b>tiến trình AI phân tích</b>. Điều này giúp phần mềm hoạt động mượt mà, không bị nghẽn (freeze giao diện) ngay cả khi cào hàng chục nhóm Facebook liên tục.</p>
+            <p>Phần mềm được xây dựng trên nền tảng <b>PyQt6</b> với kiến trúc đa luồng phi đồng bộ (Multi-threading), chia tách hoàn toàn độc lập giữa:</p>
+            <p>• <b>Tiến trình cào dữ liệu (ScraperWorker):</b> Tương tác trực tiếp với Facebook GraphQL API để cào bài đăng, ảnh, số reaction, lượt chia sẻ, toàn bộ bình luận và phản hồi lồng nhau.<br>
+            • <b>Tiến trình phân tích AI (AIWorker / AIDispatcher):</b> Phân tích nội dung theo System Prompt định sẵn, tự động xoay vòng đa model (Multi-Model Fallback) khi gặp lỗi hoặc hạn mức API.<br>
+            • <b>Tiến trình thông báo (TelegramDispatcher):</b> Gửi cảnh báo tức thì định dạng HTML về kênh cá nhân hoặc nhóm chat Telegram.<br>
+            • <b>Cơ sở dữ liệu SQLite cục bộ:</b> Tự động lưu trữ tại thư mục người dùng <code>~/.facebook-notification/facebook_scraper.sqlite</code>, đảm bảo dữ liệu luôn an toàn khi cập nhật ứng dụng.</p>
 
             <div class="grid-2">
                 <div class="card">
@@ -476,14 +491,14 @@
                         <span style="font-size: 20px;">🕷️</span>
                         <div class="card-title">Cào Dữ Liệu Tự Động (Scraper Core)</div>
                     </div>
-                    <p>Sử dụng cơ chế gửi GraphQL Request trực tiếp với Cookie & Token Facebook. Cào toàn bộ nội dung bài đăng, ảnh, số lượt thích/chia sẻ, toàn bộ bình luận và phản hồi bình luận lồng nhau.</p>
+                    <p>Sử dụng cơ chế gửi GraphQL Request trực tiếp với Cookie & Token Facebook. Cào toàn bộ nội dung bài đăng, ảnh đính kèm, lượt tương tác và tất cả bình luận/phản hồi phân cấp.</p>
                 </div>
                 <div class="card">
                     <div class="card-header">
                         <span style="font-size: 20px;">🧠</span>
                         <div class="card-title">Trí Tuệ Nhân Tạo AI (Multi-Model Fallback)</div>
                     </div>
-                    <p>Hỗ trợ Google AI Studio (Gemini) và OpenAI. Tự động chuyển đổi sang model dự phòng nếu model chính bị lỗi hoặc quá hạn mức (Rate limit). Tự động tắt suy luận tư duy để trả về JSON thuần siêu tốc.</p>
+                    <p>Hỗ trợ Google AI Studio (Gemini) và OpenAI / Tương thích (OpenRouter, DeepSeek, Groq...). Tự động vô hiệu hóa suy luận tư duy (thinking_budget: 0) cho Gemini để phản hồi JSON thần tốc.</p>
                 </div>
                 <div class="card">
                     <div class="card-header">
@@ -497,7 +512,7 @@
                         <span style="font-size: 20px;">💾</span>
                         <div class="card-title">Lưu Trữ SQLite & Quản Lý Toàn Diện</div>
                     </div>
-                    <p>Toàn bộ bài viết, bình luận, cấu hình và lịch sử phân tích AI được lưu trữ tại file SQLite nội bộ. Hỗ trợ lọc, tìm kiếm, xuất file Excel/CSV, cập nhật bình luận mới và xóa dữ liệu linh hoạt.</p>
+                    <p>Toàn bộ bài viết, bình luận, cấu hình và lịch sử phân tích AI được lưu trữ tại SQLite nội bộ. Hỗ trợ lọc, tìm kiếm, xuất Excel/CSV, cập nhật bình luận mới và xóa dữ liệu linh hoạt.</p>
                 </div>
             </div>
         </section>
@@ -508,16 +523,22 @@
             <ol class="step-list">
                 <li class="step-item">
                     <div class="step-title">Chạy từ file thực thi (.exe)</div>
-                    <p>Vào thư mục <code>dist/FacebookNotification/</code>, nhấp đúp vào file <code>FacebookNotification.exe</code> để mở giao diện chương trình trực tiếp mà không cần cài Python.</p>
+                    <p>Mở file <code>FacebookNotification.exe</code> (bản cài đặt Setup hoặc bản Portable trong thư mục <code>dist/FacebookNotification/</code>) để mở giao diện chương trình trực tiếp mà không cần cài đặt Python.</p>
                 </li>
                 <li class="step-item">
                     <div class="step-title">Chạy từ mã nguồn Python</div>
-                    <p>Nếu bạn là lập trình viên, mở Terminal tại thư mục gốc và chạy lệnh:</p>
-                    <pre><code># Cài đặt thư viện phụ thuộc (nếu chưa cài)
+                    <p>Nếu bạn chạy từ mã nguồn, mở Terminal tại thư mục gốc và chạy lệnh:</p>
+                    <pre><code># Cài đặt thư viện phụ thuộc
 pip install -r requirements.txt
 
 # Khởi chạy giao diện chính
+python run_ui.py
+# Hoặc:
 python -m src.main</code></pre>
+                </li>
+                <li class="step-item">
+                    <div class="step-title">Vị trí lưu trữ dữ liệu người dùng</div>
+                    <p>Mọi cài đặt và dữ liệu cào được lưu tại thư mục cá nhân của máy tính: <code>~/.facebook-notification/</code> (Ví dụ trên Windows: <code>C:\Users\&lt;Tên_User&gt;\.facebook-notification\</code>). Dữ liệu này được giữ nguyên vẹn kể cả khi bạn cập nhật phiên bản mới.</p>
                 </li>
             </ol>
         </section>
@@ -528,7 +549,7 @@ python -m src.main</code></pre>
             <table>
                 <thead>
                     <tr>
-                        <th style="width: 25%;">Tab</th>
+                        <th style="width: 20%;">Tab</th>
                         <th style="width: 25%;">Tên Tab</th>
                         <th>Chức năng chính</th>
                     </tr>
@@ -536,23 +557,23 @@ python -m src.main</code></pre>
                 <tbody>
                     <tr>
                         <td><strong>Tab 1</strong></td>
-                        <td><b>Quản lý Cào & Giám sát</b></td>
-                        <td>Nhập danh sách link nhóm, từ khóa cần quét, số lượng bài, bật/tắt quét lặp vô tận và xem Log thời gian thực.</td>
+                        <td><b>📁 Group Posts</b></td>
+                        <td>Quản lý danh sách nhóm, lấy nhóm tự động từ Cookie, nhập từ khóa lọc dạng Tag, đặt số lượng bài, bình luận tối thiểu, bật quét lặp vô hạn và theo dõi Log thời gian thực.</td>
                     </tr>
                     <tr>
                         <td><strong>Tab 2</strong></td>
-                        <td><b>Dữ liệu cào (Post & Comment)</b></td>
-                        <td>Xem bảng dữ liệu các bài viết đã cào, checkbox chọn từng dòng, xóa đã chọn, xóa tất cả, cập nhật bình luận cho các bài chọn hoặc bài trong 24h qua.</td>
+                        <td><b>📜 Dữ liệu cào</b></td>
+                        <td>Xem bảng dữ liệu bài viết & bình luận đã cào, checkbox chọn từng dòng, xem chi tiết bài đăng, cập nhật bình luận (bài đã chọn / 24h qua), xóa dữ liệu và xuất Excel/CSV.</td>
                     </tr>
                     <tr>
                         <td><strong>Tab 3</strong></td>
-                        <td><b>Lịch sử phân tích AI</b></td>
-                        <td>Xem chi tiết các bài viết đã được AI phân tích: Tên máy/sản phẩm, Giá tiền, Loại người bán, Trích dẫn chứng minh, Lý do AI quyết định.</td>
+                        <td><b>🤖 Lịch sử phân tích</b></td>
+                        <td>Xem chi tiết các bài viết đã được AI phân tích: Kết quả Khớp/Bỏ qua, Thiết bị/Sản phẩm, Mức giá, Loại người bán, Trích dẫn chứng minh, Lý do AI và trạng thái gửi Telegram.</td>
                     </tr>
                     <tr>
                         <td><strong>Tab 4</strong></td>
-                        <td><b>Cấu hình Hệ thống</b></td>
-                        <td>Cấu hình Token & Chat ID Telegram, chọn Nhà cung cấp AI (Google AI Studio / OpenAI), danh sách models, System Prompt và Proxy.</td>
+                        <td><b>⚙️ Cấu hình</b></td>
+                        <td>Cấu hình Token & Chat ID Telegram, Proxy chống chặn, Chẩn đoán kỹ thuật (.diagnose), Cập nhật phần mềm OTA, chọn Nhà cung cấp AI (Google AI Studio / OpenAI), danh sách Models, Timeout AI và Mẫu System Prompt.</td>
                     </tr>
                 </tbody>
             </table>
@@ -564,8 +585,8 @@ python -m src.main</code></pre>
             <ol class="step-list">
                 <li class="step-item">
                     <div class="step-title">🌐 Cách 1: Tự động lấy danh sách Nhóm từ Cookie (Khuyên dùng)</div>
-                    <p>• Nhấn nút <span class="btn-tag btn-blue">🌐 Lấy nhóm từ Cookie</span> trên thanh tiêu đề danh sách nhóm (hoặc cấu hình Cookie và chọn "Tự động tải danh sách nhóm").<br>
-                    • Phần mềm sẽ tự động kết nối Facebook tải về danh sách toàn bộ các nhóm mà tài khoản đã tham gia.<br>
+                    <p>• Nhấn nút <span class="btn-tag btn-blue">🌐 Lấy nhóm từ Cookie</span> trên thanh tiêu đề danh sách nhóm.<br>
+                    • Phần mềm sẽ tự động mở luồng duyệt ngầm an toàn để tải về danh sách toàn bộ các nhóm mà tài khoản Facebook đã tham gia.<br>
                     • <b>Tìm kiếm & Lọc tức thì (Filter):</b> Gõ từ khóa tên nhóm, URL, hoặc ID (hỗ trợ tiếng Việt không dấu, ví dụ gõ <code>lap trinh</code> sẽ lọc ngay nhóm <i>Lập Trình Python</i>).<br>
                     • <b>Chọn nhóm nhanh:</b> Sử dụng các nút <span class="btn-tag">✅ Chọn tất cả</span>, <span class="btn-tag">⬜ Bỏ chọn</span>, <span class="btn-tag">🔍 Chọn nhóm đang lọc</span> hoặc <span class="btn-tag">🔄 Đảo chọn</span>.<br>
                     • <b>Chế độ nhập:</b> Chọn <i>"Thêm vào danh sách hiện tại"</i> (tự động giữ nhóm cũ và loại bỏ link trùng) hoặc <i>"Thay thế toàn bộ"</i> ➔ Nhấn <b>📥 Nhập nhóm đã chọn</b>.</p>
@@ -579,14 +600,14 @@ python -m src.main</code></pre>
                     <p>Trong cửa sổ <span class="btn-tag">⛶ Phóng to</span>, bấm <b>📥 Dán nhiều link</b> ➔ Dán danh sách nhiều URL (mỗi dòng một link) ➔ Bấm <b>Thêm vào danh sách</b>.</p>
                 </li>
                 <li class="step-item">
-                    <div class="step-title">Nhập Từ Khóa Lọc (Keywords)</div>
+                    <div class="step-title">Nhập Từ Khóa Lọc (Keywords — Dạng Tag)</div>
                     <p>Nhập từ khóa vào ô và nhấn <code>Enter</code> hoặc bấm <code>+</code>. Ví dụ: <code>bán ipad</code>, <code>pass máy</code>, <code>cần nhượng lại</code>. Bấm dấu <code>×</code> trên thẻ tag để xóa từ khóa.</p>
                 </li>
                 <li class="step-item">
                     <div class="step-title">Thiết lập tham số quét</div>
                     <p>• <b>Số bài cần cào / nhóm:</b> Số lượng bài viết gần nhất cần lấy (mặc định 5 - 10 bài).<br>
                     • <b>Bình luận tối thiểu:</b> Bỏ qua các bài viết có ít hơn số bình luận này (đặt 0 nếu muốn lấy tất cả).<br>
-                    • <b>🔄 Quét lặp vô tận (Infinite Loop):</b> Bật tính năng này để phần mềm tự động quét lại theo chu kỳ định kỳ (ví dụ mỗi 60 giây).</p>
+                    • <b>🔄 Quét lặp vô hạn (Infinite Loop):</b> Bật tính năng này để phần mềm tự động quét lại theo chu kỳ định kỳ (ví dụ mỗi 60 giây).</p>
                 </li>
             </ol>
         </section>
@@ -602,7 +623,7 @@ python -m src.main</code></pre>
             <ol class="step-list">
                 <li class="step-item">
                     <div class="step-title">Bước 1: Chuẩn bị tài khoản Facebook</div>
-                    <p>Đăng nhập tài khoản Facebook (khuyên dùng nick phụ/via/clone) đã tham gia nhóm kín đó trên trình duyệt Chrome/Edge.</p>
+                    <p>Đăng nhập tài khoản Facebook (khuyên dùng tài khoản phụ/via/clone) đã tham gia nhóm kín đó trên trình duyệt Chrome/Edge.</p>
                 </li>
                 <li class="step-item">
                     <div class="step-title">Bước 2: Lấy chuỗi Cookie JSON bằng Extension Cookie-Editor</div>
@@ -612,7 +633,7 @@ python -m src.main</code></pre>
                 </li>
                 <li class="step-item">
                     <div class="step-title">Bước 3: Dán vào phần mềm</div>
-                    <p>Trên Tab 1, bấm nút <span class="btn-tag btn-blue">🔑 Cấu hình Authentication (Cookie JSON Facebook)</span> ➔ Dán chuỗi JSON Cookie vừa sao chép ➔ Tích chọn <i>"Tự động tải danh sách nhóm sau khi lưu"</i> ➔ Bấm <b>Lưu cấu hình</b>.</p>
+                    <p>Trên Tab 1, bấm nút <span class="btn-tag btn-purple">🔑 Cấu hình Authentication (Cookie & Token)</span> ➔ Dán chuỗi JSON Cookie vừa sao chép ➔ Tích chọn <i>"Tự động tải danh sách nhóm sau khi lưu"</i> ➔ Bấm <b>Lưu cấu hình</b>.</p>
                 </li>
                 <li class="step-item">
                     <div class="step-title">Bước 4: Bắt đầu cào dữ liệu</div>
@@ -636,13 +657,13 @@ python -m src.main</code></pre>
             <h3 class="subsection-title">A. Sử dụng Google AI Studio (Gemini - Khuyên dùng)</h3>
             <div class="callout callout-success">
                 <strong>Ưu điểm của Google AI Studio:</strong>
-                Cung cấp hạn mức miễn phí rất lớn (Free Tier), tốc độ phản hồi cực nhanh, hỗ trợ các model tiên tiến như Gemini 2.0 Flash, Gemini 2.5 Flash.
+                Hạn mức miễn phí (Free Tier) lớn, tốc độ phản hồi cực nhanh. Phần mềm tự động cấu hình <code>thinking_budget: 0</code> cho Gemini 2.5 Flash / Gemini 2.0 Flash để tắt suy luận tư duy dài dòng, trả về định dạng JSON thuần túy chuẩn xác 100%.
             </div>
 
             <ol class="step-list">
                 <li class="step-item">
                     <div class="step-title">Lấy API Key Google AI Studio miễn phí</div>
-                    <p>Truy cập <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com/app/apikey</a> ➔ Đăng nhập tài khoản Google ➔ Bấm <b>Create API key</b> ➔ Copy mã Key (bắt đầu bằng <code>AIzaSy...</code>).</p>
+                    <p>Truy cập <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com/app/apikey</a> (hoặc bấm nút màu xanh trên Tab 4) ➔ Đăng nhập tài khoản Google ➔ Bấm <b>Create API key</b> ➔ Copy mã Key (bắt đầu bằng <code>AIzaSy...</code>).</p>
                 </li>
                 <li class="step-item">
                     <div class="step-title">Chọn nhà cung cấp trên phần mềm</div>
@@ -655,11 +676,11 @@ python -m src.main</code></pre>
                     <p>Ngay khi bạn dán API Key (hoặc bấm nút <span class="btn-tag btn-blue">🔄 Tải Models từ Key</span>), phần mềm sẽ tự động kết nối tới Google và tải toàn bộ các model Gemini khả dụng cho key của bạn vào <b>Bảng Checkbox</b>.</p>
                 </li>
                 <li class="step-item">
-                    <div class="step-title">Tích chọn Models cần dùng</div>
+                    <div class="step-title">Tích chọn Models cần dùng (Multi-Model Fallback)</div>
                     <p>Bạn chỉ cần tích chọn các model mong muốn. Gợi ý:<br>
+                    • <code>☑️ gemini-2.5-flash</code>: Model thông minh & chuẩn xác nhất hiện nay.<br>
                     • <code>☑️ gemini-2.0-flash</code>: Tốc độ phản hồi nhanh nhất, chuẩn JSON.<br>
-                    • <code>☑️ gemini-2.5-flash</code>: Model thông minh mới nhất.<br>
-                    • <code>☑️ gemini-1.5-flash</code>: Ổn định, tiết kiệm hạn mức.</p>
+                    • <code>☑️ gemini-1.5-flash</code>: Model dự phòng ổn định, tiết kiệm hạn mức.</p>
                 </li>
             </ol>
 
@@ -678,8 +699,8 @@ python -m src.main</code></pre>
                     • <b>Chọn nhanh & Xóa:</b> Sử dụng các nút <span class="btn-tag">✅ Chọn tất cả</span>, <span class="btn-tag">⬜ Bỏ chọn</span> hoặc <span class="btn-tag btn-red">🗑 Xóa tất cả</span> để làm sạch danh sách model.</p>
                 </li>
                 <li class="step-item">
-                    <div class="step-title">Kiểm tra thực tế (Live Testing) & Hệ thống trạng thái màu sắc</div>
-                    <p>Bấm nút <span class="btn-tag btn-purple">🧪 Test AI & Kiểm tra Models</span> để phần mềm gửi request thực tế tới từng model:</p>
+                    <div class="step-title">Kiểm tra thực tế (Live Testing) & Hệ thống 4 màu trạng thái</div>
+                    <p>Bấm nút <span class="btn-tag btn-purple">🧪 Test AI & Kiểm tra Models</span> để phần mềm gửi request kiểm tra thực tế tới từng model:</p>
                     <table style="margin: 12px 0;">
                         <thead>
                             <tr>
@@ -716,57 +737,137 @@ python -m src.main</code></pre>
                             </tr>
                         </tbody>
                     </table>
-                    <p>• <b>Chạy nền không đơ giao diện (Non-blocking):</b> Toàn bộ quá trình kiểm tra chạy trên luồng nền riêng biệt.<br>
-                    • <b>Nút Dừng tức thì:</b> Khi đang test, nút tự chuyển sang <span class="btn-tag btn-red">⏹ Dừng test (i/N)</span>, bạn có thể bấm để dừng kiểm tra bất kỳ lúc nào.<br>
-                    • <b>Hỗ trợ Server-Sent Events (SSE):</b> Tương thích hoàn hảo với cả các máy chủ proxy trả về stream <code>data: {"id":...}</code>.</p>
+                </li>
+                <li class="step-item">
+                    <div class="step-title">Cấu hình Timeout AI (giây)</div>
+                    <p>Tại ô <b>Timeout AI (giây)</b>, bạn có thể chỉnh thời gian tối đa chờ phản hồi cho mỗi bài viết (từ 1 đến 9999 giây, mặc định <b>20 giây</b>). Giúp tránh trường hợp mạng yếu làm treo luồng cào.</p>
                 </li>
             </ol>
-
-            <h3 class="subsection-title">C. Cấu hình System Prompt & Mẫu có sẵn</h3>
-            <p>Phần mềm tích hợp sẵn các mẫu Prompt chuẩn hóa chuyên sâu:</p>
-            <p>• <span class="btn-tag btn-blue">🏷 Mẫu Tìm Bán</span>: Chuyên phát hiện bài viết của người cần bán máy/sản phẩm, loại bỏ các tin spam hoặc người hỏi mua.<br>
-            • <span class="btn-tag btn-yellow">🏷 Mẫu Tìm Mua</span>: Chuyên phát hiện khách hàng đang có nhu cầu tìm mua sản phẩm.<br>
-            • <span class="btn-tag btn-green">💡 Hướng dẫn tạo Prompt mới</span>: Mở hộp thoại chứa mẫu Meta-Prompt để gửi cho ChatGPT/Claude/Gemini tự thiết kế Prompt mới theo bất kỳ ngành nghề nào (Bất động sản, Tuyển dụng, Ô tô, Gia sư...).</p>
         </section>
 
-        <!-- Section 7: Telegram & Proxy -->
+        <!-- Section 7: System Prompts Presets -->
+        <section id="tab4-prompts">
+            <h2 class="section-title">🏷️ 7. Mẫu System Prompt Chuẩn Hóa & Hướng Dẫn Tạo Prompt Mới</h2>
+            <p>Phần mềm tích hợp sẵn 4 nút Preset áp dụng ngay các mẫu Prompt chuyên sâu, kèm hướng dẫn Meta-Prompt:</p>
+
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="btn-tag btn-purple">🛒 Mẫu Mua Bán</span>
+                    </div>
+                    <p>Chuyên phát hiện bài viết của người cần bán máy/sản phẩm, thanh lý hàng hóa cá nhân. Tự động loại bỏ các tin spam hoặc người hỏi mua.</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <span class="btn-tag btn-yellow">🏷 Mẫu Tìm Mua</span>
+                    </div>
+                    <p>Chuyên phát hiện khách hàng đang có nhu cầu tìm mua sản phẩm, hỏi tìm nơi bán, cần tư vấn dịch vụ.</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <span class="btn-tag btn-green">🏢 Mẫu Phòng Trọ / BĐS</span>
+                    </div>
+                    <p>Chuyên tìm kiếm người cho thuê phòng trọ, căn hộ, mặt bằng kinh doanh hoặc người đang đăng tin tìm thuê nhà đất.</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <span class="btn-tag btn-pink">💼 Mẫu Việc Làm / Tuyển Dụng</span>
+                    </div>
+                    <p>Chuyên phát hiện tin tuyển dụng nhân sự, tìm cộng tác viên, freelance hoặc ứng viên đăng bài tìm việc.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-success">
+                <strong>💡 Nút "Hướng dẫn tạo Prompt mới":</strong>
+                Mở hộp thoại chứa sẵn khung <b>Meta-Prompt</b> chuẩn cấu trúc JSON. Bạn chỉ cần sao chép khung này gửi cho ChatGPT / Claude / Gemini / DeepSeek để tạo ra System Prompt chuẩn cho bất kỳ ngành nghề nào.
+            </div>
+
+            <div class="callout callout-info">
+                <strong>⚡ Tính năng Hot-Reload Prompt & AI:</strong>
+                Bạn có thể sửa System Prompt hoặc chuyển đổi Model AI ngay cả khi phần mềm đang quét. Sau khi sửa, chỉ cần bấm <b>💾 Lưu cấu hình</b>, tiến trình AI Worker đang chạy ngầm sẽ lập tức áp dụng ngay mà không làm gián đoạn việc cào dữ liệu!
+            </div>
+        </section>
+
+        <!-- Section 8: Telegram & Proxy -->
         <section id="tab4-telegram">
-            <h2 class="section-title">📱 7. Cấu Hình Thông Báo Telegram</h2>
+            <h2 class="section-title">📱 8. Cấu Hình Thông Báo Telegram</h2>
             <ol class="step-list">
                 <li class="step-item">
                     <div class="step-title">Tạo Bot và lấy Token</div>
-                    <p>Mở ứng dụng Telegram ➔ Tìm kiếm bot <code>@BotFather</code> ➔ Gửi lệnh <code>/newbot</code> ➔ Đặt tên cho bot ➔ Copy chuỗi <b>HTTP API Token</b> dán vào ô <b>Bot Token</b>.</p>
+                    <p>Mở ứng dụng Telegram ➔ Tìm bot <code>@BotFather</code> (hoặc bấm nút <code>?</code> cạnh ô Token) ➔ Gửi lệnh <code>/newbot</code> ➔ Đặt tên cho bot ➔ Copy chuỗi <b>HTTP API Token</b> dán vào ô <b>Bot Token</b>.</p>
                 </li>
                 <li class="step-item">
                     <div class="step-title">Lấy Chat ID nhận tin nhắn</div>
-                    <p>• <b>Nhận qua Chat riêng:</b> Tìm bot <code>@userinfobot</code> ➔ Bấm Start ➔ Copy số <b>Id</b> dán vào ô <b>Chat ID</b>.<br>
-                    • <b>Nhận qua Nhóm Telegram:</b> Thêm bot vừa tạo vào nhóm ➔ Thăng quyền Admin cho bot ➔ Lấy ID nhóm (thường có dấu <code>-</code> ở đầu, ví dụ <code>-100123456789</code>).</p>
+                    <p>• <b>Nhận qua Chat riêng cá nhân:</b> Tìm bot <code>@userinfobot</code> ➔ Bấm Start ➔ Copy số <b>Id</b> dán vào ô <b>Chat ID</b>.<br>
+                    • <b>Nhận qua Nhóm Telegram:</b> Thêm bot vừa tạo vào nhóm ➔ Thăng quyền Admin cho bot ➔ Lấy ID nhóm (thường có dấu <code>-</code> ở đầu, ví dụ <code>-1001234567890</code>).</p>
                 </li>
                 <li class="step-item">
                     <div class="step-title">Kiểm tra kết nối</div>
-                    <p>Bấm nút <span class="btn-tag btn-blue">🔔 Gửi thử nghiệm kết nối</span>. Nếu nhận được tin nhắn test trên Telegram là cấu hình thành công.</p>
+                    <p>Bấm nút <span class="btn-tag btn-blue">🔔 Gửi tin nhắn kiểm tra kết nối Telegram</span>. Nếu nhận được tin nhắn test trên Telegram là cấu hình hoàn toàn chính xác.</p>
                 </li>
             </ol>
         </section>
 
         <section id="tab4-proxy">
-            <h2 class="section-title">🌐 8. Cấu Hình Proxy Chống Chặn IP</h2>
+            <h2 class="section-title">🌐 9. Cấu Hình Proxy Chống Chặn IP</h2>
             <p>Tại Tab 4, ô <b>Proxy (Tĩnh hoặc Xoay)</b> cho phép nhập proxy để bảo vệ địa chỉ IP máy chủ khi quét liên tục.</p>
             <p><b>Định dạng được hỗ trợ:</b></p>
-            <pre><code># Proxy không có mật khẩu
-123.45.67.89:8080
+            <pre><code># Proxy không có mật khẩu (IP:Port)
+103.150.12.34:8080
 
-# Proxy có tài khoản & mật khẩu
-123.45.67.89:8080:username:password
+# Proxy có tài khoản & mật khẩu (User:Pass@IP:Port hoặc IP:Port:User:Pass)
+admin:123456@103.150.12.34:8080
+103.150.12.34:8080:admin:123456
 
 # Proxy có tiền tố giao thức
-http://username:password@123.45.67.89:8080
-socks5://username:password@123.45.67.89:1080</code></pre>
+http://admin:123456@103.150.12.34:8080
+socks5://admin:123456@103.150.12.34:1080</code></pre>
         </section>
 
-        <!-- Section 8: Tab 2 Quản lý dữ liệu -->
+        <!-- Section 10: Diagnostics -->
+        <section id="tab4-diagnostics">
+            <h2 class="section-title">🩺 10. Chẩn Đoán & Hỗ Trợ Kỹ Thuật (.diagnose)</h2>
+            <div class="callout callout-success">
+                <strong>🔒 Bảo mật thông tin 100%:</strong>
+                Khi xuất tệp chẩn đoán gửi cho Developer, toàn bộ bảng cài đặt (chứa Token Telegram, API Key AI, Cookie Facebook và Proxy) được <b>tự động loại trừ hoàn toàn</b>. Bạn hoàn toàn yên tâm gửi file để hỗ trợ mà không sợ lộ thông tin cá nhân.
+            </div>
+
+            <ol class="step-list">
+                <li class="step-item">
+                    <div class="step-title">Xuất file chẩn đoán</div>
+                    <p>Tại Tab 4, trong khung <i>Chẩn đoán & Hỗ trợ Kỹ thuật</i>, bấm nút <span class="btn-tag btn-purple">🩺 Gửi phân tích cho Dev (Xuất file .diagnose)</span>.</p>
+                </li>
+                <li class="step-item">
+                    <div class="step-title">Nội dung gói chẩn đoán</div>
+                    <p>Phần mềm sẽ nén <code>access.log</code>, <code>error.log</code> và bản SQL dữ liệu các bài viết/bình luận/lịch sử AI vào một file zip tiện lợi.</p>
+                </li>
+            </ol>
+        </section>
+
+        <!-- Section 11: OTA Update -->
+        <section id="tab4-ota">
+            <h2 class="section-title">🔄 11. Cập Nhật Phần Mềm Tự Động (OTA Update)</h2>
+            <p>Phần mềm tích hợp cơ chế cập nhật không dây (Over-The-Air Update) thông minh qua GitHub Releases chính thức:</p>
+
+            <ol class="step-list">
+                <li class="step-item">
+                    <div class="step-title">Tự động kiểm tra khi khởi động</div>
+                    <p>Mỗi khi mở phần mềm, hệ thống sẽ tự động đối chiếu phiên bản hiện tại với bản phát hành mới nhất trên GitHub. Nếu có phiên bản mới, hộp thoại cập nhật sẽ tự động xuất hiện.</p>
+                </li>
+                <li class="step-item">
+                    <div class="step-title">Kiểm tra thủ công</div>
+                    <p>Tại Tab 4, bấm nút <span class="btn-tag btn-blue">🔍 Kiểm tra bản cập nhật mới</span> bất cứ lúc nào để kiểm tra ngay.</p>
+                </li>
+                <li class="step-item">
+                    <div class="step-title">Tải trực tiếp & Thanh tiến trình</div>
+                    <p>Trong hộp thoại cập nhật, bạn có thể đọc toàn bộ ghi chú phát hành (Changelog) và bấm <b>🚀 Tải bản cập nhật</b>. Phần mềm sẽ tải trực tiếp gói cập nhật kèm thanh phần trăm (%) tiến trình và cung cấp nút mở thư mục cài đặt nhanh.</p>
+                </li>
+            </ol>
+        </section>
+
+        <!-- Section 12: Tab 2 Quản lý dữ liệu -->
         <section id="tab2-data">
-            <h2 class="section-title">📊 9. Tab 2: Quản Lý Dữ Liệu & Thao Tác Xóa</h2>
+            <h2 class="section-title">📊 12. Tab 2: Quản Lý Dữ Liệu & Thao Tác Xóa</h2>
             <p>Tab 2 hiển thị toàn bộ bài viết đã cào kèm các công cụ quản lý dữ liệu mạnh mẽ:</p>
 
             <div class="grid-2">
@@ -775,20 +876,28 @@ socks5://username:password@123.45.67.89:1080</code></pre>
                     <p>Tích chọn ô vuông ở đầu bảng để chọn tất cả, hoặc tích chọn từng bài viết cụ thể để thao tác.</p>
                 </div>
                 <div class="card">
+                    <div class="card-title">🔍 Xem chi tiết bài đăng</div>
+                    <p>Nhấp đúp chuột vào bất kỳ dòng nào (hoặc bấm <i>Xem chi tiết</i>) để mở cửa sổ xem toàn văn bài đăng, link gốc và danh sách bình luận kèm phản hồi phân cấp.</p>
+                </div>
+                <div class="card">
                     <div class="card-title">🗑️ Xóa bản ghi linh hoạt</div>
                     <p>• <b>Xóa lẻ:</b> Bấm nút Xóa ở cột Thao tác hoặc nhấp chuột phải ➔ Chọn <i>Xóa bài viết này</i>.<br>
-                    • <b>Xóa đã chọn:</b> Nút sáng khi có bài được chọn.<br>
-                    • <b>Xóa tất cả:</b> Xóa trắng toàn bộ bài viết trong SQLite.</p>
+                    • <b>Xóa đã chọn:</b> Xóa nhanh hàng loạt bài viết được tích chọn.<br>
+                    • <b>Xóa tất cả:</b> Xóa trắng toàn bộ bài viết trong cơ sở dữ liệu SQLite.</p>
+                </div>
+                <div class="card">
+                    <div class="card-title">📥 Xuất dữ liệu Excel / CSV</div>
+                    <p>Xuất toàn bộ bảng dữ liệu bài viết ra file Excel (.xlsx) hoặc CSV để phân tích, báo cáo hoặc lưu trữ bên ngoài.</p>
                 </div>
             </div>
         </section>
 
-        <!-- Section 9: Cập nhật comment -->
+        <!-- Section 13: Cập nhật comment -->
         <section id="cap-nhat-comment">
-            <h2 class="section-title">💬 10. Tính Năng Cập Nhật Bình Luận Mới</h2>
+            <h2 class="section-title">💬 13. Tính Năng Cập Nhật Bình Luận Mới (24h)</h2>
             <div class="callout callout-info">
                 <strong>Tại sao cần cập nhật bình luận?</strong>
-                Nhiều khách hàng hoặc người bán không đăng thông tin ở bài viết gốc mà bình luận bên dưới bài viết sau đó vài giờ. Tính năng này giúp bạn quét lại toàn bộ bình luận mới nhất mà không cần cào lại từ đầu.
+                Nhiều khách hàng hoặc người bán không đăng thông tin ở bài viết gốc mà bình luận bên dưới bài viết sau đó vài giờ. Tính năng này giúp bạn quét lại toàn bộ bình luận mới nhất mà không cần cào lại bài viết từ đầu.
             </div>
 
             <ol class="step-list">
@@ -807,14 +916,14 @@ socks5://username:password@123.45.67.89:1080</code></pre>
             </ol>
         </section>
 
-        <!-- Section 10: Tab 3 Lịch sử AI -->
+        <!-- Section 14: Tab 3 Lịch sử AI -->
         <section id="tab3-ai-history">
-            <h2 class="section-title">🧠 11. Tab 3: Lịch Sử Phân Tích AI</h2>
+            <h2 class="section-title">🧠 14. Tab 3: Lịch Sử Phân Tích AI</h2>
             <p>Tab 3 hiển thị kết quả phân tích có cấu trúc của AI cho từng bài viết:</p>
             <table>
                 <thead>
                     <tr>
-                        <th>Cột</th>
+                        <th style="width: 20%;">Cột</th>
                         <th>Ý nghĩa</th>
                     </tr>
                 </thead>
@@ -825,7 +934,7 @@ socks5://username:password@123.45.67.89:1080</code></pre>
                     </tr>
                     <tr>
                         <td><b>Thiết bị / Sản phẩm</b></td>
-                        <td>Tên máy cụ thể AI trích xuất được (ví dụ: <i>iPad Pro M1 128GB Wifi</i>).</td>
+                        <td>Tên máy / sản phẩm / dịch vụ cụ thể AI trích xuất được (ví dụ: <i>iPad Pro M1 128GB Wifi</i>).</td>
                     </tr>
                     <tr>
                         <td><b>Giá</b></td>
@@ -839,30 +948,34 @@ socks5://username:password@123.45.67.89:1080</code></pre>
                         <td><b>Lý do AI</b></td>
                         <td>Giải thích tóm tắt vì sao AI đưa ra quyết định thông báo hay bỏ qua.</td>
                     </tr>
+                    <tr>
+                        <td><b>Telegram</b></td>
+                        <td>Trạng thái gửi tin nhắn: <code>Đã gửi</code>, <code>Chưa gửi</code> hoặc <code>Không gửi</code>.</td>
+                    </tr>
                 </tbody>
             </table>
-            <p>Hỗ trợ đầy đủ các nút <b>Xóa lẻ</b>, <b>Xóa đã chọn</b> và <b>Xóa tất cả lịch sử AI</b>.</p>
+            <p>Hỗ trợ đầy đủ các nút <b>Xóa lẻ</b>, <b>Xóa đã chọn</b>, <b>Xóa tất cả</b> và <b>Xuất Excel/CSV</b>.</p>
         </section>
 
-        <!-- Section 11: FAQ & Troubleshooting -->
+        <!-- Section 15: FAQ & Troubleshooting -->
         <section id="faq">
-            <h2 class="section-title">❓ 12. Câu Hỏi Thường Gặp (FAQ)</h2>
+            <h2 class="section-title">❓ 15. Câu Hỏi Thường Gặp (FAQ)</h2>
             <div class="card" style="margin-bottom: 12px;">
                 <div class="card-title">1. Cookie Facebook sống được bao lâu? Khi nào cần lấy lại?</div>
-                <p>Cookie thường có hiệu lực từ vài ngày đến vài tuần. Nếu bạn đăng xuất tài khoản trên trình duyệt hoặc đổi mật khẩu, Cookie sẽ hết hạn. Khi thấy thông báo lỗi xác thực hoặc không lấy được bài nhóm kín, hãy cập nhật lại Cookie mới.</p>
+                <p>Cookie thường có hiệu lực từ vài ngày đến vài tuần. Nếu bạn đăng xuất tài khoản trên trình duyệt hoặc đổi mật khẩu, Cookie sẽ hết hạn. Khi thấy thông báo lỗi xác thực hoặc không lấy được bài nhóm kín, hãy cập nhật lại Cookie mới tại Tab 1.</p>
             </div>
             <div class="card" style="margin-bottom: 12px;">
                 <div class="card-title">2. Tôi có thể vừa cào vừa sửa System Prompt hoặc đổi Model AI được không?</div>
                 <p><b>Hoàn toàn được!</b> Phần mềm hỗ trợ tính năng <b>Hot-Reload</b>. Bạn chỉ cần sửa Prompt hoặc chọn Model tại Tab 4 rồi bấm <i>Lưu cấu hình</i>, tiến trình AI đang chạy sẽ ngay lập tức áp dụng cài đặt mới mà không cần dừng quét.</p>
             </div>
             <div class="card" style="margin-bottom: 12px;">
-                <div class="card-title">3. File cơ sở dữ liệu SQLite lưu ở đâu? Có mang sang máy khác được không?</div>
-                <p>File cơ sở dữ liệu nằm tại <code>data/facebook_scraper.db</code>. Bạn có thể sao chép thư mục <code>data/</code> sang máy tính khác để giữ nguyên toàn bộ bài viết và lịch sử đã cào.</p>
+                <div class="card-title">3. File cơ sở dữ liệu SQLite lưu ở đâu? Có bị mất khi update phần mềm không?</div>
+                <p>File cơ sở dữ liệu nằm tại <code>~/.facebook-notification/facebook_scraper.sqlite</code> (thư mục User). Khi bạn cài đặt hoặc cập nhật phiên bản mới của phần mềm, toàn bộ dữ liệu, cấu hình và bài viết đã cào vẫn được giữ nguyên vẹn 100%.</p>
             </div>
         </section>
 
         <section id="troubleshooting">
-            <h2 class="section-title">🛠️ 13. Xử Lý Sự Cố (Troubleshooting)</h2>
+            <h2 class="section-title">🛠️ 16. Xử Lý Sự Cố (Troubleshooting)</h2>
             <table>
                 <thead>
                     <tr>
@@ -880,12 +993,17 @@ socks5://username:password@123.45.67.89:1080</code></pre>
                     <tr>
                         <td><b>AI báo lỗi HTTP 429 (Rate Limit)</b></td>
                         <td>Hết hạn mức gọi API trong phút của Model.</td>
-                        <td>Tích chọn thêm 2-3 model dự phòng (như Gemini 2.0 Flash, Gemini 1.5 Flash) để phần mềm tự động chuyển đổi khi gặp lỗi.</td>
+                        <td>Tích chọn thêm 2-3 model dự phòng (như Gemini 2.5 Flash, Gemini 2.0 Flash, Gemini 1.5 Flash) để phần mềm tự động chuyển đổi khi gặp lỗi.</td>
                     </tr>
                     <tr>
                         <td><b>Telegram không nhận được tin nhắn</b></td>
                         <td>Sai Token hoặc chưa bấm <code>/start</code> bot.</td>
-                        <td>Mở chat với bot trên Telegram, bấm nút <b>Start</b> và kiểm tra lại Chat ID tại Tab 4.</td>
+                        <td>Mở chat với bot trên Telegram, bấm nút <b>Start</b> và kiểm tra lại Chat ID tại Tab 4. Bấm nút "Gửi tin nhắn kiểm tra" để xác minh.</td>
+                    </tr>
+                    <tr>
+                        <td><b>Kiểm tra cập nhật báo lỗi mạng</b></td>
+                        <td>Không có kết nối Internet hoặc GitHub tạm thời chặn.</td>
+                        <td>Kiểm tra kết nối mạng hoặc mở trang GitHub Releases trên trình duyệt để tải bản cập nhật thủ công.</td>
                     </tr>
                 </tbody>
             </table>
@@ -893,7 +1011,7 @@ socks5://username:password@123.45.67.89:1080</code></pre>
 
         <!-- Footer -->
         <footer>
-            <p>Facebook Post & Comment Scraper AI • Tài liệu hướng dẫn sử dụng phiên bản 2.0 • Bản quyền © 2026</p>
+            <p>Facebook Post & Comment Scraper AI • Tài liệu hướng dẫn sử dụng phiên bản 1.0.4 • Bản quyền © 2026</p>
         </footer>
 
     </main>

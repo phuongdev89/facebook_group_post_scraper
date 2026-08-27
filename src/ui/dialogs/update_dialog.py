@@ -185,7 +185,7 @@ class UpdateDialog(QDialog):
         layout.addLayout(btn_layout)
 
     def open_github_release_page(self):
-        url = self.update_info.get("release_url") or "https://github.com/phuongdev89/facebook_post_comment_scraper/releases"
+        url = self.update_info.get("release_url") or "https://github.com/phuongdev89/facebook_group_post_scraper/releases"
         webbrowser.open(url)
 
     def start_download(self):

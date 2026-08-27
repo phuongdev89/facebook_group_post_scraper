@@ -3,7 +3,7 @@ import os
 import requests
 from src.config.constants import APP_VERSION
 
-DEFAULT_GITHUB_REPO = "phuongdev89/facebook_post_comment_scraper"
+DEFAULT_GITHUB_REPO = "phuongdev89/facebook_group_post_scraper"
 
 
 def parse_version(version_str: str) -> tuple:

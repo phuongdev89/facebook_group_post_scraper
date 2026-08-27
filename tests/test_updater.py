@@ -66,9 +66,9 @@ class TestUpdater(unittest.TestCase):
         self.assertEqual(update_info["source"], "raw_version")
 
     def test_get_app_version_default(self):
-        from src.config.constants import get_app_version
+        from src.config.constants import get_app_version, APP_VERSION
         version = get_app_version()
-        self.assertEqual(version, "1.0.3")
+        self.assertEqual(version, APP_VERSION)
 
     def test_get_app_version_from_meipass(self):
         import sys
