@@ -92,13 +92,13 @@ class ScraperThread(QThread):
         if group_url:
             update_group_last_scraped(group_url)
 
-        # Cào danh sách bài viết (Thread-safe, không dùng lock)
+        # Cào danh sách bài viết (Thread-safe, không dùng lock, không bỏ qua bài viết theo số lượng cmt)
         posts = fetch_group_posts(
             group_id=group_id,
             group_name=configured_name,
             limit=post_count,
             target_count=post_count,
-            min_comments=min_comments,
+            min_comments=0,
             cookies=self.cookies,
             fb_dtsg=self.fb_dtsg,
             cutoff_time=cutoff_time,
@@ -110,7 +110,32 @@ class ScraperThread(QThread):
             self.log(f"⚠️ Không lấy được bài viết nào từ nhóm {group_id}")
             return 0
 
-        self.log(f"📄 Tìm thấy {len(posts)} bài viết từ nhóm {group_id}. Đang lấy bình luận song song...")
+        saved = 0
+
+        # Nếu min_comments == 0: Bỏ qua việc cào bình luận hoàn toàn (chỉ lưu bài viết)
+        if min_comments == 0:
+            self.log(f"📄 Tìm thấy {len(posts)} bài viết từ nhóm {group_id} (Không cào bình luận vì Cmt tối thiểu = 0).")
+            for post in posts:
+                if self.stop_requested:
+                    break
+                post_id = post.get("post_id")
+                if not post_id:
+                    continue
+                if configured_name and not post.get("group_name"):
+                    post["group_name"] = configured_name
+
+                save_or_update_post(
+                    post_type="group_post",
+                    post_id=post_id,
+                    post_data=post,
+                    comments_data=[]
+                )
+                saved += 1
+            self.log(f"✅ Hoàn thành nhóm {group_id}: Đã lưu {saved}/{len(posts)} bài viết.")
+            return saved
+
+        cmt_msg = "TẤT CẢ bình luận" if min_comments == -1 else f"tối đa {min_comments} bình luận/bài"
+        self.log(f"📄 Tìm thấy {len(posts)} bài viết từ nhóm {group_id}. Đang cào {cmt_msg} song song...")
 
         def fetch_one_post_comments(post):
             if self.stop_requested:
@@ -121,7 +146,7 @@ class ScraperThread(QThread):
             if configured_name and not post.get("group_name"):
                 post["group_name"] = configured_name
             try:
-                target_cmt_count = max(min_comments, 20)
+                target_cmt_count = None if min_comments == -1 else min_comments
                 comments, _ = fetch_comments(
                     post_id,
                     target_count=target_cmt_count,
@@ -134,7 +159,6 @@ class ScraperThread(QThread):
                 self.log(f"⚠️ Lỗi lấy comment bài {post_id}: {e}")
                 return post, []
 
-        saved = 0
         with ThreadPoolExecutor(max_workers=MAX_COMMENT_WORKERS) as pool:
             futs = {pool.submit(fetch_one_post_comments, p): p for p in posts}
             for fut in as_completed(futs):

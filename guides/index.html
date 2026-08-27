@@ -602,14 +602,18 @@ python -m src.main</code></pre>
                     <p>Trong cửa sổ <span class="btn-tag">⛶ Phóng to</span>, bấm <b>📥 Dán nhiều link</b> ➔ Dán danh sách nhiều URL (mỗi dòng một link) ➔ Bấm <b>Thêm vào danh sách</b>.</p>
                 </li>
                 <li class="step-item">
-                    <div class="step-title">Nhập Từ Khóa Lọc (Keywords — Dạng Tag)</div>
-                    <p>Nhập từ khóa vào ô và nhấn <code>Enter</code> hoặc bấm <code>+</code>. Ví dụ: <code>bán ipad</code>, <code>pass máy</code>, <code>cần nhượng lại</code>. Bấm dấu <code>×</code> trên thẻ tag để xóa từ khóa.</p>
+                    <div class="step-title">Bộ lọc Từ Khóa Chuyên Sâu (Boolean Logic & Visual Builder)</div>
+                    <p>Bấm <span class="btn-tag btn-purple">⛶ Phóng to / Cấu hình bộ lọc...</span> để mở trình xây dựng biểu thức logic. Bạn có thể dùng chế độ <b>🧱 Dựng trực quan</b> hoặc <b>✍️ Tự nhập biểu thức</b> với toán tử <code>AND</code>, <code>OR</code>, <code>NOT</code> và dấu ngoặc <code>( )</code>. Hệ thống sẽ tự động diễn giải ý nghĩa bằng tiếng Việt thời gian thực.</p>
                 </li>
                 <li class="step-item">
-                    <div class="step-title">Thiết lập tham số quét</div>
-                    <p>• <b>Số bài cần cào / nhóm:</b> Số lượng bài viết gần nhất cần lấy (mặc định 5 - 10 bài).<br>
-                    • <b>Bình luận tối thiểu:</b> Bỏ qua các bài viết có ít hơn số bình luận này (đặt 0 nếu muốn lấy tất cả).<br>
-                    • <b>🔄 Quét lặp vô hạn (Infinite Loop):</b> Bật tính năng này để phần mềm tự động quét lại theo chu kỳ định kỳ (ví dụ mỗi 60 giây).</p>
+                    <div class="step-title">Thiết lập tham số quét tinh gọn</div>
+                    <p>• <b>Bài/nhóm:</b> Số lượng bài viết gần nhất cần lấy (mặc định 5 bài).<br>
+                    • <b>Cmt tối thiểu:</b><br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;◦ <code>0</code>: <b>Không cào bình luận</b> (chỉ lấy bài viết, tốc độ nhanh nhất).<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;◦ <code>Số > 0</code> (ví dụ <code>5</code>, <code>20</code>): <b>Cào tối đa/tối thiểu N bình luận</b> cho mỗi bài viết (không bỏ qua bài viết ít cmt).<br>
+                    • <b>Luồng cào (1 - 10):</b> Số lượng nhóm Facebook quét đồng thời cùng lúc (Mặc định: 1 luồng. Chạy 4-10 luồng nên cấu hình Proxy để tránh Rate Limit).<br>
+                    • <b>⏰ Thời gian:</b> Giới hạn bài viết trong vòng 1-7 ngày trước hoặc chọn ngày giờ tùy chỉnh qua Calendar Picker.<br>
+                    • <b>🔄 Quét lặp vô hạn (Infinite Loop):</b> Tự động quét lại theo chu kỳ thời gian nghỉ (Nghỉ giây).</p>
                 </li>
             </ol>
         </section>

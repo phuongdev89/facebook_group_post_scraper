@@ -8,7 +8,12 @@
 
 ## 🎯 Điểm Nổi Bật
 
-- **Thuần HTTP Requests**: Hoạt động hoàn toàn qua Facebook GraphQL API và giao thức HTTP, không cần mở trình duyệt giả lập (Selenium/Playwright/Puppeteer), tiết kiệm tối đa RAM và CPU.
+- **Thuần HTTP Requests & Cào Đa Luồng Song Song (1-10 Luồng)**: Hoạt động hoàn toàn qua Facebook GraphQL API và giao thức HTTP, không cần mở trình duyệt giả lập. Hỗ trợ quét song song đồng thời từ 1 đến 10 nhóm Facebook độc lập với tốc độ vượt trội.
+- **Bộ Lọc Từ Khóa Boolean Logic & Diễn Giải Tiếng Việt**:
+  - Hỗ trợ xây dựng biểu thức logic chuyên sâu (`AND`, `OR`, `NOT`, `()`).
+  - Hộp thoại cấu hình 2 chế độ: **🧱 Dựng trực quan (Visual Rule Builder)** và **✍️ Tự nhập biểu thức (Raw Expression)**, tự động diễn giải ý nghĩa sang tiếng Việt thời gian thực.
+  - Tùy biến cào bình luận linh hoạt (`Cmt tối thiểu`): `0` (không cào bình luận, nhanh nhất), `-1` (cào tất cả bình luận), `> 0` (cào tối đa/tối thiểu N bình luận/bài, không bỏ qua bài viết ít cmt).
+  - Giới hạn thời gian bài viết (Cutoff timestamp): Lọc bài viết 1-7 ngày trước hoặc tùy chỉnh lịch.
 - **Phân Tích AI Đa Nền Tảng & Khử Trùng Lặp Thông Minh**:
   - Hỗ trợ cả **Google Gemini API** và toàn bộ các nhà cung cấp tương thích **OpenAI** (OpenAI chính hãng, OpenRouter, DeepSeek, Groq, Together AI, Ollama, vLLM, LM Studio).
   - Tự động luân phiên (Fallback / Rotation) giữa các model để tránh lỗi nghẽn hạn mức (Rate Limit) và tối ưu độ trễ.

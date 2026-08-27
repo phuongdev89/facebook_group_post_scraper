@@ -4,6 +4,36 @@ Tất cả những thay đổi, cải tiến và bản sửa lỗi của dự á
 
 ---
 
+## [1.0.7] - 2026-08-27
+
+### ✨ Tính Năng Mới & Kiến Trúc Đa Luồng (Added)
+- **Quét Đa Luồng Nhóm Song Song (`Luồng cào: 1-10`)**:
+  - Hỗ trợ chọn số luồng cào nhóm từ 1 đến 10 thông qua Dropdown tinh gọn, cho phép cào đồng thời nhiều nhóm Facebook độc lập với tốc độ vượt trội.
+  - Tách rời hoàn toàn các tiến trình: **Scraper** (cào dữ liệu), **AI Analyzer** (lắng nghe database và phân tích tự động), và **Telegram Dispatcher** (lắng nghe database và gửi thông báo tức thì).
+- **Quy Tắc Thiết Lập Số Lượng Bình Luận Cần Cào (`Cmt tối thiểu`)**:
+  - `0 (Mặc định)`: Không cào bình luận (chỉ cào bài viết, tốc độ quét nhanh nhất, tiết kiệm băng thông và token).
+  - `-1`: Cào **TẤT CẢ** bình luận và phản hồi của mỗi bài viết.
+  - `> 0 (ví dụ 5, 20...)`: Cào tối thiểu/tối đa $N$ bình luận cho mỗi bài viết. Nếu bài viết có ít hơn $N$ bình luận thì vẫn cào bài viết đó và lấy toàn bộ bình luận hiện có, không bỏ qua bài viết.
+- **Bộ Lọc Từ Khóa Logic Chuyên Sâu & Diễn Giải Tiếng Việt (`KeywordFilterDialog`)**:
+  - Hỗ trợ đầy đủ toán tử Boolean `AND`, `OR`, `NOT` và biểu thức lồng dấu ngoặc `()`.
+  - Hộp thoại cấu hình phóng to toàn màn hình với 2 chế độ: **🧱 Dựng điều kiện trực quan (Visual Rule Builder)** và **✍️ Tự nhập biểu thức (Raw Expression)**.
+  - Hỗ trợ toán tử nối nhóm (`HOẶC (OR)`, `VÀ (AND)`, `VÀ KHÔNG CHỨA (AND NOT)`) từ Nhóm 2 trở đi.
+  - Chuyển đổi 2 chiều thông minh, tự động bóc tách toán tử ra khỏi ô nhập text từ khóa và diễn giải ý nghĩa bằng tiếng Việt tự nhiên thời gian thực.
+- **Lọc Mốc Thời Gian Bài Viết (Cutoff Timestamp)**:
+  - Chọn nhanh 1-7 ngày trước hoặc tùy chỉnh qua DateTimePicker, tự động dừng phân trang khi bài viết vượt quá mốc thời gian yêu cầu.
+- **Trợ Giúp Trực Quan (Nút `?` Tooltip & Modal Hướng Dẫn)**:
+  - Bổ sung nút `?` cạnh **Cmt tối thiểu** và **Luồng cào** giúp người dùng tra cứu nhanh quy tắc và khuyến nghị sử dụng.
+
+### 🛠 Cải Tiến Giao Diện & Tối Ưu Diện Tích (Changed)
+- Toàn bộ 6 tham số quét (Bài/nhóm, Cmt tối thiểu, Luồng cào, Thời gian, Lặp vô hạn, Nghỉ) được sắp xếp trên 1 hàng ngang duy nhất.
+- Bỏ nút mũi tên lên xuống trên các ô số, hỗ trợ nhập số trực tiếp từ bàn phím.
+- Thu gọn chiều cao khung nhật ký hoạt động (Logs) xuống còn 1/4, mở rộng tối đa không gian cho Danh sách nhóm Facebook (`GroupListWidget`) tự động co giãn theo kích thước cửa sổ.
+
+### 🐛 Sửa Lỗi (Fixed)
+- Sửa lỗi `'NoneType' object has no attribute 'get'` trong `comment_scraper.py` bằng hàm điều hướng an toàn `_safe()`.
+
+---
+
 ## [1.0.6] - 2026-08-27
 
 ### ✨ Tính Năng Mới & Khử Trùng Lặp AI (Added)

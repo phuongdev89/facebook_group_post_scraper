@@ -1917,29 +1917,84 @@ class FacebookNotificationUI(QMainWindow):
         self.group_post_count.setStyleSheet("padding: 3px; border: 1px solid #D1D5DB; border-radius: 4px; font-weight: 500;")
         params_row.addWidget(self.group_post_count)
 
-        # 2. Bình luận tối thiểu
-        params_row.addWidget(QLabel("Cmt tối thiểu:"))
+        # 2. Bình luận tối thiểu (-1 = tất cả, 0 = không lấy, >0 = tối thiểu)
+        cmt_lbl_layout = QHBoxLayout()
+        cmt_lbl_layout.setSpacing(2)
+        cmt_lbl_layout.addWidget(QLabel("Cmt tối thiểu:"))
+        help_cmt_btn = QPushButton("?")
+        help_cmt_btn.setFixedSize(16, 16)
+        help_cmt_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        help_cmt_btn.setToolTip("💡 Hướng dẫn Cmt tối thiểu (Số cmt cần cào/bài):\n• 0: Không cào bình luận (chỉ lấy bài viết, nhanh nhất)\n• -1: Cào TẤT CẢ bình luận của bài viết\n• > 0 (ví dụ 5, 20...): Cào tối đa/tối thiểu N bình luận cho mỗi bài viết (không bỏ qua bài viết ít cmt)")
+        help_cmt_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #F3F4F6;
+                color: #4B5563;
+                font-size: 10px;
+                font-weight: bold;
+                border-radius: 8px;
+                border: 1px solid #D1D5DB;
+                padding: 0px;
+            }
+            QPushButton:hover { background-color: #E5E7EB; }
+        """)
+        help_cmt_btn.clicked.connect(lambda: QMessageBox.information(
+            self,
+            "💡 Hướng dẫn Cmt tối thiểu (Số comment cào/bài)",
+            "<b>Quy tắc thiết lập Số lượng bình luận cần cào cho mỗi bài viết:</b><br><br>"
+            "• <b>0 (Mặc định):</b> <b>Không cào bình luận</b> (chỉ cào bài viết, tốc độ quét nhanh nhất, tiết kiệm request).<br>"
+            "• <b>-1:</b> <b>Cào TẤT CẢ bình luận</b> của mỗi bài viết (tự động phân trang cuộn lấy hết comment).<br>"
+            "• <b>Số > 0 (ví dụ 5, 10, 50...):</b> Cào tối thiểu/tối đa <b>N bình luận</b> cho mỗi bài viết. "
+            "<i>(Nếu bài viết có ít hơn N bình luận thì vẫn cào bài viết đó và lấy toàn bộ số bình luận hiện có, không bỏ qua bài viết).</i>"
+        ))
+        cmt_lbl_layout.addWidget(help_cmt_btn)
+        params_row.addLayout(cmt_lbl_layout)
+
         self.group_min_comments = QSpinBox()
         self.group_min_comments.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
         self.group_min_comments.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.group_min_comments.setMinimum(0)
+        self.group_min_comments.setMinimum(-1)
         self.group_min_comments.setMaximum(10000)
         self.group_min_comments.setValue(0)
         self.group_min_comments.setFixedWidth(45)
         self.group_min_comments.setStyleSheet("padding: 3px; border: 1px solid #D1D5DB; border-radius: 4px; font-weight: 500;")
         params_row.addWidget(self.group_min_comments)
 
-        # 3. Số luồng quét nhóm (1-10)
-        params_row.addWidget(QLabel("⚡ Luồng (1-10):"))
-        self.group_concurrency = QSpinBox()
-        self.group_concurrency.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
-        self.group_concurrency.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.group_concurrency.setMinimum(1)
-        self.group_concurrency.setMaximum(10)
-        self.group_concurrency.setValue(1)
-        self.group_concurrency.setFixedWidth(40)
-        self.group_concurrency.setStyleSheet("padding: 3px; border: 1px solid #D1D5DB; border-radius: 4px; font-weight: bold; color: #4338CA;")
-        self.group_concurrency.setToolTip("Số nhóm quét đồng thời cùng lúc (1-10, mặc định 1).\nLưu ý: Chạy nhiều luồng đồng thời có thể tăng nguy cơ bị Facebook Rate Limit/chặn nếu không dùng Proxy.")
+        # 3. Số luồng quét nhóm (1-10) dạng Dropdown
+        concurrency_lbl_layout = QHBoxLayout()
+        concurrency_lbl_layout.setSpacing(2)
+        concurrency_lbl_layout.addWidget(QLabel("Luồng cào:"))
+        help_concurrency_btn = QPushButton("?")
+        help_concurrency_btn.setFixedSize(16, 16)
+        help_concurrency_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        help_concurrency_btn.setToolTip("💡 Hướng dẫn Số luồng cào:\n• Chọn từ 1 đến 10 nhóm quét đồng thời cùng lúc (Mặc định: 1).\n• Khuyến nghị: 1-3 luồng để an toàn tài khoản. Nếu chạy 4-10 luồng nên cấu hình Proxy ở Tab Cài đặt.")
+        help_concurrency_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #E0E7FF;
+                color: #3730A3;
+                font-size: 10px;
+                font-weight: bold;
+                border-radius: 8px;
+                border: 1px solid #C7D2FE;
+                padding: 0px;
+            }
+            QPushButton:hover { background-color: #C7D2FE; }
+        """)
+        help_concurrency_btn.clicked.connect(lambda: QMessageBox.information(
+            self,
+            "💡 Hướng dẫn Số luồng cào nhóm",
+            "<b>Số luồng cào nhóm (1 - 10):</b><br><br>"
+            "• <b>1 luồng (Mặc định):</b> Quét tuần tự từng nhóm một, an toàn nhất cho Cookie.<br>"
+            "• <b>2 - 3 luồng:</b> Quét nhanh 2-3 nhóm cùng lúc, tốc độ tối ưu.<br>"
+            "• <b>4 - 10 luồng:</b> Tốc độ quét cực nhanh. <i>Khuyến nghị:</i> Nên cấu hình Proxy xoay IP ở Tab Cài đặt để tránh bị Facebook Rate Limit."
+        ))
+        concurrency_lbl_layout.addWidget(help_concurrency_btn)
+        params_row.addLayout(concurrency_lbl_layout)
+
+        self.group_concurrency = QComboBox()
+        self.group_concurrency.addItems([str(i) for i in range(1, 11)])
+        self.group_concurrency.setCurrentText("1")
+        self.group_concurrency.setFixedWidth(50)
+        self.group_concurrency.setStyleSheet("padding: 3px 6px; border: 1px solid #D1D5DB; border-radius: 4px; font-weight: bold; color: #4338CA;")
         params_row.addWidget(self.group_concurrency)
 
         # 4. Giới hạn thời gian bài viết
@@ -4568,7 +4623,7 @@ class FacebookNotificationUI(QMainWindow):
         # Tab 1: Concurrency & Time Filter & Keyword Expression
         concurrency_val = int(settings.get("concurrency", 1))
         if hasattr(self, 'group_concurrency'):
-            self.group_concurrency.setValue(max(1, min(concurrency_val, 10)))
+            self.group_concurrency.setCurrentText(str(max(1, min(concurrency_val, 10))))
 
         tf_idx = int(settings.get("time_filter_index", 0))
         if hasattr(self, 'time_filter_combo'):
@@ -4712,7 +4767,7 @@ class FacebookNotificationUI(QMainWindow):
         data = {
             "keywords": kw_expr,
             "keyword_expression": kw_expr,
-            "concurrency": str(self.group_concurrency.value()) if hasattr(self, 'group_concurrency') else "1",
+            "concurrency": self.group_concurrency.currentText() if hasattr(self, 'group_concurrency') else "1",
             "time_filter_index": str(self.time_filter_combo.currentIndex()) if hasattr(self, 'time_filter_combo') else "0",
             "post_count": str(self.group_post_count.value()),
             "min_comments": str(self.group_min_comments.value()),
@@ -5124,7 +5179,7 @@ class FacebookNotificationUI(QMainWindow):
         count = self.group_post_count.value()
         min_comments = self.group_min_comments.value()
         keyword_expression = getattr(self, 'current_keyword_expression', '')
-        concurrency = self.group_concurrency.value() if hasattr(self, 'group_concurrency') else 1
+        concurrency = int(self.group_concurrency.currentText()) if hasattr(self, 'group_concurrency') else 1
         infinite_loop = self.infinite_loop_cb.isChecked()
         loop_interval = self.loop_interval_spin.value()
 

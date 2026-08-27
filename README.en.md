@@ -8,7 +8,12 @@ A high-performance desktop application for extracting (scraping) posts and comme
 
 ## 🎯 Key Highlights
 
-- **Pure HTTP Requests**: Operates entirely via Facebook GraphQL APIs and HTTP protocols without spinning up headless browser instances (no Selenium/Playwright/Puppeteer), drastically saving CPU and RAM.
+- **Pure HTTP Requests & Concurrent Multi-Threading (1-10 Workers)**: Operates entirely via Facebook GraphQL APIs and HTTP protocols without headless browsers. Scrapes up to 10 Facebook groups in parallel with lightning-fast performance.
+- **Deep Boolean Logic Keyword Filter & Visual Builder**:
+  - Full support for `AND`, `OR`, `NOT`, and parenthesized expressions `()`.
+  - Fullscreen dual-mode editor: **🧱 Visual Rule Builder** and **✍️ Raw Expression**, with live natural language explanation.
+  - Flexible comment scraping rules: `0` (skip comments, fastest), `-1` (fetch all comments), `> 0` (fetch up to N comments/post, never skips posts).
+  - Time cutoff stopper: Filter posts from the last 1-7 days or custom datetime range.
 - **Multi-Platform AI Analysis & Multi-Level Deduplication**:
   - Full support for **Google Gemini API** and all **OpenAI-compatible** providers (Official OpenAI, OpenRouter, DeepSeek, Groq, Together AI, Ollama, vLLM, LM Studio).
   - Intelligent Model Fallback & Rotation mechanism to avoid Rate Limit bottlenecks and minimize latency.
