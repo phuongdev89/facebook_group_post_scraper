@@ -52,11 +52,18 @@ def parse_cookies_from_any(text: str) -> tuple[dict, str, str]:
                     extract_from_obj(obj[sub_key])
 
             # Nếu là dict dạng {"c_user": "1000...", "xs": "..."}
+            # Bỏ qua metadata từ browser extension export (hostOnly, httpOnly, secure, session, v.v.)
+            _METADATA_KEYS = {
+                "url", "domain", "path", "expirationdate", "storeid", "samesite",
+                "hostonly", "httponly", "secure", "session", "name", "value",
+                "key", "expires", "creation", "lastaccessed", "sameparty",
+                "sourceport", "sourcescheme", "partitionkey",
+            }
             for k, v in obj.items():
-                if isinstance(v, (str, int, float)) and k not in ["url", "domain", "path", "expirationDate", "storeId", "sameSite"]:
+                if isinstance(v, str) and k not in cookies_dict:
                     k_str = str(k).strip()
                     v_str = str(v).strip()
-                    if k_str and v_str and k_str not in cookies_dict:
+                    if k_str and v_str and k_str.lower() not in _METADATA_KEYS:
                         cookies_dict[k_str] = v_str
 
     # 1. Thử parse với json.loads chuẩn
@@ -128,6 +135,123 @@ def parse_cookies_from_any(text: str) -> tuple[dict, str, str]:
         cookie_str = "; ".join(parts)
 
     return cookies_dict, cookie_str, fb_dtsg
+
+
+def refresh_cookies_via_browser(old_cookies: dict, logger=None, headless: bool = True) -> tuple[dict, str, str, str]:
+    """
+    Mở headless browser, gắn cookies cũ vào Facebook, load trang để lấy cookies mới + fb_dtsg.
+    Dùng khi cookies hết hạn (error 1357004). Cần cookies cũ để browser tự động đăng nhập lại
+    (Facebook thường refresh session nếu cookies chưa quá cũ).
+
+    Returns:
+        tuple[dict, str, str, str]: (cookies_dict, cookie_string, fb_dtsg, raw_json)
+        Trả ({}, "", "", "") nếu thất bại.
+    """
+    import time
+
+    def log(msg):
+        if logger:
+            logger(msg)
+        else:
+            print(f"[CookieRefresh] {msg}")
+
+    if not old_cookies or not isinstance(old_cookies, dict):
+        log("❌ Không có cookies cũ để refresh.")
+        return {}, "", "", ""
+
+    if not old_cookies.get("c_user"):
+        log("❌ Cookies cũ thiếu c_user, không thể refresh.")
+        return {}, "", "", ""
+
+    try:
+        from seleniumbase import Driver
+    except ImportError:
+        log("❌ seleniumbase chưa được cài đặt. Chạy: pip install seleniumbase")
+        return {}, "", "", ""
+
+    driver = None
+    try:
+        log("🌐 Đang khởi động trình duyệt để refresh cookies...")
+        driver = Driver(browser="chrome", headless=headless, uc=True)
+
+        # Load Facebook domain trước để set cookies
+        driver.get("https://www.facebook.com/404")
+        time.sleep(1)
+
+        # Gắn cookies cũ
+        for name, value in old_cookies.items():
+            try:
+                driver.add_cookie({
+                    "name": name,
+                    "value": str(value),
+                    "domain": ".facebook.com",
+                    "path": "/"
+                })
+            except Exception:
+                pass
+
+        # Truy cập Facebook home — nếu cookies chưa quá cũ, Facebook sẽ refresh session
+        log("🔄 Đang truy cập Facebook để refresh session...")
+        driver.get("https://www.facebook.com/")
+        time.sleep(3)
+
+        # Check redirect to login
+        current_url = driver.current_url
+        if "login" in current_url or "checkpoint" in current_url:
+            log("❌ Facebook yêu cầu đăng nhập lại. Cookies đã hết hạn hoàn toàn.")
+            return {}, "", "", ""
+
+        # Lấy cookies mới từ browser
+        browser_cookies = driver.get_cookies()
+        new_cookies = {}
+        for c in browser_cookies:
+            if c.get("domain", "").endswith("facebook.com"):
+                new_cookies[c["name"]] = c["value"]
+
+        if not new_cookies.get("c_user"):
+            log("❌ Không lấy được c_user từ browser sau refresh.")
+            return {}, "", "", ""
+
+        # Lấy fb_dtsg từ page source
+        fb_dtsg = ""
+        try:
+            page_source = driver.page_source
+            # Pattern 1: DTSGInitData
+            m = re.search(r'"DTSGInitData".*?"token"\s*:\s*"([^"]+)"', page_source)
+            if m:
+                fb_dtsg = m.group(1)
+            else:
+                # Pattern 2: fb_dtsg trong form hidden
+                m = re.search(r'name="fb_dtsg"\s+value="([^"]+)"', page_source)
+                if m:
+                    fb_dtsg = m.group(1)
+                else:
+                    # Pattern 3: dtsg token block
+                    m = re.search(r'"dtsg"\s*:\s*\{"token"\s*:\s*"([^"]+)"', page_source)
+                    if m:
+                        fb_dtsg = m.group(1)
+        except Exception:
+            pass
+
+        # Build cookie string
+        cookie_str = "; ".join(f"{k}={v}" for k, v in new_cookies.items() if k and v)
+
+        # Lưu raw JSON gốc từ browser (giữ nguyên metadata)
+        fb_cookies_raw = [c for c in browser_cookies if c.get("domain", "").endswith("facebook.com")]
+        raw_json = json.dumps(fb_cookies_raw, ensure_ascii=False, indent=2)
+
+        log(f"✅ Refresh thành công: {len(new_cookies)} cookies, c_user={new_cookies.get('c_user')}, fb_dtsg={'✓' if fb_dtsg else '✗'}")
+        return new_cookies, cookie_str, fb_dtsg, raw_json
+
+    except Exception as e:
+        log(f"❌ Lỗi refresh cookies: {e}")
+        return {}, "", "", ""
+    finally:
+        if driver:
+            try:
+                driver.quit()
+            except Exception:
+                pass
 
 
 def parse_cookies_from_json(text: str) -> tuple[dict, str, str]:

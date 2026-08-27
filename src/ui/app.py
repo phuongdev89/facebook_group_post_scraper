@@ -83,11 +83,16 @@ def parse_cookies(cookie_string):
         pass
 
     cookies = {}
+    _JUNK_KEYS = {"hostonly", "httponly", "secure", "session", "name", "value",
+                  "domain", "path", "expirationdate", "storeid", "samesite",
+                  "expires", "sameparty", "sourceport", "sourcescheme", "partitionkey"}
     for cookie in str(cookie_string).split(';'):
         cookie = cookie.strip()
         if '=' in cookie:
             key, value = cookie.split('=', 1)
-            cookies[key.strip()] = value.strip()
+            k = key.strip()
+            if k and k.lower() not in _JUNK_KEYS:
+                cookies[k] = value.strip()
     return cookies
 
 
@@ -1574,6 +1579,7 @@ class FacebookNotificationUI(QMainWindow):
         self.scraper_thread = None
         self.log_viewer_dialog = None
         self.cookie_string = ""
+        self.cookie_raw_json = ""
         self.cookies = {}
         self.fb_dtsg = ""
         
@@ -4308,6 +4314,7 @@ class FacebookNotificationUI(QMainWindow):
                 pass
 
         # Auth cookies
+        self.cookie_raw_json = settings.get("cookie_raw_json", "")
         self.cookie_string = settings.get("cookie_string", "")
         self.cookies = parse_cookies(self.cookie_string)
         self.fb_dtsg = settings.get("fb_dtsg", "")
@@ -4615,13 +4622,15 @@ class FacebookNotificationUI(QMainWindow):
 
 
     def configure_cookies(self):
-        dialog = CookieDialog(self, self.cookie_string, self.fb_dtsg)
+        dialog = CookieDialog(self, self.cookie_string, self.fb_dtsg, self.cookie_raw_json)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.cookie_string = dialog.get_cookies()
+            self.cookie_raw_json = dialog.get_raw_json()
             self.cookies = parse_cookies(self.cookie_string)
             self.fb_dtsg = dialog.get_dtsg()
-            
+
             database.set_setting("cookie_string", self.cookie_string)
+            database.set_setting("cookie_raw_json", self.cookie_raw_json)
             database.set_setting("fb_dtsg", self.fb_dtsg)
 
             if self.cookies:

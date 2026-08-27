@@ -51,7 +51,31 @@ def retry_request(url, headers, data, proxies, cookies=None, max_retries=5):
         try:
             r = requests.post(url, headers=headers, data=data, proxies=proxies, cookies=cookies, timeout=30)
             if r.status_code == 200 and _is_cookie_expired(r):
-                print(f"  ⚠️ Cookies hết hạn hoặc không hợp lệ (error 1357004). Chuyển sang chế độ ẩn danh...")
+                if cookies and isinstance(cookies, dict) and cookies.get("c_user"):
+                    print(f"  ⚠️ Cookies hết hạn (error 1357004). Đang thử refresh qua headless browser...")
+                    try:
+                        from src.core.group_fetcher import refresh_cookies_via_browser
+                        new_cookies, new_cookie_str, new_dtsg, new_raw_json = refresh_cookies_via_browser(cookies, headless=True)
+                        if new_cookies and new_cookies.get("c_user"):
+                            cookies = new_cookies
+                            FB_DTSG = new_dtsg
+                            data = {**data, "av": cookies.get("c_user", "0"), "__user": cookies.get("c_user", "0"), "fb_dtsg": FB_DTSG or ""}
+                            try:
+                                import src.database as database
+                                database.set_setting("cookie_string", new_cookie_str)
+                                if new_raw_json:
+                                    database.set_setting("cookie_raw_json", new_raw_json)
+                                if new_dtsg:
+                                    database.set_setting("fb_dtsg", new_dtsg)
+                                print(f"  ✅ Đã refresh và lưu cookies mới thành công.")
+                            except Exception:
+                                pass
+                            r = requests.post(url, headers=headers, data=data, proxies=proxies, cookies=cookies, timeout=30)
+                            if r.status_code == 200 and not _is_cookie_expired(r):
+                                return r
+                    except Exception as e:
+                        print(f"  ⚠️ Refresh cookies thất bại: {e}")
+                print(f"  🔓 Chuyển sang chế độ ẩn danh (không cookies)...")
                 cookies = None
                 FB_DTSG = ""
                 data = {**data, "av": "0", "__user": "0", "fb_dtsg": ""}

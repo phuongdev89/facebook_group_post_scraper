@@ -9,12 +9,13 @@ class CookieDialog(QDialog):
     """
     Dialog nhập và phân tích Cookie Facebook định dạng JSON từ extension (Cookie-Editor / J2Team).
     """
-    def __init__(self, parent=None, current_cookies="", current_dtsg=""):
+    def __init__(self, parent=None, current_cookies="", current_dtsg="", current_raw_json=""):
         super().__init__(parent)
         self.setWindowTitle("🔑 Cấu hình Authentication (Cookie JSON Facebook)")
         self.setFixedWidth(600)
         self.cookies_str = current_cookies
         self.dtsg_str = current_dtsg
+        self.raw_json = current_raw_json  # JSON gốc user nhập
         self.fetch_groups_requested = False
 
         self.init_ui()
@@ -47,7 +48,9 @@ class CookieDialog(QDialog):
         )
         self.cookie_input.setMinimumHeight(130)
         self.cookie_input.setStyleSheet("font-family: Consolas, monospace; font-size: 11px;")
-        if self.cookies_str:
+        if self.raw_json:
+            self.cookie_input.setPlainText(self.raw_json)
+        elif self.cookies_str:
             self.cookie_input.setPlainText(self.cookies_str)
         layout.addWidget(self.cookie_input)
 
@@ -174,6 +177,7 @@ class CookieDialog(QDialog):
             cookies_dict, cookie_str, fb_dtsg = parse_cookies_from_any(raw_text)
             if cookie_str:
                 self.cookies_str = cookie_str
+                self.raw_json = raw_text  # Lưu JSON gốc
             if fb_dtsg and not self.dtsg_input.text().strip():
                 self.dtsg_str = fb_dtsg
 
@@ -190,6 +194,9 @@ class CookieDialog(QDialog):
 
     def get_cookies(self):
         return self.cookies_str
+
+    def get_raw_json(self):
+        return self.raw_json
 
     def get_dtsg(self):
         return self.dtsg_str
