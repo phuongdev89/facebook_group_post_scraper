@@ -631,11 +631,12 @@ python -m src.main</code></pre>
                     <div class="step-title">Bước 2: Lấy chuỗi Cookie JSON bằng Extension Cookie-Editor</div>
                     <p>• Cài đặt tiện ích mở rộng <b>Cookie-Editor</b> (hoặc <b>J2Team Cookies</b>) trên trình duyệt Chrome, Edge, Firefox hoặc Cốc Cốc.<br>
                     • Mở tab Facebook đã đăng nhập tài khoản ➔ Bấm vào icon <b>Cookie-Editor</b> trên thanh công cụ.<br>
-                    • Chọn <b>Export</b> ➔ Chọn <b>Export as JSON</b> (chuỗi JSON Cookie sẽ tự động được sao chép vào bộ nhớ tạm).</p>
+                    • Chọn <b>Export</b> ➔ Chọn <b>Export as JSON</b> (chuỗi JSON Cookie bắt đầu bằng <code>[</code> hoặc <code>{</code> sẽ tự động được sao chép vào bộ nhớ tạm).</p>
                 </li>
                 <li class="step-item">
                     <div class="step-title">Bước 3: Dán vào phần mềm</div>
                     <p>Trên Tab 1, bấm nút <span class="btn-tag btn-purple">🔑 Cấu hình Authentication (Cookie & Token)</span> ➔ Dán chuỗi JSON Cookie vừa sao chép ➔ Tích chọn <i>"Tự động tải danh sách nhóm sau khi lưu"</i> ➔ Bấm <b>Lưu cấu hình</b>.</p>
+                    <p>💡 <b>Xóa bỏ Cookie đã lưu:</b> Nếu bạn muốn xóa hoàn toàn Cookie khỏi hệ thống, chỉ cần xóa trắng ô nhập Cookie rồi bấm <b>Lưu cấu hình</b>. Phần mềm sẽ tự động dọn sạch Cookie trong SQLite và bộ nhớ đệm.</p>
                 </li>
                 <li class="step-item">
                     <div class="step-title">Bước 4: Bắt đầu cào dữ liệu</div>
@@ -644,7 +645,8 @@ python -m src.main</code></pre>
             </ol>
 
             <div class="callout callout-warning">
-                <strong>⚠️ Lưu ý an toàn tài khoản:</strong>
+                <strong>⚠️ Lưu ý về định dạng Cookie & An toàn tài khoản:</strong>
+                • <b>Bắt buộc định dạng JSON:</b> Phần mềm yêu cầu Cookie xuất từ extension dạng JSON chuẩn. Không dùng chuỗi text thủ công cũ (<code>c_user=...; xs=...</code>).<br>
                 • Không sử dụng tài khoản Facebook chính để cào tần suất cao.<br>
                 • Đặt thời gian nghỉ giữa các đợt quét (Loop interval) từ <b>60 giây</b> trở lên.<br>
                 • Kết hợp sử dụng Proxy tại Tab 4 để tránh bị hạn chế IP.
@@ -934,8 +936,8 @@ socks5://admin:123456@103.150.12.34:1080</code></pre>
                         <td>Tích chọn từng dòng hoặc chọn toàn bộ trang để xóa hàng loạt hoặc gửi lại Telegram.</td>
                     </tr>
                     <tr>
-                        <td><b>STT / Post ID</b></td>
-                        <td>Định danh bài viết. Hỗ trợ bấm vào tiêu đề cột để sắp xếp số tự nhiên tăng/giảm.</td>
+                        <td><b>STT / Post ID & Comment ID</b></td>
+                        <td>Định danh bài viết và định danh bình luận/reply tương ứng khi từ khóa khớp từ bình luận. Hỗ trợ sắp xếp số tự nhiên và rê chuột xem tooltip chi tiết.</td>
                     </tr>
                     <tr>
                         <td><b>Nhóm / Trang & Mục tiêu</b></td>
@@ -963,6 +965,13 @@ socks5://admin:123456@103.150.12.34:1080</code></pre>
                     </tr>
                 </tbody>
             </table>
+            <div class="callout callout-info" style="margin-top: 15px;">
+                <strong>🛡️ Cơ Chế Tự Động Khử Trùng Lặp Phân Tích AI:</strong><br>
+                Hệ thống tự động lưu trữ cả <code>post_id</code> và <code>comment_id</code>. Trước khi gọi API AI, hệ thống sẽ đối chiếu trong cơ sở dữ liệu:
+                • Nếu khớp từ bài viết gốc: Kiểm tra xem <code>post_id</code> đã được phân tích chưa.<br>
+                • Nếu khớp từ bình luận / phản hồi: Kiểm tra theo cặp <code>(post_id, comment_id)</code>.<br>
+                Nếu đã từng phân tích, hệ thống sẽ <b>bỏ qua không gọi AI lại</b>, giúp tiết kiệm triệt để số lượng Token API và ngăn chặn việc gửi tin nhắn Telegram trùng lặp.
+            </div>
             <p>💡 <b>Mẹo:</b> Bấm vào bất kỳ tiêu đề cột nào trên bảng để sắp xếp dữ liệu (A-Z hoặc Z-A). Hỗ trợ đầy đủ các nút <b>Xóa lẻ</b>, <b>Xóa đã chọn</b>, <b>Xóa tất cả</b> và <b>Xuất Excel/CSV</b>.</p>
         </section>
 
@@ -1000,6 +1009,16 @@ socks5://admin:123456@103.150.12.34:1080</code></pre>
                         <td>Kiểm tra xem nick Facebook đã được duyệt vào nhóm chưa và cập nhật lại Cookie & fb_dtsg tại Tab 1.</td>
                     </tr>
                     <tr>
+                        <td><b>Báo lỗi "Nội dung nhập vào không phải định dạng JSON"</b></td>
+                        <td>Dán chuỗi Cookie text thủ công (dạng <code>c_user=...; xs=...</code>) thay vì JSON từ extension.</td>
+                        <td>Mở Cookie-Editor trên trình duyệt ➔ Bấm <b>Export</b> ➔ Chọn <b>Export as JSON</b> rồi dán lại vào phần mềm.</td>
+                    </tr>
+                    <tr>
+                        <td><b>Lỗi <code>module 'collections' has no attribute 'callable'</code></b></td>
+                        <td>Chạy trên Python 3.10+ / 3.13 khi dùng chế độ trình duyệt tự động với thư viện cũ.</td>
+                        <td>Phần mềm đã tích hợp sẵn module tương thích <code>compat.py</code>. Hãy khởi động ứng dụng qua <code>run_ui.py</code> hoặc file cài đặt mới nhất.</td>
+                    </tr>
+                    <tr>
                         <td><b>AI báo lỗi HTTP 429 (Rate Limit)</b></td>
                         <td>Hết hạn mức gọi API trong phút của Model.</td>
                         <td>Tích chọn thêm 2-3 model dự phòng (như Gemini 2.5 Flash, Gemini 2.0 Flash, Gemini 1.5 Flash) để phần mềm tự động chuyển đổi khi gặp lỗi.</td>
@@ -1020,7 +1039,7 @@ socks5://admin:123456@103.150.12.34:1080</code></pre>
 
         <!-- Footer -->
         <footer>
-            <p>Facebook Post & Comment Scraper AI • Tài liệu hướng dẫn sử dụng phiên bản 1.0.4 • Bản quyền © 2026</p>
+            <p>Facebook Post & Comment Scraper AI • Tài liệu hướng dẫn sử dụng phiên bản 1.0.6 • Bản quyền © 2026</p>
         </footer>
 
     </main>

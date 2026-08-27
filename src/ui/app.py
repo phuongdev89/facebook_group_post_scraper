@@ -28,6 +28,8 @@ if hasattr(sys.stdout, 'reconfigure'):
     except Exception:
         pass
 
+import src.utils.compat
+
 # Import database module
 import src.database as database
 database.init_db()
@@ -4820,7 +4822,8 @@ class FacebookNotificationUI(QMainWindow):
                 if dialog.should_fetch_groups():
                     self.fetch_groups_from_cookie(self.cookies, self.fb_dtsg, use_browser=dialog.should_use_browser())
             else:
-                self.log("⚠️ Đã xóa cấu hình authentication.")
+                self.log("⚠️ Đã xóa hoàn toàn cấu hình Cookie/Authentication khỏi cơ sở dữ liệu.")
+                QMessageBox.information(self, "Đã xóa Cookie", "Đã xóa toàn bộ cấu hình Cookie khỏi cơ sở dữ liệu thành công!")
 
     def fetch_groups_from_cookie(self, cookies=None, fb_dtsg=None, callback=None, use_browser: bool = False):
         """Khởi chạy worker tải danh sách nhóm Facebook từ Cookie và mở GroupSelectDialog"""

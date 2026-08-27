@@ -3,6 +3,7 @@ import os
 
 # Ensure project root is in sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import src.utils.compat
 
 from PyQt6.QtWidgets import QApplication
 from src.database.schema import init_db

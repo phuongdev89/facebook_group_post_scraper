@@ -9,15 +9,17 @@ A high-performance desktop application for extracting (scraping) posts and comme
 ## 🎯 Key Highlights
 
 - **Pure HTTP Requests**: Operates entirely via Facebook GraphQL APIs and HTTP protocols without spinning up headless browser instances (no Selenium/Playwright/Puppeteer), drastically saving CPU and RAM.
-- **Multi-Platform AI Analysis**:
+- **Multi-Platform AI Analysis & Multi-Level Deduplication**:
   - Full support for **Google Gemini API** and all **OpenAI-compatible** providers (Official OpenAI, OpenRouter, DeepSeek, Groq, Together AI, Ollama, vLLM, LM Studio).
   - Intelligent Model Fallback & Rotation mechanism to avoid Rate Limit bottlenecks and minimize latency.
+  - **Multi-level Deduplication Engine (`post_id` + `comment_id`)**: Automatically identifies previously analyzed posts or individual comments/replies and skips duplicate AI API requests to save tokens and prevent spam.
   - Ultra-resilient JSON parser: Automatically strips thinking blocks (`<think>`), auto-fixes trailing commas, and repairs unclosed JSON structures.
 - **Instant Telegram Alerts**: Integrated background Dispatcher thread constantly monitors the database and delivers professionally formatted HTML alerts as soon as AI marks a post as matching user criteria/keywords.
-- **Smart Group Management**:
+- **Smart Group Management & Standardized Cookie JSON**:
   - Automatically scrapes the list of all Facebook groups joined by the account using Session Cookies JSON exported from browser extensions (Cookie-Editor, J2Team).
+  - Automatic format validation with instant clearing and reset capabilities.
   - Real-time search and filter with Vietnamese accent-insensitive matching support.
-- **Optimized SQLite Engine**: Safely stored in the user home directory (`~/.facebook-notification/`) with PRAGMA WAL concurrent mode, automatic post deduplication, and automated log cleanup (> 1 day).
+- **Optimized SQLite Engine**: Safely stored in the user home directory (`~/.facebook-notification/`) with PRAGMA WAL concurrent mode, automatic post deduplication, and real-time log streaming (`access.log`, `error.log`).
 - **Over-The-Air (OTA) Updates**: Automatically checks and downloads the latest release directly from GitHub Releases or static mirrors.
 
 ---

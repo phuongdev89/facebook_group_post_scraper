@@ -4,6 +4,31 @@ Tất cả những thay đổi, cải tiến và bản sửa lỗi của dự á
 
 ---
 
+## [1.0.6] - 2026-08-27
+
+### ✨ Tính Năng Mới & Khử Trùng Lặp AI (Added)
+- **Bổ Sung Cột `comment_id` & Khử Trùng Lặp Phân Tích AI (`ai_analyses`)**:
+  - Thêm cột `comment_id TEXT` vào bảng `ai_analyses` trong SQLite kèm tự động Migration kiểm tra schema và tạo Index tối ưu `idx_ai_analyses_post_comment`.
+  - Phân định rõ nguồn khớp: Lưu `comment_id` tương ứng khi từ khóa khớp từ bình luận hoặc phản hồi (`reply_id`), đồng thời vẫn lưu đầy đủ `post_id`.
+  - Xây dựng cơ chế kiểm tra chống trùng lặp `ai_analysis_exists(post_id, comment_id)`:
+    - Nếu `comment_id` là `NULL` / rỗng (khớp bài viết gốc): Kiểm tra tồn tại theo `post_id`.
+    - Nếu `comment_id` có giá trị (khớp bình luận / phản hồi): Kiểm tra tồn tại theo cả `post_id` và `comment_id`.
+  - Tích hợp kiểm tra trước khi gọi API AI trong `ScraperThread`, `CommentUpdateWorker` và `AIAnalysisWorker`: Bỏ qua các bài viết/bình luận đã phân tích trước đó, tiết kiệm triệt để Token API AI và loại bỏ hoàn toàn cảnh báo Telegram trùng lặp.
+  - Hiển thị `Comment / Reply ID` và `Nguồn khớp` trực quan trong hộp thoại **Chi tiết bài viết** (`PostDetailDialog`) và tooltip tại bảng Lịch sử phân tích.
+
+### 🛠 Cải Tiến & Chuẩn Hóa Cấu Hình (Changed)
+- **Chuẩn Hóa Nhập Cookie JSON & Xử Lý Xóa Trắng (`CookieDialog`)**:
+  - Bắt buộc chuỗi Cookie nhập vào phải là định dạng JSON hợp lệ (xuất từ tiện ích *Cookie-Editor* hoặc *J2Team Cookies* bằng tính năng **Export as JSON**).
+  - Tự động phát hiện và hiển thị hộp thoại cảnh báo hướng dẫn người dùng khi nhập nhầm chuỗi text phân cách chấm phẩy cũ (`c_user=...; xs=...`).
+  - Hỗ trợ xóa hoàn toàn Cookie: Người dùng chỉ cần xóa trắng ô nhập Cookie và bấm *Lưu cấu hình*, hệ thống sẽ tự động xóa sạch `cookie_string`, `cookie_raw_json`, `fb_dtsg` trong SQLite và reset toàn bộ cache `COOKIES` của các module cào.
+
+### 🐛 Sửa Lỗi (Fixed)
+- **Tương Thích Toàn Diện Python 3.10+ / 3.13 (`src/utils/compat.py`)**:
+  - Bổ sung module tương thích `compat.py` tự động ánh xạ `collections.Callable = collections.abc.Callable` (và các abstract class tương tự) trước khi nạp các thư viện kế thừa như `pyreadline` / `seleniumbase`.
+  - Sửa dứt điểm lỗi `AttributeError: module 'collections' has no attribute 'Callable'` khi chạy chức năng lấy nhóm bằng trình duyệt hoặc chạy bộ kiểm thử.
+
+---
+
 ## [1.0.5] - 2026-08-27
 
 ### ✨ Tính Năng Mới (Added)

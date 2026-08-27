@@ -9,15 +9,17 @@
 ## 🎯 Điểm Nổi Bật
 
 - **Thuần HTTP Requests**: Hoạt động hoàn toàn qua Facebook GraphQL API và giao thức HTTP, không cần mở trình duyệt giả lập (Selenium/Playwright/Puppeteer), tiết kiệm tối đa RAM và CPU.
-- **Phân Tích AI Đa Nền Tảng**:
+- **Phân Tích AI Đa Nền Tảng & Khử Trùng Lặp Thông Minh**:
   - Hỗ trợ cả **Google Gemini API** và toàn bộ các nhà cung cấp tương thích **OpenAI** (OpenAI chính hãng, OpenRouter, DeepSeek, Groq, Together AI, Ollama, vLLM, LM Studio).
   - Tự động luân phiên (Fallback / Rotation) giữa các model để tránh lỗi nghẽn hạn mức (Rate Limit) và tối ưu độ trễ.
+  - **Khử trùng lặp đa tầng (`post_id` + `comment_id`)**: Tự động nhận diện bài viết hoặc bình luận/reply đã được phân tích trước đó, bỏ qua không gọi AI lại giúp tiết kiệm triệt để Token API.
   - Bộ bóc tách JSON siêu bền bỉ: Tự động lọc khối suy nghĩ (`<think>`), sửa dấu phẩy thừa, tự sửa cú pháp JSON thiếu ngoặc.
 - **Cảnh Báo Telegram Tức Thì**: Tích hợp luồng Dispatcher nền quét cơ sở dữ liệu và tự động bắn thông báo kèm định dạng HTML chuyên nghiệp khi AI đánh giá bài viết khớp từ khóa / nhu cầu.
-- **Quản Lý Nhóm Thông Minh**:
+- **Quản Lý Nhóm Thông Minh & Cookie JSON Chuẩn Hóa**:
   - Tự động cào danh sách toàn bộ các nhóm Facebook mà tài khoản đã tham gia thông qua Cookie JSON từ extension (Cookie-Editor, J2Team).
+  - Tự động phát hiện lỗi định dạng cookie và hỗ trợ xóa sạch hoàn toàn Cookie chỉ với 1 cú click.
   - Bộ lọc tìm kiếm nhóm theo thời gian thực, hỗ trợ gõ tiếng Việt không dấu.
-- **Cơ Sở Dữ Liệu SQLite Tối Ưu**: Lưu trữ dữ liệu an toàn tại thư mục người dùng (`~/.facebook-notification/`), bật chế độ ghi song song PRAGMA WAL, tự động khử trùng lặp. Log hoạt động ghi ra file (`access.log`, `error.log`) thay vì DB để giữ SQLite nhẹ.
+- **Cơ Sở Dữ Liệu SQLite Tối Ưu**: Lưu trữ dữ liệu an toàn tại thư mục người dùng (`~/.facebook-notification/`), bật chế độ ghi song song PRAGMA WAL, tự động khử trùng lặp. Log hoạt động ghi ra file thời gian thực (`access.log`, `error.log`) thay vì DB để giữ SQLite nhẹ.
 - **Xem Trước Media Trong Hộp Thoại Chi Tiết**: Thumbnail ảnh & video hiển thị trực tiếp trong dialog Chi tiết bài viết, tải bất đồng bộ, click để mở trình duyệt.
 - **Tự Động Cập Nhật (OTA Updates)**: Kiểm tra và tải bản cập nhật mới nhất trực tiếp từ GitHub Releases hoặc máy chủ file tĩnh.
 

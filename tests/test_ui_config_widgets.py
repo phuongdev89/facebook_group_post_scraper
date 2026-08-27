@@ -190,6 +190,35 @@ class TestUIConfigWidgets(unittest.TestCase):
         self.assertEqual(len(widget.models_list), 0)
         self.assertEqual(len(widget.checkboxes), 0)
 
+    def test_cookie_dialog_json_validation_and_clear(self):
+        from unittest.mock import patch
+        from src.ui.dialogs.cookie_dialog import CookieDialog
+
+        # 1. Valid JSON Array
+        valid_json = '[{"name": "c_user", "value": "1000111222"}, {"name": "xs", "value": "2%3Aabc"}]'
+        dlg = CookieDialog(current_cookies="old_cookie=1", current_raw_json="")
+        dlg.cookie_input.setPlainText(valid_json)
+        dlg.on_ok_clicked()
+        self.assertIn("c_user=1000111222", dlg.get_cookies())
+        self.assertIn("xs=2%3Aabc", dlg.get_cookies())
+        self.assertEqual(dlg.get_raw_json(), valid_json)
+
+        # 2. Blank text -> Clears cookies completely
+        dlg_blank = CookieDialog(current_cookies="c_user=1000111222; xs=2%3Aabc", current_raw_json=valid_json)
+        dlg_blank.cookie_input.setPlainText("")
+        dlg_blank.on_ok_clicked()
+        self.assertEqual(dlg_blank.get_cookies(), "")
+        self.assertEqual(dlg_blank.get_raw_json(), "")
+
+        # 3. Non-JSON string -> Keeps old value and does not accept invalid format
+        with patch("PyQt6.QtWidgets.QMessageBox.warning") as mock_warn:
+            dlg_invalid = CookieDialog(current_cookies="c_user=999", current_raw_json="[{...}]")
+            dlg_invalid.cookie_input.setPlainText("c_user=123; xs=456")  # Legacy semicolon string
+            dlg_invalid.on_ok_clicked()
+            # Should not update to invalid text
+            self.assertEqual(dlg_invalid.get_cookies(), "c_user=999")
+            mock_warn.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

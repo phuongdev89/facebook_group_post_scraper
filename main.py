@@ -15,6 +15,8 @@ if hasattr(sys.stdout, 'reconfigure'):
     except Exception:
         pass
 
+import src.utils.compat
+
 # Import database module
 import src.database as database
 database.init_db()

@@ -4,6 +4,7 @@ import json
 import urllib.parse
 import requests
 from bs4 import BeautifulSoup
+import src.utils.compat
 from src.core.proxy_utils import select_proxy
 
 

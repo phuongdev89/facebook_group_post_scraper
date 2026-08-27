@@ -1,6 +1,7 @@
+import re
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
-    QPushButton, QTextEdit, QCheckBox, QFrame
+    QPushButton, QTextEdit, QCheckBox, QFrame, QMessageBox
 )
 from src.core.group_fetcher import parse_cookies_from_any
 
@@ -13,9 +14,9 @@ class CookieDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("🔑 Cấu hình Authentication (Cookie JSON Facebook)")
         self.setFixedWidth(600)
-        self.cookies_str = current_cookies
-        self.dtsg_str = current_dtsg
-        self.raw_json = current_raw_json  # JSON gốc user nhập
+        self.cookies_str = current_cookies or ""
+        self.dtsg_str = current_dtsg or ""
+        self.raw_json = current_raw_json or ""  # JSON gốc user nhập
         self.fetch_groups_requested = False
 
         self.init_ui()
@@ -39,12 +40,13 @@ class CookieDialog(QDialog):
 
         self.cookie_input = QTextEdit()
         self.cookie_input.setPlaceholderText(
-            "Dán chuỗi JSON Cookies từ extension vào đây, ví dụ:\n"
+            "Dán chuỗi JSON Cookies từ extension vào đây (bắt đầu bằng [ hoặc {), ví dụ:\n"
             "[\n"
             '  {"name": "c_user", "value": "1000123456789"},\n'
             '  {"name": "xs", "value": "2%3Aabc...%3A2%3A123"},\n'
             '  {"name": "datr", "value": "xyz..."}\n'
-            "]"
+            "]\n\n"
+            "(Để xóa sạch Cookie đã lưu: Xóa trắng ô này rồi bấm 'Lưu cấu hình')"
         )
         self.cookie_input.setMinimumHeight(130)
         self.cookie_input.setStyleSheet("font-family: Consolas, monospace; font-size: 11px;")
@@ -140,9 +142,19 @@ class CookieDialog(QDialog):
             self.status_label.setStyleSheet("color: #D97706; font-size: 11px; font-weight: bold;")
             return
 
+        cleaned_text = raw_text
+        if cleaned_text.startswith("```"):
+            cleaned_text = re.sub(r"^```[a-zA-Z]*\s*", "", cleaned_text)
+            cleaned_text = re.sub(r"\s*```$", "", cleaned_text).strip()
+
+        if not (cleaned_text.startswith("[") or cleaned_text.startswith("{")):
+            self.status_label.setText("❌ Nội dung không phải định dạng JSON (phải bắt đầu bằng [ hoặc {). Hãy mở Cookie-Editor ➔ Export as JSON.")
+            self.status_label.setStyleSheet("color: #DC2626; font-size: 11px; font-weight: bold;")
+            return
+
         cookies_dict, cookie_str, fb_dtsg = parse_cookies_from_any(raw_text)
         if not cookies_dict:
-            self.status_label.setText("❌ Nội dung dán vào không phải định dạng JSON Cookie hợp lệ. Vui lòng mở extension Cookie-Editor ➔ Export as JSON rồi dán lại.")
+            self.status_label.setText("❌ Nội dung dán vào không phải JSON Cookie hợp lệ. Vui lòng mở Cookie-Editor ➔ Export as JSON rồi dán lại.")
             self.status_label.setStyleSheet("color: #DC2626; font-size: 11px; font-weight: bold;")
             return
 
@@ -173,16 +185,50 @@ class CookieDialog(QDialog):
 
     def on_ok_clicked(self):
         raw_text = self.cookie_input.toPlainText().strip()
-        if raw_text:
-            cookies_dict, cookie_str, fb_dtsg = parse_cookies_from_any(raw_text)
-            if cookie_str:
-                self.cookies_str = cookie_str
-                self.raw_json = raw_text  # Lưu JSON gốc
-            if fb_dtsg and not self.dtsg_input.text().strip():
-                self.dtsg_str = fb_dtsg
+        if not raw_text:
+            # Người dùng xóa trắng ô cookie -> reset hoàn toàn về rỗng
+            self.cookies_str = ""
+            self.raw_json = ""
+            self.dtsg_str = self.dtsg_input.text().strip()
+            self.accept()
+            return
 
+        # Kiểm tra bắt buộc phải là định dạng JSON
+        cleaned_text = raw_text
+        if cleaned_text.startswith("```"):
+            cleaned_text = re.sub(r"^```[a-zA-Z]*\s*", "", cleaned_text)
+            cleaned_text = re.sub(r"\s*```$", "", cleaned_text).strip()
+
+        if not (cleaned_text.startswith("[") or cleaned_text.startswith("{")):
+            QMessageBox.warning(
+                self,
+                "Định dạng Cookie không hợp lệ",
+                "⚠️ Nội dung nhập vào KHÔNG PHẢI định dạng JSON.\n\n"
+                "Để đảm bảo chương trình hoạt động chính xác và không bị lỗi:\n"
+                "1. Vui lòng cài tiện ích Cookie-Editor (hoặc J2Team) trên trình duyệt.\n"
+                "2. Mở tab Facebook và đăng nhập tài khoản.\n"
+                "3. Bấm Export ➔ Chọn 'Export as JSON' ➔ Dán lại vào đây."
+            )
+            return
+
+        cookies_dict, cookie_str, fb_dtsg = parse_cookies_from_any(raw_text)
+        if not cookies_dict:
+            QMessageBox.warning(
+                self,
+                "Lỗi phân tích JSON Cookie",
+                "❌ Không thể phân tích dữ liệu JSON này thành danh sách Cookies Facebook hợp lệ.\n\n"
+                "Vui lòng kiểm tra lại nội dung JSON đã sao chép từ tiện ích mở rộng."
+            )
+            return
+
+        self.cookies_str = cookie_str
+        self.raw_json = raw_text  # Lưu JSON gốc
         if self.dtsg_input.text().strip():
             self.dtsg_str = self.dtsg_input.text().strip()
+        elif fb_dtsg:
+            self.dtsg_str = fb_dtsg
+        else:
+            self.dtsg_str = ""
 
         self.accept()
 
