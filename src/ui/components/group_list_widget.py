@@ -92,7 +92,7 @@ class GroupListWidget(QWidget):
         layout.addLayout(btn_layout)
         
         self.list_widget = QListWidget()
-        self.list_widget.setMaximumHeight(140)
+        self.list_widget.setMinimumHeight(120)
         self.list_widget.setStyleSheet("""
             QListWidget {
                 border: 1px solid #D1D5DB;
@@ -101,7 +101,7 @@ class GroupListWidget(QWidget):
             }
             QListWidget::item { padding: 4px; border-bottom: 1px solid #F3F4F6; }
         """)
-        layout.addWidget(self.list_widget)
+        layout.addWidget(self.list_widget, 1)
         
     def open_add_dialog(self):
         dlg = AddGroupDialog(self)

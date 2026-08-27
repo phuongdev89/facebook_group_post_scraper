@@ -59,37 +59,10 @@ class CommentUpdateWorker(QThread):
 
         comment_scraper.PROXIES = proxies
 
-    def check_keyword_match(self, post_data: dict, comments_data: list, keywords: list[str]) -> tuple[bool, str, str, str | None]:
-        """Kiểm tra bài viết hoặc các bình luận mới có chứa từ khóa lọc không, trả về (matched, kw, source, comment_id)"""
-        if not keywords:
-            return True, "", "", None
-
-        # 1. Kiểm tra nội dung bài viết
-        post_text = (post_data.get("message") or post_data.get("text") or "").lower()
-        for kw in keywords:
-            kw_clean = kw.strip().lower()
-            if kw_clean and kw_clean in post_text:
-                return True, kw, "Bài viết", None
-
-        # 2. Kiểm tra bình luận và reply
-        for c in comments_data:
-            c_text = (c.get("text") or "").lower()
-            for kw in keywords:
-                kw_clean = kw.strip().lower()
-                if kw_clean and kw_clean in c_text:
-                    c_id = str(c.get("comment_id") or c.get("id") or "")
-                    return True, kw, "Bình luận", c_id if c_id else None
-
-            replies = c.get("replies") or []
-            for r in replies:
-                r_text = (r.get("text") or "").lower()
-                for kw in keywords:
-                    kw_clean = kw.strip().lower()
-                    if kw_clean and kw_clean in r_text:
-                        r_id = str(r.get("reply_id") or r.get("id") or c.get("comment_id") or "")
-                        return True, kw, "Phản hồi bình luận", r_id if r_id else None
-
-        return False, "", "", None
+    def check_keyword_match(self, post_data: dict, comments_data: list, keywords) -> tuple[bool, str, str, str | None]:
+        """Kiểm tra bài viết hoặc các bình luận mới có chứa từ khóa / biểu thức logic lọc không"""
+        from src.utils.keyword_engine import check_post_and_comments_match
+        return check_post_and_comments_match(post_data, comments_data, keywords)
 
     def run(self):
         try:

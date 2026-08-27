@@ -607,34 +607,110 @@ def extract_post_data(node, group_name=None):
     return post_data
 
 
-def fetch_posts(limit=10, min_comments=0, batch_size=10, on_batch_complete=None, group_id=None, group_name=None, cookies=None, fb_dtsg=None, logger=None, target_count=None):
-    """Fetch posts from Facebook group
+def retry_request(url, headers, data, proxies=None, cookies=None, fb_dtsg=None, max_retries=5):
+    """Make a POST request with retry logic (Thread-safe)"""
+    global PROXIES
+    req_proxies = proxies if proxies is not None else PROXIES
+    req_cookies = cookies if cookies is not None else COOKIES
+    req_dtsg = fb_dtsg if fb_dtsg is not None else FB_DTSG
+    from src.core.proxy_utils import rotate_static_proxy, is_proxy_infra_error, is_ip_blocked
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            r = requests.post(url, headers=headers, data=data, proxies=req_proxies, cookies=req_cookies, timeout=30)
+            # Detect expired cookies — try refresh, then fallback to anonymous
+            if r.status_code == 200 and _is_cookie_expired(r):
+                if isinstance(req_cookies, dict) and req_cookies.get("c_user"):
+                    print(f"  ⚠️ Cookies hết hạn (error 1357004). Đang thử refresh qua headless browser...")
+                    try:
+                        from src.core.group_fetcher import refresh_cookies_via_browser
+                        new_cookies, new_cookie_str, new_dtsg, new_raw_json = refresh_cookies_via_browser(req_cookies, headless=True)
+                        if new_cookies and new_cookies.get("c_user"):
+                            req_cookies = new_cookies
+                            req_dtsg = new_dtsg
+                            # Cập nhật payload với cookies mới
+                            data = {**data, "av": req_cookies.get("c_user", "0"), "__user": req_cookies.get("c_user", "0"), "fb_dtsg": req_dtsg or ""}
+                            # Lưu cookies mới vào DB
+                            try:
+                                import src.database as database
+                                database.set_setting("cookie_string", new_cookie_str)
+                                if new_raw_json:
+                                    database.set_setting("cookie_raw_json", new_raw_json)
+                                if new_dtsg:
+                                    database.set_setting("fb_dtsg", new_dtsg)
+                                print(f"  ✅ Đã refresh và lưu cookies mới thành công.")
+                            except Exception:
+                                pass
+                            r = requests.post(url, headers=headers, data=data, proxies=req_proxies, cookies=req_cookies, timeout=30)
+                            if r.status_code == 200 and not _is_cookie_expired(r):
+                                return r
+                    except Exception as e:
+                        print(f"  ⚠️ Refresh cookies thất bại: {e}")
+                # Fallback: anonymous mode
+                print(f"  🔓 Chuyển sang chế độ ẩn danh (không cookies)...")
+                req_cookies = {}
+                req_dtsg = ""
+                data = {**data, "av": "0", "__user": "0", "fb_dtsg": ""}
+                r = requests.post(url, headers=headers, data=data, proxies=req_proxies, cookies={}, timeout=30)
+            if r.status_code == 200:
+                return r
+            if is_proxy_infra_error(status_code=r.status_code):
+                print(f"  🚫 Attempt {attempt}/{max_retries}: Proxy auth failed (HTTP {r.status_code}) — rotating static proxy...")
+                new_p = rotate_static_proxy()
+                if new_p:
+                    req_proxies = new_p
+            elif is_ip_blocked(status_code=r.status_code, response_text=r.text):
+                print(f"  🛑 Attempt {attempt}/{max_retries}: Facebook blocked this IP (HTTP {r.status_code}) — rotating static proxy...")
+                new_p = rotate_static_proxy()
+                if new_p:
+                    req_proxies = new_p
+            else:
+                print(f"  ⚠️ Attempt {attempt}/{max_retries}: Status {r.status_code}")
+        except requests.exceptions.ProxyError:
+            print(f"  🚫 Attempt {attempt}/{max_retries}: Proxy unreachable — rotating static proxy...")
+            new_p = rotate_static_proxy()
+            if new_p:
+                req_proxies = new_p
+        except Exception as e:
+            if is_proxy_infra_error(exc=e):
+                print(f"  🚫 Attempt {attempt}/{max_retries}: Proxy connection error — rotating static proxy...")
+                new_p = rotate_static_proxy()
+                if new_p:
+                    req_proxies = new_p
+            else:
+                print(f"  ⚠️ Attempt {attempt}/{max_retries}: {str(e)}")
+
+        if attempt < max_retries:
+            wait_time = attempt * 2
+            print(f"  ⏳ Retrying in {wait_time} seconds...")
+            time.sleep(wait_time)
+
+    raise Exception(f"Failed after {max_retries} attempts")
+
+
+def fetch_posts(limit=10, min_comments=0, batch_size=10, on_batch_complete=None, group_id=None, group_name=None, cookies=None, fb_dtsg=None, logger=None, target_count=None, cutoff_time=None, proxies=None):
+    """Fetch posts from Facebook group (Thread-safe & Cutoff Time Support)
     
     Args:
         limit: Maximum number of posts to fetch
         min_comments: Minimum number of comments required for a post to be included (0 = no filter)
         batch_size: Number of posts to fetch before calling on_batch_complete callback
         on_batch_complete: Optional callback function(batch_posts, total_so_far, limit) called after each batch
-        group_id: Optional Group ID to override GROUP_ID
+        group_id: Optional Group ID
         group_name: Optional group name to associate with scraped posts
         cookies: Optional cookies dictionary
         fb_dtsg: Optional fb_dtsg token
         logger: Optional logging callback
         target_count: Alias for limit (for backward compatibility)
+        cutoff_time: Optional Unix timestamp (seconds) - skip posts older than cutoff and stop
+        proxies: Optional proxy dict
     """
-    global GROUP_NAME, GROUP_ID, COOKIES, FB_DTSG, HEADERS
-    if target_count is not None and (limit == 10 or limit is None):
-        limit = target_count
-    if group_id:
-        GROUP_ID = str(group_id)
-        HEADERS["referer"] = f"https://www.facebook.com/groups/{GROUP_ID}/"
-    if cookies:
-        COOKIES = cookies
-    if fb_dtsg:
-        FB_DTSG = fb_dtsg
-
-    # Reset GROUP_NAME per fetch to avoid leaking previous group name
-    GROUP_NAME = group_name.strip() if (group_name and str(group_name).strip()) else None
+    curr_limit = target_count if (target_count is not None and (limit == 10 or limit is None)) else (limit or 10)
+    curr_group_id = str(group_id) if group_id else GROUP_ID
+    curr_group_name = group_name.strip() if (group_name and str(group_name).strip()) else None
+    curr_cookies = cookies if cookies is not None else COOKIES
+    curr_dtsg = fb_dtsg if fb_dtsg is not None else FB_DTSG
+    curr_proxies = proxies if proxies is not None else PROXIES
 
     def log(msg: str):
         if logger:
@@ -646,24 +722,29 @@ def fetch_posts(limit=10, min_comments=0, batch_size=10, on_batch_complete=None,
     batch_posts = []
     cursor = None
     page_num = 1
+    reached_cutoff = False
     
     if min_comments > 0:
         log(f"📊 Filtering posts with at least {min_comments} comments")
     
-    if batch_size > 0 and batch_size < limit:
+    if batch_size > 0 and batch_size < curr_limit:
         log(f"📦 Processing in batches of {batch_size} posts")
+
+    if cutoff_time:
+        cutoff_str = time.strftime('%d/%m/%Y %H:%M', time.localtime(int(cutoff_time)))
+        log(f"⏰ Giới hạn thời gian bài viết: từ {cutoff_str} trở lại đây")
     
     headers = {
         "user-agent": "Mozilla/5.0",
         "content-type": "application/x-www-form-urlencoded",
         "origin": "https://www.facebook.com",
-        "referer": f"https://www.facebook.com/groups/{GROUP_ID}/",
+        "referer": f"https://www.facebook.com/groups/{curr_group_id}/",
     }
 
-    while len(all_posts) < limit:
-        log(f"📄 Đang tải trang bài viết {page_num} qua GraphQL (Nhóm ID: {GROUP_ID})...")
+    while len(all_posts) < curr_limit and not reached_cutoff:
+        log(f"📄 Đang tải trang bài viết {page_num} qua GraphQL (Nhóm ID: {curr_group_id})...")
 
-        fetch_count = max(3, min(limit - len(all_posts), 10))
+        fetch_count = max(3, min(curr_limit - len(all_posts), 10))
         variables = {
             "count": fetch_count,
             "cursor": cursor,
@@ -675,17 +756,16 @@ def fetch_posts(limit=10, min_comments=0, batch_size=10, on_batch_complete=None,
             "privacySelectorRenderLocation": "COMET_STREAM",
             "renderLocation": "group",
             "scale": 2,
-            #"sortingSetting": "TOP_POSTS",
             "stream_initial_count": 1,
             "useDefaultActor": False,
-            "id": GROUP_ID,
+            "id": curr_group_id,
         }
 
         payload = {
-            "av": COOKIES.get("c_user", "0"),
-            "__user": COOKIES.get("c_user", "0"),
+            "av": curr_cookies.get("c_user", "0") if isinstance(curr_cookies, dict) else "0",
+            "__user": curr_cookies.get("c_user", "0") if isinstance(curr_cookies, dict) else "0",
             "__a": "1",
-            "fb_dtsg": FB_DTSG if FB_DTSG else "",
+            "fb_dtsg": curr_dtsg if curr_dtsg else "",
             "doc_id": DOC_ID,
             "variables": json.dumps(variables),
         }
@@ -697,7 +777,7 @@ def fetch_posts(limit=10, min_comments=0, batch_size=10, on_batch_complete=None,
 
         while empty_retry_count < max_empty_retries:
             try:
-                r = retry_request(GRAPHQL_URL, headers, payload, PROXIES)
+                r = retry_request(GRAPHQL_URL, headers, payload, curr_proxies, cookies=curr_cookies, fb_dtsg=curr_dtsg)
                 r.raise_for_status()
             except requests.RequestException as e:
                 log(f"❌ GraphQL Request failed: {e}")
@@ -707,13 +787,12 @@ def fetch_posts(limit=10, min_comments=0, batch_size=10, on_batch_complete=None,
             data = parse_fb_response(r.text)
 
             if data and len(data) > 0:
-                # Got valid data, break retry loop
                 break
             else:
                 empty_retry_count += 1
                 if empty_retry_count < max_empty_retries:
                     log(f"  ⚠️ Facebook trả về dữ liệu rỗng, đang thử lại ({empty_retry_count}/{max_empty_retries})...")
-                    time.sleep(2)  # Wait before retry
+                    time.sleep(2)
                 else:
                     log(f"  ❌ Không nhận được dữ liệu sau {max_empty_retries} lần thử, bỏ qua trang")
         
@@ -757,6 +836,19 @@ def fetch_posts(limit=10, min_comments=0, batch_size=10, on_batch_complete=None,
                 if is_reel_or_video_post(story_node):
                     continue
                 
+                # Kiểm tra cutoff time
+                if cutoff_time:
+                    post_ts = extract_creation_time(story_node)
+                    if post_ts:
+                        try:
+                            if int(post_ts) < int(cutoff_time):
+                                t_str = time.strftime('%d/%m/%Y %H:%M', time.localtime(int(post_ts)))
+                                log(f"  🛑 Bài viết cũ hơn mốc thời gian lọc (đăng lúc {t_str}) -> Dừng quét thêm.")
+                                reached_cutoff = True
+                                break
+                        except Exception:
+                            pass
+                
                 # Check comment count threshold
                 comment_count = extract_comment_count(story_node)
                 if min_comments > 0 and comment_count < min_comments:
@@ -764,10 +856,10 @@ def fetch_posts(limit=10, min_comments=0, batch_size=10, on_batch_complete=None,
                     continue
                 
                 # Extract group name from first post if not set
-                if not GROUP_NAME:
-                    GROUP_NAME = extract_group_name(story_node)
-                    if GROUP_NAME:
-                        log(f"📂 Tên nhóm: {GROUP_NAME}")
+                if not curr_group_name:
+                    curr_group_name = extract_group_name(story_node)
+                    if curr_group_name:
+                        log(f"📂 Tên nhóm: {curr_group_name}")
                 
                 # Check if post already exists
                 temp_post_id = extract_story_post_id(story_node)
@@ -775,7 +867,7 @@ def fetch_posts(limit=10, min_comments=0, batch_size=10, on_batch_complete=None,
                 if is_existing and temp_post_id:
                     log(f"  ℹ️ Bài viết {temp_post_id} đã có trong CSDL -> sẽ cào để cập nhật bình luận")
                 
-                post_data = extract_post_data(story_node, GROUP_NAME)
+                post_data = extract_post_data(story_node, curr_group_name)
                 if post_data:
                     post_data['is_existing'] = is_existing
                     batch_posts.append(post_data)
@@ -786,15 +878,15 @@ def fetch_posts(limit=10, min_comments=0, batch_size=10, on_batch_complete=None,
                     
                     # Check if we should process this batch
                     if batch_size > 0 and len(batch_posts) >= batch_size and on_batch_complete:
-                        log(f"📦 Hoàn thành nhóm bài: {len(batch_posts)} bài. Tổng: {len(all_posts)}/{limit}")
-                        on_batch_complete(batch_posts, len(all_posts), limit)
+                        log(f"📦 Hoàn thành nhóm bài: {len(batch_posts)} bài. Tổng: {len(all_posts)}/{curr_limit}")
+                        on_batch_complete(batch_posts, len(all_posts), curr_limit)
                         batch_posts = []  # Reset batch
                     
-                    if len(all_posts) >= limit:
+                    if len(all_posts) >= curr_limit:
                         break
             
             # Break outer loop if limit reached
-            if len(all_posts) >= limit:
+            if len(all_posts) >= curr_limit or reached_cutoff:
                 break
             
             # Look for pagination info
@@ -806,8 +898,8 @@ def fetch_posts(limit=10, min_comments=0, batch_size=10, on_batch_complete=None,
         log(f"   => Lấy được {posts_found} bài viết ở trang {page_num}")
         
         # Check if we should continue
-        if not next_cursor or len(all_posts) >= limit:
-            log("🏁 Đã lấy đủ số lượng bài viết yêu cầu hoặc đã hết trang.")
+        if reached_cutoff or not next_cursor or len(all_posts) >= curr_limit:
+            log("🏁 Đã lấy đủ số lượng bài viết yêu cầu hoặc đã hết trang/đạt mốc thời gian.")
             break
         
         cursor = next_cursor
@@ -817,7 +909,7 @@ def fetch_posts(limit=10, min_comments=0, batch_size=10, on_batch_complete=None,
     # Process any remaining posts in the final batch
     if batch_posts and on_batch_complete:
         log(f"📦 Xử lý nhóm bài cuối: {len(batch_posts)} bài.")
-        on_batch_complete(batch_posts, len(all_posts), limit)
+        on_batch_complete(batch_posts, len(all_posts), curr_limit)
     
     return all_posts
 

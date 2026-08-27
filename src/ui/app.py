@@ -11,13 +11,13 @@ from datetime import datetime
 from urllib.parse import parse_qs
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QLabel, QLineEdit, QPushButton, 
-                             QTextEdit, QSpinBox, QComboBox, QTabWidget, QProgressBar, 
+                             QTextEdit, QSpinBox, QAbstractSpinBox, QComboBox, QTabWidget, QProgressBar, 
                              QGroupBox, QMessageBox, QDialog, QDialogButtonBox, 
-                             QFrame, QCheckBox, QScrollArea, QGridLayout,
+                             QFrame, QCheckBox, QScrollArea, QGridLayout, QSizePolicy,
                              QTableWidget, QTableWidgetItem, QHeaderView,
                              QAbstractItemView, QMenu, QCompleter, QProgressDialog,
-                             QFileDialog)
-from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot, Qt, QUrl, QTimer, QObject
+                             QFileDialog, QDateTimeEdit)
+from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot, Qt, QUrl, QTimer, QObject, QDateTime
 from PyQt6.QtGui import QFont, QTextCursor, QDesktopServices, QCursor, QTextDocument, QIntValidator, QColor, QPixmap
 
 # Ensure stdout and stderr handle utf-8 on Windows
@@ -55,6 +55,8 @@ from src.core.proxy_utils import select_proxy, normalize_proxy_url
 from src.ui.components.tag_widget import ModelTagWidget
 from src.ui.components.gemini_model_selector import GeminiModelSelectorWidget
 from src.ui.components.openai_model_selector import OpenAIModelSelectorWidget
+from src.ui.components.keyword_filter_widget import KeywordFilterWidget
+from src.ui.dialogs.keyword_filter_dialog import KeywordFilterDialog
 from src.ui.dialogs.telegram_guide_dialog import TelegramGuideDialog
 from src.ui.dialogs.prompt_guide_dialog import PromptGuideDialog
 from src.ui.dialogs.cookie_dialog import CookieDialog
@@ -981,11 +983,11 @@ class GroupListWidget(QWidget):
 
         main_layout.addLayout(header_layout)
 
-        # Scroll area for rows (Tăng độ cao lên cho thoáng)
+        # Scroll area for rows (Tự động mở rộng theo kích thước cửa sổ)
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setMinimumHeight(160)
-        self.scroll_area.setMaximumHeight(280)
+        self.scroll_area.setMinimumHeight(150)
+        self.scroll_area.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.scroll_area.setStyleSheet("QScrollArea { border: 1px solid #D1D5DB; border-radius: 4px; background: #FFFFFF; }")
 
         self.container = QWidget()
@@ -997,7 +999,7 @@ class GroupListWidget(QWidget):
         self.container.setLayout(self.rows_layout)
         self.scroll_area.setWidget(self.container)
 
-        main_layout.addWidget(self.scroll_area)
+        main_layout.addWidget(self.scroll_area, 1)
 
     def open_expand_dialog(self):
         dialog = GroupManagerDialog(initial_groups=self.get_groups(), parent=self)
@@ -1841,58 +1843,156 @@ class FacebookNotificationUI(QMainWindow):
         # Dynamic Group List Widget (persisted in SQLite facebook_groups)
         self.group_list_widget = GroupListWidget()
         self.group_list_widget.fetch_cookie_groups_requested.connect(lambda: self.fetch_groups_from_cookie())
-        input_layout.addWidget(self.group_list_widget)
+        input_layout.addWidget(self.group_list_widget, 1)
         
-        # Keywords tag input widget
-        input_layout.addWidget(QLabel("Từ khóa lọc (Keywords — dạng Tag):"))
-        self.tag_widget = TagWidget()
-        self.tag_widget.tags_changed.connect(self.save_keywords_to_db)
-        input_layout.addWidget(self.tag_widget)
-        
-        # Controls row 1: Post count & Min comments
-        spin_layout = QHBoxLayout()
-        spin_layout.addWidget(QLabel("Số lượng bài viết/nhóm:"))
+        # Keyword Filter Summary Card (Thu gọn, mở dialog khi cần chỉnh sửa)
+        self.kw_summary_card = QFrame()
+        self.kw_summary_card.setStyleSheet("""
+            QFrame {
+                background-color: #F8FAFC;
+                border: 1px solid #CBD5E1;
+                border-radius: 6px;
+            }
+        """)
+        kw_card_layout = QVBoxLayout(self.kw_summary_card)
+        kw_card_layout.setContentsMargins(10, 8, 10, 8)
+        kw_card_layout.setSpacing(4)
+
+        kw_header_layout = QHBoxLayout()
+        kw_title = QLabel("<b>🔍 Bộ lọc Từ khóa & Biểu thức Logic:</b>")
+        kw_title.setStyleSheet("color: #1E293B; font-size: 12px;")
+        kw_header_layout.addWidget(kw_title)
+
+        self.kw_syntax_badge = QLabel("ℹ️ Không lọc")
+        self.kw_syntax_badge.setStyleSheet("color: #6B7280; font-size: 11px;")
+        kw_header_layout.addWidget(self.kw_syntax_badge)
+
+        kw_header_layout.addStretch()
+
+        self.btn_edit_filter = QPushButton("⛶ Phóng to / Cấu hình bộ lọc...")
+        self.btn_edit_filter.setToolTip("Mở cửa sổ cấu hình bộ lọc từ khóa chuyên sâu (Trực quan & Tự nhập biểu thức)")
+        self.btn_edit_filter.setStyleSheet("""
+            QPushButton {
+                background-color: #4F46E5;
+                color: white;
+                font-weight: bold;
+                font-size: 11px;
+                padding: 4px 12px;
+                border-radius: 4px;
+            }
+            QPushButton:hover { background-color: #4338CA; }
+        """)
+        self.btn_edit_filter.clicked.connect(self.open_keyword_filter_dialog)
+        kw_header_layout.addWidget(self.btn_edit_filter)
+        kw_card_layout.addLayout(kw_header_layout)
+
+        # Diễn giải ý nghĩa bộ lọc bằng tiếng Việt
+        self.kw_explanation_lbl = QLabel("Không lọc từ khóa (lấy tất cả bài viết và bình luận).")
+        self.kw_explanation_lbl.setStyleSheet("color: #0F172A; font-size: 12px; font-weight: 500;")
+        self.kw_explanation_lbl.setWordWrap(True)
+        kw_card_layout.addWidget(self.kw_explanation_lbl)
+
+        # Xem trước chuỗi biểu thức logic raw
+        self.kw_raw_preview = QLabel("<i>(Biểu thức: <span style='color: #6B7280;'>[Trống]</span>)</i>")
+        self.kw_raw_preview.setStyleSheet("font-size: 11px; color: #4B5563; font-family: Consolas, monospace;")
+        self.kw_raw_preview.setWordWrap(True)
+        kw_card_layout.addWidget(self.kw_raw_preview)
+
+        input_layout.addWidget(self.kw_summary_card)
+        self.current_keyword_expression = ""
+
+        # Single compact row: 1. Số lượng bài viết, 2. Bình luận tối thiểu, 3. Luồng quét, 4. Giới hạn thời gian, 5. Lặp vô hạn, 6. Thời gian nghỉ
+        params_row = QHBoxLayout()
+        params_row.setSpacing(8)
+
+        # 1. Số lượng bài viết
+        params_row.addWidget(QLabel("Bài/nhóm:"))
         self.group_post_count = QSpinBox()
+        self.group_post_count.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+        self.group_post_count.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.group_post_count.setMinimum(1)
         self.group_post_count.setMaximum(10000)
         self.group_post_count.setValue(5)
-        self.group_post_count.setMinimumWidth(100)
-        spin_layout.addWidget(self.group_post_count)
-        
-        spin_layout.addSpacing(20)
-        spin_layout.addWidget(QLabel("Bình luận tối thiểu (0 = tất cả):"))
+        self.group_post_count.setFixedWidth(50)
+        self.group_post_count.setStyleSheet("padding: 3px; border: 1px solid #D1D5DB; border-radius: 4px; font-weight: 500;")
+        params_row.addWidget(self.group_post_count)
+
+        # 2. Bình luận tối thiểu
+        params_row.addWidget(QLabel("Cmt tối thiểu:"))
         self.group_min_comments = QSpinBox()
+        self.group_min_comments.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+        self.group_min_comments.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.group_min_comments.setMinimum(0)
         self.group_min_comments.setMaximum(10000)
         self.group_min_comments.setValue(0)
-        self.group_min_comments.setMinimumWidth(100)
-        spin_layout.addWidget(self.group_min_comments)
-        spin_layout.addStretch()
-        input_layout.addLayout(spin_layout)
+        self.group_min_comments.setFixedWidth(45)
+        self.group_min_comments.setStyleSheet("padding: 3px; border: 1px solid #D1D5DB; border-radius: 4px; font-weight: 500;")
+        params_row.addWidget(self.group_min_comments)
 
-        # Controls row 2: Infinite Loop & Interval
-        loop_layout = QHBoxLayout()
-        self.infinite_loop_cb = QCheckBox("Lặp vô hạn (Infinite Loop)")
+        # 3. Số luồng quét nhóm (1-10)
+        params_row.addWidget(QLabel("⚡ Luồng (1-10):"))
+        self.group_concurrency = QSpinBox()
+        self.group_concurrency.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+        self.group_concurrency.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.group_concurrency.setMinimum(1)
+        self.group_concurrency.setMaximum(10)
+        self.group_concurrency.setValue(1)
+        self.group_concurrency.setFixedWidth(40)
+        self.group_concurrency.setStyleSheet("padding: 3px; border: 1px solid #D1D5DB; border-radius: 4px; font-weight: bold; color: #4338CA;")
+        self.group_concurrency.setToolTip("Số nhóm quét đồng thời cùng lúc (1-10, mặc định 1).\nLưu ý: Chạy nhiều luồng đồng thời có thể tăng nguy cơ bị Facebook Rate Limit/chặn nếu không dùng Proxy.")
+        params_row.addWidget(self.group_concurrency)
+
+        # 4. Giới hạn thời gian bài viết
+        params_row.addWidget(QLabel("⏰ Thời gian:"))
+        self.time_filter_combo = QComboBox()
+        self.time_filter_combo.addItems([
+            "Tất cả",
+            "1 ngày trước",
+            "2 ngày trước",
+            "3 ngày trước",
+            "4 ngày trước",
+            "5 ngày trước",
+            "6 ngày trước",
+            "7 ngày trước",
+            "Tùy chỉnh..."
+        ])
+        self.time_filter_combo.setMinimumWidth(110)
+        self.time_filter_combo.currentIndexChanged.connect(self.on_time_filter_changed)
+        params_row.addWidget(self.time_filter_combo)
+
+        self.custom_datetime_picker = QDateTimeEdit(QDateTime.currentDateTime().addDays(-1))
+        self.custom_datetime_picker.setDisplayFormat("dd/MM HH:mm")
+        self.custom_datetime_picker.setCalendarPopup(True)
+        self.custom_datetime_picker.setVisible(False)
+        self.custom_datetime_picker.setFixedWidth(110)
+        params_row.addWidget(self.custom_datetime_picker)
+
+        # 5. Lặp vô hạn
+        self.infinite_loop_cb = QCheckBox("Lặp vô hạn")
         self.infinite_loop_cb.setStyleSheet("font-weight: bold; color: #1E3A8A;")
         self.infinite_loop_cb.toggled.connect(self.toggle_infinite_loop)
-        loop_layout.addWidget(self.infinite_loop_cb)
+        params_row.addWidget(self.infinite_loop_cb)
 
-        loop_layout.addSpacing(15)
-        self.loop_interval_label = QLabel("Thời gian nghỉ giữa các lần quét (giây):")
+        # 6. Thời gian nghỉ giữa các lần quét
+        self.loop_interval_label = QLabel("Nghỉ (s):")
         self.loop_interval_label.setEnabled(False)
-        loop_layout.addWidget(self.loop_interval_label)
+        params_row.addWidget(self.loop_interval_label)
 
         self.loop_interval_spin = QSpinBox()
+        self.loop_interval_spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+        self.loop_interval_spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.loop_interval_spin.setMinimum(5)
         self.loop_interval_spin.setMaximum(86400)
         self.loop_interval_spin.setValue(60)
-        self.loop_interval_spin.setMinimumWidth(100)
+        self.loop_interval_spin.setFixedWidth(50)
+        self.loop_interval_spin.setStyleSheet("padding: 3px; border: 1px solid #D1D5DB; border-radius: 4px; font-weight: 500;")
         self.loop_interval_spin.setEnabled(False)
-        loop_layout.addWidget(self.loop_interval_spin)
-        loop_layout.addStretch()
-        input_layout.addLayout(loop_layout)
+        params_row.addWidget(self.loop_interval_spin)
+
+        params_row.addStretch()
+        input_layout.addLayout(params_row)
         
-        layout.addWidget(input_group)
+        layout.addWidget(input_group, 1)
         
         # Action Buttons Row: Start and STOP
         action_layout = QHBoxLayout()
@@ -1938,21 +2038,21 @@ class FacebookNotificationUI(QMainWindow):
         self.progress_bar.setStyleSheet("QProgressBar { height: 18px; border-radius: 4px; text-align: center; }")
         layout.addWidget(self.progress_bar)
 
-        # Activity Logs inside Group Tab
+        # Activity Logs inside Group Tab (Thu gọn còn 1/4 chiều cao)
         log_group = QGroupBox("📋 Nhật ký hoạt động (Logs)")
         log_layout = QVBoxLayout()
-        log_layout.setContentsMargins(8, 8, 8, 8)
-        log_layout.setSpacing(4)
+        log_layout.setContentsMargins(6, 4, 6, 4)
+        log_layout.setSpacing(3)
         log_group.setLayout(log_layout)
         
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
-        self.log_text.setMinimumHeight(65)
+        self.log_text.setFixedHeight(48)
         self.log_text.setStyleSheet("background-color: #111827; color: #F3F4F6; font-family: Consolas, monospace; font-size: 11px; border-radius: 4px;")
         log_layout.addWidget(self.log_text)
         
         log_btn_layout = QHBoxLayout()
-        log_hint = QLabel("<i>⚡ Nhật ký thu gọn. Bấm 'Phóng to' để xem toàn bộ và tìm kiếm.</i>")
+        log_hint = QLabel("<i>⚡ Nhật ký thu gọn (1/4). Bấm 'Phóng to' để xem toàn bộ và tìm kiếm.</i>")
         log_hint.setStyleSheet("color: #6B7280; font-size: 11px;")
         log_btn_layout.addWidget(log_hint)
         log_btn_layout.addStretch()
@@ -1964,7 +2064,7 @@ class FacebookNotificationUI(QMainWindow):
                 background-color: #EEF2FF;
                 color: #4338CA;
                 font-weight: bold;
-                padding: 4px 10px;
+                padding: 3px 8px;
                 border-radius: 4px;
                 font-size: 11px;
                 border: 1px solid #C7D2FE;
@@ -1979,7 +2079,7 @@ class FacebookNotificationUI(QMainWindow):
             QPushButton {
                 background-color: #FEE2E2;
                 color: #991B1B;
-                padding: 4px 10px;
+                padding: 3px 8px;
                 border-radius: 4px;
                 font-size: 11px;
                 border: 1px solid #FECACA;
@@ -1990,7 +2090,7 @@ class FacebookNotificationUI(QMainWindow):
         log_btn_layout.addWidget(clear_log_btn)
         log_layout.addLayout(log_btn_layout)
 
-        layout.addWidget(log_group, 1)
+        layout.addWidget(log_group, 0)
         return tab
 
     # --------------------------------------------------------------------------
@@ -4465,15 +4565,29 @@ class FacebookNotificationUI(QMainWindow):
         self.loop_interval_spin.setValue(int(settings.get("loop_interval", 60)))
         self.toggle_infinite_loop(inf_on)
 
-        # Tab 1: Keywords
-        saved_kw = settings.get("keywords", "")
-        if saved_kw:
-            try:
-                kw_list = json.loads(saved_kw)
-                if isinstance(kw_list, list):
-                    self.tag_widget.set_tags(kw_list)
-            except Exception:
-                pass
+        # Tab 1: Concurrency & Time Filter & Keyword Expression
+        concurrency_val = int(settings.get("concurrency", 1))
+        if hasattr(self, 'group_concurrency'):
+            self.group_concurrency.setValue(max(1, min(concurrency_val, 10)))
+
+        tf_idx = int(settings.get("time_filter_index", 0))
+        if hasattr(self, 'time_filter_combo'):
+            if 0 <= tf_idx < self.time_filter_combo.count():
+                self.time_filter_combo.setCurrentIndex(tf_idx)
+            self.on_time_filter_changed(self.time_filter_combo.currentIndex())
+
+        kw_expr = settings.get("keyword_expression", "")
+        if not kw_expr:
+            saved_kw = settings.get("keywords", "")
+            if saved_kw:
+                try:
+                    kw_list = json.loads(saved_kw)
+                    if isinstance(kw_list, list) and kw_list:
+                        kw_expr = " OR ".join([f'"{k}"' if " " in k else k for k in kw_list if k])
+                except Exception:
+                    pass
+
+        self.set_keyword_expression(kw_expr)
 
         # Auth cookies
         self.cookie_raw_json = settings.get("cookie_raw_json", "")
@@ -4577,13 +4691,14 @@ class FacebookNotificationUI(QMainWindow):
         self.group_list_widget.save_to_db()
 
     def save_keywords_to_db(self):
-        tags = self.tag_widget.get_tags()
-        database.set_setting("keywords", json.dumps(tags, ensure_ascii=False))
+        expr = getattr(self, 'current_keyword_expression', '')
+        database.set_setting("keyword_expression", expr)
+        database.set_setting("keywords", expr)
 
     def save_all_settings_to_db(self, silent=False):
         """Lưu tất cả cấu hình từ giao diện vào SQLite"""
         self.group_list_widget.save_to_db()
-        tags = self.tag_widget.get_tags()
+        kw_expr = getattr(self, 'current_keyword_expression', '')
         provider = self.get_current_ai_provider()
         active_models = self.get_active_ai_models()
         all_models_data = self.ai_model_tag_widget.get_all_models_data()
@@ -4595,7 +4710,10 @@ class FacebookNotificationUI(QMainWindow):
         ota_auto = "1" if (hasattr(self, 'ota_auto_check_cb') and self.ota_auto_check_cb.isChecked()) else "0"
 
         data = {
-            "keywords": json.dumps(tags, ensure_ascii=False),
+            "keywords": kw_expr,
+            "keyword_expression": kw_expr,
+            "concurrency": str(self.group_concurrency.value()) if hasattr(self, 'group_concurrency') else "1",
+            "time_filter_index": str(self.time_filter_combo.currentIndex()) if hasattr(self, 'time_filter_combo') else "0",
             "post_count": str(self.group_post_count.value()),
             "min_comments": str(self.group_min_comments.value()),
             "infinite_loop": "1" if self.infinite_loop_cb.isChecked() else "0",
@@ -4723,7 +4841,49 @@ class FacebookNotificationUI(QMainWindow):
         except Exception as e:
             if manual:
                 QMessageBox.warning(self, "Lỗi kiểm tra cập nhật", f"Không thể kiểm tra cập nhật: {e}")
-            self.log(f"⚠️ [OTA Update] Lỗi kiểm tra cập nhật: {e}")
+    def open_keyword_filter_dialog(self):
+        """Mở cửa sổ phóng to cấu hình bộ lọc từ khóa & biểu thức logic"""
+        from src.ui.dialogs.keyword_filter_dialog import KeywordFilterDialog
+        current_expr = getattr(self, 'current_keyword_expression', '')
+        dlg = KeywordFilterDialog(initial_expression=current_expr, parent=self)
+        if dlg.exec():
+            new_expr = dlg.get_expression()
+            self.set_keyword_expression(new_expr)
+            self.save_keywords_to_db()
+
+    def set_keyword_expression(self, expr: str):
+        """Cập nhật biểu thức từ khóa và làm mới phần giải thích trên giao diện chính"""
+        self.current_keyword_expression = str(expr or "").strip()
+        from src.utils.keyword_engine import explain_expression, validate_expression
+        ok, msg = validate_expression(self.current_keyword_expression)
+
+        if hasattr(self, 'kw_explanation_lbl'):
+            explanation = explain_expression(self.current_keyword_expression)
+            self.kw_explanation_lbl.setText(explanation)
+
+        if hasattr(self, 'kw_raw_preview'):
+            if not self.current_keyword_expression:
+                self.kw_raw_preview.setText("<i>(Biểu thức: <span style='color: #6B7280;'>[Trống - Không lọc]</span>)</i>")
+            elif ok:
+                self.kw_raw_preview.setText(f"<i>Biểu thức: <code>{self.current_keyword_expression}</code></i>")
+            else:
+                self.kw_raw_preview.setText(f"<i>Biểu thức: <span style='color: #EF4444;'>{self.current_keyword_expression}</span></i>")
+
+        if hasattr(self, 'kw_syntax_badge'):
+            if not self.current_keyword_expression:
+                self.kw_syntax_badge.setText("ℹ️ Không lọc")
+                self.kw_syntax_badge.setStyleSheet("color: #6B7280; font-size: 11px;")
+            elif ok:
+                self.kw_syntax_badge.setText("✅ Hợp lệ")
+                self.kw_syntax_badge.setStyleSheet("color: #10B981; font-weight: bold; font-size: 11px;")
+            else:
+                self.kw_syntax_badge.setText(msg)
+                self.kw_syntax_badge.setStyleSheet("color: #EF4444; font-weight: bold; font-size: 11px;")
+
+    def on_time_filter_changed(self, index: int):
+        """Hiển thị/ẩn datetime picker khi chọn Tùy chỉnh thời gian"""
+        if hasattr(self, 'custom_datetime_picker'):
+            self.custom_datetime_picker.setVisible(index == 8)
 
     def toggle_infinite_loop(self, checked):
         self.loop_interval_label.setEnabled(checked)
@@ -4963,16 +5123,29 @@ class FacebookNotificationUI(QMainWindow):
 
         count = self.group_post_count.value()
         min_comments = self.group_min_comments.value()
-        keywords = self.tag_widget.get_tags()
+        keyword_expression = getattr(self, 'current_keyword_expression', '')
+        concurrency = self.group_concurrency.value() if hasattr(self, 'group_concurrency') else 1
         infinite_loop = self.infinite_loop_cb.isChecked()
         loop_interval = self.loop_interval_spin.value()
+
+        # Tính toán mốc thời gian lọc bài viết (Cutoff timestamp)
+        cutoff_time = None
+        if hasattr(self, 'time_filter_combo'):
+            tf_idx = self.time_filter_combo.currentIndex()
+            if 1 <= tf_idx <= 7:
+                cutoff_time = int(time.time() - tf_idx * 86400)
+            elif tf_idx == 8 and hasattr(self, 'custom_datetime_picker'):
+                cutoff_time = int(self.custom_datetime_picker.dateTime().toSecsSinceEpoch())
 
         params = {
             'groups': groups,
             'urls': urls,
             'count': count,
             'min_comments': min_comments,
-            'keywords': keywords,
+            'keywords': keyword_expression,
+            'keyword_expression': keyword_expression,
+            'concurrency': concurrency,
+            'cutoff_time': cutoff_time,
             'infinite_loop': infinite_loop,
             'loop_interval': loop_interval
         }
@@ -5020,9 +5193,16 @@ class FacebookNotificationUI(QMainWindow):
 
         # Khóa/mở các ô nhập liệu trên Tab 1 để tránh sửa tham số khi đang quét
         self.group_list_widget.setEnabled(not running)
-        self.tag_widget.setEnabled(not running)
+        if hasattr(self, 'btn_edit_filter'):
+            self.btn_edit_filter.setEnabled(not running)
         self.group_post_count.setEnabled(not running)
         self.group_min_comments.setEnabled(not running)
+        if hasattr(self, 'group_concurrency'):
+            self.group_concurrency.setEnabled(not running)
+        if hasattr(self, 'time_filter_combo'):
+            self.time_filter_combo.setEnabled(not running)
+        if hasattr(self, 'custom_datetime_picker'):
+            self.custom_datetime_picker.setEnabled(not running)
         self.infinite_loop_cb.setEnabled(not running)
         if running:
             self.loop_interval_spin.setEnabled(False)

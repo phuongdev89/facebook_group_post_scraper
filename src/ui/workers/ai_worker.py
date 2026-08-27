@@ -74,22 +74,25 @@ class AIAnalysisWorker(QThread):
             mark_post_ai_status(post_id, 2)
             return
 
-        ai_enabled = self.ai_config.get("enabled", False)
-        ai_provider = self.ai_config.get("provider", "openai")
-        ai_base_url = self.ai_config.get("base_url", "")
-        ai_api_key = self.ai_config.get("api_key", "")
+        import src.database as database
+        settings = database.get_all_settings()
+
+        ai_enabled = (settings.get("ai_enabled") in ("1", "True", "true", True)) if "ai_enabled" in settings else self.ai_config.get("enabled", False)
+        ai_provider = settings.get("ai_provider") or self.ai_config.get("provider", "openai")
+        ai_base_url = settings.get("ai_base_url") or self.ai_config.get("base_url", "")
+        ai_api_key = settings.get("ai_api_key") or self.ai_config.get("api_key", "")
         default_m = "gemini-2.0-flash" if ai_provider in ("google_ai", "google_ai_studio") else "gpt-4o-mini"
-        ai_models = self.ai_config.get("models") or self.ai_config.get("model") or default_m
-        ai_prompt = self.ai_config.get("prompt", "")
+        ai_models = settings.get("ai_models") or settings.get("ai_model") or self.ai_config.get("models") or self.ai_config.get("model") or default_m
+        ai_prompt = settings.get("ai_prompt") or self.ai_config.get("prompt", "")
         try:
-            ai_timeout = int(self.ai_config.get("timeout", 20))
+            ai_timeout = int(settings.get("ai_timeout") or self.ai_config.get("timeout", 20))
         except (ValueError, TypeError):
             ai_timeout = 20
 
-        tg_enabled = self.telegram_config.get("enabled", False)
-        tg_token = self.telegram_config.get("token", "")
-        tg_chat_id = self.telegram_config.get("chat_id", "")
-        notify_on_keyword = self.telegram_config.get("notify_on_keyword", False)
+        tg_enabled = (settings.get("telegram_enabled") in ("1", "True", "true", True)) if "telegram_enabled" in settings else self.telegram_config.get("enabled", False)
+        tg_token = settings.get("telegram_token") or self.telegram_config.get("token", "")
+        tg_chat_id = settings.get("telegram_chat_id") or self.telegram_config.get("chat_id", "")
+        notify_on_keyword = (settings.get("notify_on_keyword") in ("1", "True", "true", True)) if "notify_on_keyword" in settings else self.telegram_config.get("notify_on_keyword", False)
 
         try:
             # Nếu comments rỗng, thử load từ SQLite

@@ -7,14 +7,11 @@ from src.core.proxy_utils import select_proxy
 from src.core.group_scraper import fetch_posts as fetch_group_posts
 from src.core.comment_scraper import fetch_comments
 from src.utils.helpers import extract_group_id_from_url
+from src.utils.keyword_engine import check_post_and_comments_match
 from src.database.repository import save_or_update_post, mark_post_ai_pending, update_group_last_scraped, ai_analysis_exists
-from src.ui.workers.ai_worker import AIAnalysisWorker
 
-# group_scraper dùng global state (COOKIES, FB_DTSG) nên serialize fetch_posts,
-# nhưng parallel hóa fetch_comments cho mỗi bài trong cùng 1 nhóm.
-# ponytail: refactor group_scraper sang thread-local state để parallel groups thực sự
-_SCRAPE_LOCK = threading.Lock()
 MAX_COMMENT_WORKERS = 4  # parallel fetch comments trong 1 nhóm
+
 
 class ScraperThread(QThread):
     log_signal = pyqtSignal(str)
@@ -29,15 +26,11 @@ class ScraperThread(QThread):
         self.telegram_config = telegram_config or {}
         self.ai_config = ai_config or {}
         self.stop_requested = False
-        
-        self.ai_worker = AIAnalysisWorker(self.ai_config, self.telegram_config)
-        self.ai_worker.log_signal.connect(self.log)
+        self.proxies = None
     
     def stop(self):
         self.stop_requested = True
         self.log("🛑 Nhận được yêu cầu DỪNG. Đang dừng cào...")
-        if self.ai_worker and self.ai_worker.isRunning():
-            self.ai_worker.stop()
 
     def log(self, message):
         from src.utils.file_logger import add_log
@@ -47,8 +40,9 @@ class ScraperThread(QThread):
     def _apply_proxy(self):
         has_cookies = bool(self.cookies)
         proxies = select_proxy(has_cookies)
+        self.proxies = proxies
         if proxies:
-            proxy_url = proxies['http']
+            proxy_url = proxies.get('http', '')
             if has_cookies:
                 port = re.search(r':(\d+)$', proxy_url)
                 port_str = port.group(1) if port else '?'
@@ -68,8 +62,8 @@ class ScraperThread(QThread):
         page_scraper.PROXIES = proxies
         media_scraper.PROXIES = proxies
 
-    def _scrape_one_group(self, group_item, idx, total_groups, post_count, min_comments, keywords):
-        """Cào một nhóm — fetch_posts serialize (global state), fetch_comments parallel."""
+    def _scrape_one_group(self, group_item, idx, total_groups, post_count, min_comments, keywords_or_expr, cutoff_time=None):
+        """Cào một nhóm độc lập, lấy bài và bóc tách bình luận song song"""
         if self.stop_requested:
             return 0
 
@@ -98,17 +92,19 @@ class ScraperThread(QThread):
         if group_url:
             update_group_last_scraped(group_url)
 
-        # group_scraper dùng global state — serialize để tránh race condition
-        with _SCRAPE_LOCK:
-            posts = fetch_group_posts(
-                group_id=group_id,
-                group_name=configured_name,
-                limit=post_count,
-                target_count=post_count,
-                cookies=self.cookies,
-                fb_dtsg=self.fb_dtsg,
-                logger=self.log
-            )
+        # Cào danh sách bài viết (Thread-safe, không dùng lock)
+        posts = fetch_group_posts(
+            group_id=group_id,
+            group_name=configured_name,
+            limit=post_count,
+            target_count=post_count,
+            min_comments=min_comments,
+            cookies=self.cookies,
+            fb_dtsg=self.fb_dtsg,
+            cutoff_time=cutoff_time,
+            proxies=self.proxies,
+            logger=self.log
+        )
 
         if not posts:
             self.log(f"⚠️ Không lấy được bài viết nào từ nhóm {group_id}")
@@ -163,62 +159,38 @@ class ScraperThread(QThread):
                 )
                 saved += 1
 
-                kw_hit = None
-                kw_source = "Bài viết"
-                kw_comment_id = None
-                post_msg = (post.get("message") or post.get("text") or "").lower()
-                for kw in keywords:
-                    if kw.lower() in post_msg:
-                        kw_hit = kw
-                        kw_source = "Bài viết"
-                        kw_comment_id = None
-                        break
+                # Kiểm tra so khớp từ khóa / biểu thức logic chuyên sâu
+                matched, kw_hit, kw_source, kw_comment_id = check_post_and_comments_match(
+                    post_data=post,
+                    comments_data=comments,
+                    expression_or_keywords=keywords_or_expr
+                )
 
-                if not kw_hit and comments:
-                    for c in comments:
-                        c_text = (c.get("text") or "").lower()
-                        for kw in keywords:
-                            if kw.lower() in c_text:
-                                kw_hit = kw
-                                kw_source = "Bình luận"
-                                kw_comment_id = str(c.get("comment_id") or c.get("id") or "")
-                                break
-                        if kw_hit:
-                            break
-                        for r in (c.get("replies") or []):
-                            r_text = (r.get("text") or "").lower()
-                            for kw in keywords:
-                                if kw.lower() in r_text:
-                                    kw_hit = kw
-                                    kw_source = "Phản hồi bình luận"
-                                    kw_comment_id = str(r.get("reply_id") or r.get("id") or c.get("comment_id") or "")
-                                    break
-                            if kw_hit:
-                                break
-
-                if kw_hit:
+                if matched and (keywords_or_expr or kw_hit):
                     if ai_analysis_exists(post_id, kw_comment_id):
                         self.log(f"   ℹ️ Bài {post_id} ({kw_source} ID: {kw_comment_id or post_id}) khớp '{kw_hit}' nhưng đã được AI phân tích trước đó -> Bỏ qua.")
                     else:
-                        self.log(f"   🎯 Khớp từ khóa '{kw_hit}' ({kw_source}) tại bài {post_id} -> Đưa vào hàng đợi AI.")
+                        self.log(f"   🎯 Khớp điều kiện từ khóa '{kw_hit}' ({kw_source}) tại bài {post_id} -> Đã đưa vào hàng đợi AI trong CSDL.")
                         mark_post_ai_pending(post_id, kw_hit, kw_source, kw_comment_id)
-                        self.ai_worker.enqueue(post, comments, kw_hit, kw_source, kw_comment_id)
 
         return saved
 
     def run(self):
-        self.ai_worker.start()
         try:
             self._apply_proxy()
             start_time = time.time()
             groups = self.params.get("groups") or self.params.get("group_urls") or self.params.get("urls") or []
             post_count = self.params.get("count") or self.params.get("post_count") or 5
             min_comments = self.params.get("min_comments", 0)
-            keywords = self.params.get("keywords", [])
+            keywords_or_expr = self.params.get("keyword_expression") or self.params.get("keywords", [])
+            cutoff_time = self.params.get("cutoff_time")
+            concurrency = max(1, min(int(self.params.get("concurrency", 1)), 10))
             infinite_loop = self.params.get("infinite_loop", False)
             loop_interval = self.params.get("loop_interval", 60)
             total_groups = len(groups)
             total_posts_saved = 0
+
+            self.log(f"⚡ Khởi chạy bộ cào: {total_groups} nhóm | Số luồng song song: {concurrency} | Giới hạn: {post_count} bài/nhóm")
 
             loop_count = 0
             while not self.stop_requested:
@@ -227,15 +199,43 @@ class ScraperThread(QThread):
                     self.log(f"\n{'='*50}\n🔄 Bắt đầu vòng quét thứ {loop_count}...\n{'='*50}")
 
                 total_posts_saved = 0
-                for idx, group_item in enumerate(groups):
-                    if self.stop_requested:
-                        break
-                    try:
-                        total_posts_saved += self._scrape_one_group(
-                            group_item, idx, total_groups, post_count, min_comments, keywords
-                        )
-                    except Exception as e:
-                        self.log(f"❌ Lỗi cào nhóm {idx+1}: {e}")
+
+                if concurrency > 1 and len(groups) > 1:
+                    # Chạy đa luồng song song nhiều nhóm
+                    with ThreadPoolExecutor(max_workers=concurrency) as group_pool:
+                        futs = {
+                            group_pool.submit(
+                                self._scrape_one_group,
+                                group_item,
+                                idx,
+                                total_groups,
+                                post_count,
+                                min_comments,
+                                keywords_or_expr,
+                                cutoff_time
+                            ): idx
+                            for idx, group_item in enumerate(groups)
+                        }
+
+                        for fut in as_completed(futs):
+                            if self.stop_requested:
+                                group_pool.shutdown(wait=False, cancel_futures=True)
+                                break
+                            try:
+                                total_posts_saved += fut.result()
+                            except Exception as e:
+                                self.log(f"❌ Lỗi cào nhóm: {e}")
+                else:
+                    # Chạy tuần tự từng nhóm
+                    for idx, group_item in enumerate(groups):
+                        if self.stop_requested:
+                            break
+                        try:
+                            total_posts_saved += self._scrape_one_group(
+                                group_item, idx, total_groups, post_count, min_comments, keywords_or_expr, cutoff_time
+                            )
+                        except Exception as e:
+                            self.log(f"❌ Lỗi cào nhóm {idx+1}: {e}")
 
                 if not infinite_loop or self.stop_requested:
                     break
@@ -252,7 +252,3 @@ class ScraperThread(QThread):
 
         except Exception as e:
             self.finished_signal.emit(False, f"Lỗi cào dữ liệu: {e}")
-        finally:
-            if self.ai_worker and self.ai_worker.isRunning():
-                self.ai_worker.stop()
-                self.ai_worker.wait(3000)

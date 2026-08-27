@@ -223,6 +223,17 @@ def fb_json(response_text):
     return json.loads(first)
 
 
+def _safe(obj, *keys, default=None):
+    """Safe nested dict access — returns default if any key missing or value is None/non-dict"""
+    for k in keys:
+        if not isinstance(obj, dict):
+            return default
+        obj = obj.get(k)
+        if obj is None:
+            return default
+    return obj if obj is not None else default
+
+
 def fetch_comments(feedback_id, cookies=None, fb_dtsg=None, target_count=None, logger=None, **kwargs):
     global FB_DTSG
     if fb_dtsg:
@@ -243,59 +254,64 @@ def fetch_comments(feedback_id, cookies=None, fb_dtsg=None, target_count=None, l
             cookies=cookies
         )
         j = fb_json(r.text)
+        if not isinstance(j, dict):
+            break
         
         # Save each JSON response for inspection
         response_count += 1
         
-        comments_block = (
-            j.get("data", {})
-             .get("node", {})
-             .get("comment_rendering_instance_for_feed_location", {})
-             .get("comments", {})
-        )
-
-        edges = comments_block.get("edges", [])
+        comments_block = _safe(j, "data", "node", "comment_rendering_instance_for_feed_location", "comments", default={})
+        edges = _safe(comments_block, "edges", default=[])
         if not edges:
             break
 
         for e in edges:
-            n = e.get("node") or {}
-            fb = n.get("feedback") or {}
+            if not isinstance(e, dict):
+                continue
+            n = e.get("node")
+            if not isinstance(n, dict):
+                continue
+            fb = n.get("feedback")
+            if not isinstance(fb, dict):
+                fb = {}
 
             # Extract parent_post_story info from first response
             if response_count == 1 and post_info is None:
-                parent_post_story = n.get("parent_post_story", {})
-                
-                if parent_post_story:
+                parent_post_story = n.get("parent_post_story")
+                if isinstance(parent_post_story, dict):
                     post_info = {
                         "post_story_id": parent_post_story.get("id"),
                         "media_id": None
                     }
                     
                     # Extract first media ID
-                    attachments = parent_post_story.get("attachments", [])
+                    attachments = _safe(parent_post_story, "attachments", default=[])
                     for attachment in attachments:
-                        media = attachment.get("media", {})
-                        if media and media.get("id"):
-                            post_info["media_id"] = media.get("id")
-                            break  # Only get first one
+                        if isinstance(attachment, dict):
+                            media = attachment.get("media")
+                            if isinstance(media, dict) and media.get("id"):
+                                post_info["media_id"] = media.get("id")
+                                break  # Only get first one
 
             # Extract reaction count
-            reactors = fb.get("reactors", {})
-            total_reactions = reactors.get("count_reduced", "0")
+            reactors = _safe(fb, "reactors", default={})
+            total_reactions = reactors.get("count_reduced", "0") if isinstance(reactors, dict) else "0"
             
             expansion_info = fb.get("expansion_info")
             expansion_token = expansion_info.get("expansion_token") if isinstance(expansion_info, dict) else None
 
+            body = n.get("body")
+            body_text = body.get("text", "") if isinstance(body, dict) else ""
+
             results.append({
                 "comment_id": n.get("legacy_fbid"),
-                "text": (n.get("body") or {}).get("text", ""),
+                "text": body_text,
                 "reaction_count": total_reactions,
                 "_feedback_id": fb.get("id"),  # Internal use only (for fetching replies)
                 "_expansion_token": expansion_token  # Internal use only
             })
 
-        cursor = comments_block.get("page_info", {}).get("end_cursor")
+        cursor = _safe(comments_block, "page_info", "end_cursor", default=None)
         if not cursor:
             break
         if target_count and len(results) >= target_count:
@@ -331,27 +347,33 @@ def fetch_replies(comment, cookies=None):
         )
 
         j = fb_json(r.text)
-        replies = []
+        if not isinstance(j, dict):
+            return []
 
-        edges = (
-            j.get("data", {})
-             .get("node", {})
-             .get("replies_connection", {})
-             .get("edges", [])
-        )
+        replies = []
+        edges = _safe(j, "data", "node", "replies_connection", "edges", default=[])
 
         for e in edges:
-            n = e["node"]
-            fb = n.get("feedback", {})
+            if not isinstance(e, dict):
+                continue
+            n = e.get("node")
+            if not isinstance(n, dict):
+                continue
+            fb = n.get("feedback")
+            if not isinstance(fb, dict):
+                fb = {}
             
             # Extract reaction count
-            reactors = fb.get("reactors", {})
-            total_reactions = reactors.get("count_reduced", "0")
+            reactors = _safe(fb, "reactors", default={})
+            total_reactions = reactors.get("count_reduced", "0") if isinstance(reactors, dict) else "0"
             
+            body = n.get("body")
+            body_text = body.get("text", "") if isinstance(body, dict) else ""
+
             replies.append({
                 "reply_id": n.get("legacy_fbid"),
                 # "author": n["author"]["name"],
-                "text": (n.get("body") or {}).get("text", ""),
+                "text": body_text,
                 "reaction_count": total_reactions
             })
 
