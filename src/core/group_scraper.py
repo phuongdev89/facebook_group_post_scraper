@@ -90,14 +90,34 @@ def extract_creation_time(node):
         return None
 
 # ========= RETRY HELPER =========
+def _is_cookie_expired(response):
+    """Check if Facebook rejected expired/invalid cookies (error 1357004)"""
+    if not response or not response.text:
+        return False
+    try:
+        text = response.text.replace("for (;;);", "").strip()
+        if '"error":1357004' in text or '"error": 1357004' in text:
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def retry_request(url, headers, data, proxies, max_retries=5):
     """Make a POST request with retry logic"""
-    global PROXIES
+    global PROXIES, COOKIES, FB_DTSG
     from src.core.proxy_utils import rotate_static_proxy, is_proxy_infra_error, is_ip_blocked
 
     for attempt in range(1, max_retries + 1):
         try:
             r = requests.post(url, headers=headers, data=data, proxies=proxies, cookies=COOKIES, timeout=30)
+            # Detect expired cookies — fallback to anonymous mode
+            if r.status_code == 200 and _is_cookie_expired(r):
+                print(f"  ⚠️ Cookies hết hạn hoặc không hợp lệ (error 1357004). Chuyển sang chế độ ẩn danh...")
+                COOKIES = {}
+                FB_DTSG = ""
+                data = {**data, "av": "0", "__user": "0", "fb_dtsg": ""}
+                r = requests.post(url, headers=headers, data=data, proxies=proxies, cookies={}, timeout=30)
             if r.status_code == 200:
                 return r
             if is_proxy_infra_error(status_code=r.status_code):
@@ -534,13 +554,17 @@ def extract_post_data(node, group_name=None):
     """Extract relevant data from a post node (in-memory only, no disk files)"""
     if not node or node.get('__typename') != 'Story':
         return None
-    
-    post_id = extract_story_post_id(node)
+
+    # 1. Trích xuất post_id từ direct property trước (như mã nguồn cũ), fallback sang extract_story_post_id
+    post_id = node.get('post_id')
+    if not post_id:
+        post_id = extract_story_post_id(node)
     if not post_id:
         return None
-    
+    post_id = str(post_id).strip()
+
     content_story = node.get('comet_sections', {}).get('content', {}).get('story', {})
-    
+
     message = ''
     message_obj = content_story.get('message', {})
     if message_obj and isinstance(message_obj, dict):
@@ -551,27 +575,29 @@ def extract_post_data(node, group_name=None):
             message = comet_msg.get('text', '')
         elif isinstance(node.get('message'), dict):
             message = node.get('message', {}).get('text', '')
-    
+
     comment_count = extract_comment_count(node)
-    
+
     if not group_name:
         group_name = extract_group_name(node)
-    
+
     creation_time = extract_creation_time(node)
     permalink = node.get('permalink_url') or f"https://www.facebook.com/groups/{GROUP_ID}/posts/{post_id}/"
 
+    media_data = extract_media(node, post_id)
     post_data = {
         'id': node.get('id') or post_id,
         'post_id': post_id,
         'message': message,
+        'text': message,
         'comment_count': comment_count,
         'group_name': group_name,
         'permalink': permalink,
         'creation_time': creation_time,
-        'photos': extract_media(node, post_id)['photos'],
-        'videos': extract_media(node, post_id)['videos']
+        'photos': media_data.get('photos', []),
+        'videos': media_data.get('videos', [])
     }
-    
+
     return post_data
 
 
@@ -621,9 +647,16 @@ def fetch_posts(limit=10, min_comments=0, batch_size=10, on_batch_complete=None,
     if batch_size > 0 and batch_size < limit:
         log(f"📦 Processing in batches of {batch_size} posts")
     
+    headers = {
+        "user-agent": "Mozilla/5.0",
+        "content-type": "application/x-www-form-urlencoded",
+        "origin": "https://www.facebook.com",
+        "referer": f"https://www.facebook.com/groups/{GROUP_ID}/",
+    }
+
     while len(all_posts) < limit:
         log(f"📄 Đang tải trang bài viết {page_num} qua GraphQL (Nhóm ID: {GROUP_ID})...")
-        
+
         fetch_count = max(3, min(limit - len(all_posts), 10))
         variables = {
             "count": fetch_count,
@@ -641,7 +674,7 @@ def fetch_posts(limit=10, min_comments=0, batch_size=10, on_batch_complete=None,
             "useDefaultActor": False,
             "id": GROUP_ID,
         }
-        
+
         payload = {
             "av": COOKIES.get("c_user", "0"),
             "__user": COOKIES.get("c_user", "0"),
@@ -650,23 +683,23 @@ def fetch_posts(limit=10, min_comments=0, batch_size=10, on_batch_complete=None,
             "doc_id": DOC_ID,
             "variables": json.dumps(variables),
         }
-        
+
         # Retry loop for empty response handling
         max_empty_retries = 3
         empty_retry_count = 0
         data = []
-        
+
         while empty_retry_count < max_empty_retries:
             try:
-                r = retry_request(GRAPHQL_URL, HEADERS, payload, PROXIES)
+                r = retry_request(GRAPHQL_URL, headers, payload, PROXIES)
                 r.raise_for_status()
             except requests.RequestException as e:
                 log(f"❌ GraphQL Request failed: {e}")
                 break
-            
+
             # Parse the response
             data = parse_fb_response(r.text)
-            
+
             if data and len(data) > 0:
                 # Got valid data, break retry loop
                 break
@@ -699,14 +732,18 @@ def fetch_posts(limit=10, min_comments=0, batch_size=10, on_batch_complete=None,
             # Direct Story node
             if node_typename == 'Story':
                 story_nodes.append(node)
-            
-            # Story nodes inside Group edges
-            elif node_typename == 'Group':
-                edges = node.get('group_feed', {}).get('edges', [])
+
+            # Story nodes & page_info inside Group edges / group_feed
+            elif node_typename == 'Group' or 'group_feed' in node or 'edges' in node:
+                group_feed = node.get('group_feed', {}) if 'group_feed' in node else node
+                edges = group_feed.get('edges', [])
                 for edge in edges:
-                    edge_node = edge.get('node', {})
-                    if edge_node.get('__typename') == 'Story':
+                    edge_node = edge.get('node', {}) if isinstance(edge, dict) else {}
+                    if edge_node and edge_node.get('__typename') == 'Story':
                         story_nodes.append(edge_node)
+                p_info = group_feed.get('page_info')
+                if p_info and p_info.get('has_next_page'):
+                    next_cursor = p_info.get('end_cursor')
             
             # Process all found Story nodes
             for story_node in story_nodes:

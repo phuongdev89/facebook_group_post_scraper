@@ -16,14 +16,32 @@ PAGE_NAME = None  # Will be extracted automatically
 DOC_ID = "25430544756617998" # ProfileCometTimelineFeedRefetchQuery
 
 # ========= RETRY HELPER =========
+def _is_cookie_expired(response):
+    """Check if Facebook rejected expired/invalid cookies (error 1357004)"""
+    if not response or not response.text:
+        return False
+    try:
+        if '"error":1357004' in response.text or '"error": 1357004' in response.text:
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def retry_request(url, headers, data, proxies, max_retries=5):
     """Make a POST request with retry logic"""
-    global PROXIES
+    global PROXIES, COOKIES, FB_DTSG
     from src.core.proxy_utils import rotate_static_proxy, is_proxy_infra_error, is_ip_blocked
 
     for attempt in range(1, max_retries + 1):
         try:
             r = requests.post(url, headers=headers, data=data, proxies=proxies, cookies=COOKIES, timeout=30)
+            if r.status_code == 200 and _is_cookie_expired(r):
+                print(f"  ⚠️ Cookies hết hạn hoặc không hợp lệ (error 1357004). Chuyển sang chế độ ẩn danh...")
+                COOKIES = {}
+                FB_DTSG = ""
+                data = {**data, "av": "0", "__user": "0", "fb_dtsg": ""}
+                r = requests.post(url, headers=headers, data=data, proxies=proxies, cookies={}, timeout=30)
             if r.status_code == 200:
                 return r
             if is_proxy_infra_error(status_code=r.status_code):
