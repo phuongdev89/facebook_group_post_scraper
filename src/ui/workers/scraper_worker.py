@@ -5,7 +5,7 @@ from src.core.proxy_utils import select_proxy
 from src.core.group_scraper import fetch_posts as fetch_group_posts
 from src.core.comment_scraper import fetch_comments
 from src.utils.helpers import extract_group_id_from_url
-from src.database.repository import save_or_update_post, mark_post_ai_pending
+from src.database.repository import save_or_update_post, mark_post_ai_pending, update_group_last_scraped
 from src.ui.workers.ai_worker import AIAnalysisWorker
 
 class ScraperThread(QThread):
@@ -104,6 +104,10 @@ class ScraperThread(QThread):
                         continue
                         
                     self.log(f"🔍 Group ID: {group_id}")
+                    update_group_last_scraped(group_id)
+                    if group_url:
+                        update_group_last_scraped(group_url)
+
                     posts = fetch_group_posts(
                         group_id=group_id,
                         group_name=configured_name,

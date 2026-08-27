@@ -319,9 +319,10 @@ class GroupRowWidget(QWidget):
     delete_requested = pyqtSignal(QWidget)
     deduplicate_requested = pyqtSignal()
 
-    def __init__(self, name="", url="", group_id="", parent=None):
+    def __init__(self, name="", url="", group_id="", last_scraped_at="", parent=None):
         super().__init__(parent)
         self.group_id = str(group_id) if group_id else ""
+        self.last_scraped_at = last_scraped_at or ""
         self.resolver_worker = None
         self.resolve_timer = QTimer(self)
         self.resolve_timer.setSingleShot(True)
@@ -345,6 +346,8 @@ class GroupRowWidget(QWidget):
         self.url_input = QLineEdit(url)
         self.url_input.setPlaceholderText("URL group (vd: https://www.facebook.com/groups/...) hoặc link bài viết")
         self.url_input.setStyleSheet("padding: 6px; font-size: 12px; border: 1px solid #D1D5DB; border-radius: 4px;")
+        if self.last_scraped_at:
+            self.url_input.setToolTip(f"Lần cào gần nhất: {self.last_scraped_at}")
         self.url_input.textChanged.connect(self._on_url_text_changed)
         self.url_input.editingFinished.connect(self._on_url_blur)
         layout.addWidget(self.url_input, stretch=6)
@@ -469,15 +472,17 @@ class GroupRowWidget(QWidget):
         return {
             "name": self.name_input.text().strip(),
             "url": self.url_input.text().strip(),
-            "group_id": self.group_id
+            "group_id": self.group_id,
+            "last_scraped_at": self.last_scraped_at
         }
 
-    def set_data(self, name: str, url: str, group_id: str = ""):
+    def set_data(self, name: str, url: str, group_id: str = "", last_scraped_at: str = ""):
         self.name_input.blockSignals(True)
         self.url_input.blockSignals(True)
         self.name_input.setText(name)
         self.url_input.setText(url)
         self.group_id = str(group_id) if group_id else ""
+        self.last_scraped_at = last_scraped_at or ""
         self.name_input.blockSignals(False)
         self.url_input.blockSignals(False)
 
@@ -736,13 +741,13 @@ class GroupManagerDialog(QDialog):
 
         # Populate rows
         for g in initial_groups:
-            self.add_row(name=g.get("name", ""), url=g.get("url", ""), group_id=g.get("group_id", ""))
+            self.add_row(name=g.get("name", ""), url=g.get("url", ""), group_id=g.get("group_id", ""), last_scraped_at=g.get("last_scraped_at", ""))
         if not initial_groups:
             self.add_row()
         self.update_count_badge()
 
-    def add_row(self, name="", url="", group_id="") -> GroupRowWidget:
-        row = GroupRowWidget(name=name, url=url, group_id=group_id, parent=self)
+    def add_row(self, name="", url="", group_id="", last_scraped_at="") -> GroupRowWidget:
+        row = GroupRowWidget(name=name, url=url, group_id=group_id, last_scraped_at=last_scraped_at, parent=self)
         row.delete_requested.connect(self.remove_row)
         row.changed.connect(self.update_count_badge)
         row.deduplicate_requested.connect(self.deduplicate_rows)
@@ -961,8 +966,8 @@ class GroupListWidget(QWidget):
             self.save_to_db()
             self.groups_changed.emit()
 
-    def add_row(self, name="", url="", group_id="", auto_save=True) -> GroupRowWidget:
-        row = GroupRowWidget(name=name, url=url, group_id=group_id, parent=self)
+    def add_row(self, name="", url="", group_id="", last_scraped_at="", auto_save=True) -> GroupRowWidget:
+        row = GroupRowWidget(name=name, url=url, group_id=group_id, last_scraped_at=last_scraped_at, parent=self)
         row.changed.connect(self._on_row_changed)
         row.delete_requested.connect(self.remove_row)
         row.deduplicate_requested.connect(self.deduplicate_groups)
@@ -1026,7 +1031,7 @@ class GroupListWidget(QWidget):
         self._sync_enabled = False
         self.clear_rows()
         for g in groups:
-            self.add_row(name=g.get("name", ""), url=g.get("url", ""), group_id=g.get("group_id", ""), auto_save=False)
+            self.add_row(name=g.get("name", ""), url=g.get("url", ""), group_id=g.get("group_id", ""), last_scraped_at=g.get("last_scraped_at", ""), auto_save=False)
         if not groups:
             self.add_row(auto_save=False)
         self._sync_enabled = True

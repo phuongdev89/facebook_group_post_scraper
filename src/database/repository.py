@@ -147,6 +147,7 @@ def init_db(db_path: str = None):
                 name TEXT,
                 url TEXT,
                 group_id TEXT,
+                last_scraped_at TEXT,
                 created_at TEXT DEFAULT (datetime('now', 'localtime')),
                 updated_at TEXT DEFAULT (datetime('now', 'localtime'))
             );
@@ -201,6 +202,11 @@ def init_db(db_path: str = None):
                 cursor.execute("ALTER TABLE posts ADD COLUMN matched_keyword TEXT DEFAULT ''")
             if "matched_source" not in cols_posts:
                 cursor.execute("ALTER TABLE posts ADD COLUMN matched_source TEXT DEFAULT ''")
+
+        # Migration bảng facebook_groups bổ sung last_scraped_at
+        cols_groups = [r[1] for r in cursor.execute("PRAGMA table_info(facebook_groups)").fetchall()]
+        if cols_groups and "last_scraped_at" not in cols_groups:
+            cursor.execute("ALTER TABLE facebook_groups ADD COLUMN last_scraped_at TEXT")
 
         # Indexes để tối ưu hóa truy vấn
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments(post_id);")
@@ -257,7 +263,7 @@ def migrate_group_urls_if_needed(db_path: str = None):
 def get_all_groups(db_path: str = None) -> list[dict]:
     """Lấy toàn bộ danh sách group trong SQLite"""
     with get_connection(db_path) as conn:
-        rows = conn.execute("SELECT id, name, url, group_id, created_at, updated_at FROM facebook_groups ORDER BY id ASC").fetchall()
+        rows = conn.execute("SELECT id, name, url, group_id, last_scraped_at, created_at, updated_at FROM facebook_groups ORDER BY id ASC").fetchall()
         return [dict(r) for r in rows]
 
 
@@ -308,9 +314,17 @@ def delete_group(group_db_id: int, db_path: str = None) -> bool:
 
 
 def save_all_groups(groups: list[dict], db_path: str = None):
-    """Lưu/đồng bộ toàn bộ danh sách group vào bảng facebook_groups"""
+    """Lưu/đồng bộ toàn bộ danh sách group vào bảng facebook_groups (giữ lại last_scraped_at)"""
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
+        old_scraped_map = {}
+        rows = cursor.execute("SELECT group_id, url, last_scraped_at FROM facebook_groups WHERE last_scraped_at IS NOT NULL").fetchall()
+        for r in rows:
+            if r["group_id"]:
+                old_scraped_map[f"id:{r['group_id']}"] = r["last_scraped_at"]
+            if r["url"]:
+                old_scraped_map[f"url:{r['url']}"] = r["last_scraped_at"]
+
         cursor.execute("DELETE FROM facebook_groups")
         for g in groups:
             name = (g.get("name") or "").strip()
@@ -318,11 +332,29 @@ def save_all_groups(groups: list[dict], db_path: str = None):
             group_id = (g.get("group_id") or "").strip()
             if not url and not name:
                 continue
+            last_scraped = g.get("last_scraped_at") or old_scraped_map.get(f"id:{group_id}") or old_scraped_map.get(f"url:{url}")
             cursor.execute("""
-                INSERT INTO facebook_groups (name, url, group_id, created_at, updated_at)
-                VALUES (?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'))
-            """, (name, url, group_id))
+                INSERT INTO facebook_groups (name, url, group_id, last_scraped_at, created_at, updated_at)
+                VALUES (?, ?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'))
+            """, (name, url, group_id, last_scraped))
         conn.commit()
+
+
+def update_group_last_scraped(group_identifier: str, db_path: str = None) -> bool:
+    """Cập nhật thời gian cào dữ liệu gần nhất cho nhóm theo group_id hoặc url"""
+    if not group_identifier:
+        return False
+    gid_or_url = str(group_identifier).strip()
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE facebook_groups
+            SET last_scraped_at = datetime('now', 'localtime'),
+                updated_at = datetime('now', 'localtime')
+            WHERE group_id = ? OR url = ? OR url LIKE ?
+        """, (gid_or_url, gid_or_url, f"%{gid_or_url}%"))
+        conn.commit()
+        return cursor.rowcount > 0
 
 
 
