@@ -171,6 +171,12 @@ def _clean_group_name(name: str) -> str:
         r'\s*·\s*(Nhóm công khai|Nhóm riêng tư|Public group|Private group).*$',
         r'\s*·\s*(Chưa đọc|Chưa xem|Mới|Unread|New).*$',
         
+        # Thông báo quyền đăng/bình luận (vd: "Từ giờ, bạn có thể đăng bài và bình luận trong... 6 phút")
+        r'[\s·•\-_|:]*(?:Từ giờ|Bây giờ|Hiện tại|You can now)[\s\S]*?(?:đăng bài|bình luận|post|comment)[\s\S]*$',
+        r'Chào mừng bạn đến với[\s\S]*?(?:đăng bài|kết nối|post|connect)[\s\S]*$',
+        r'[\s·•\-_|:]*Xem nhóm$',
+        r'[\s·•\-_|:]*View group$',
+
         # Mốc thời gian (vd: 2 giờ trước, 5 ngày trước, Hôm qua lúc...)
         r'\s*·?\s*\d+\s*(phút|giờ|ngày|tuần|tháng|năm|mins?|minutes?|hours?|hrs?|days?|weeks?|months?|years?)\s*(trước|ago).*$',
         r'\s*·?\s*(Hôm qua lúc|Yesterday at|Vừa xong|Just now).*$',
@@ -594,11 +600,16 @@ def fetch_groups_via_browser(cookies: dict, logger=None, headless: bool = True, 
             try:
                 dom_items = driver.execute_script("""
                     const results = [];
-                    const elements = document.querySelectorAll('a[href*="/groups/"]');
+                    // Chỉ lấy các nhóm nằm trong vùng xem trước nhóm chính
+                    const container = document.querySelector('div[aria-label="Bản xem trước nhóm"][role="main"]') || document;
+                    const elements = container.querySelectorAll('a[href*="/groups/"]');
                     for (const el of elements) {
                         const href = el.getAttribute('href') || el.href || '';
                         const text = el.innerText || el.textContent || '';
-                        results.push({href: href, text: text});
+                        // Loại bỏ các nút action/link điều hướng không phải tên nhóm
+                        if (href.includes('/groups/') && text.trim() && text.trim() !== 'Xem nhóm' && text.trim() !== 'View group') {
+                            results.push({href: href, text: text});
+                        }
                     }
                     return results;
                 """)

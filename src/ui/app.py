@@ -1827,7 +1827,6 @@ class FacebookNotificationUI(QMainWindow):
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
         self.log_text.setMinimumHeight(65)
-        self.log_text.setMaximumHeight(95)
         self.log_text.setStyleSheet("background-color: #111827; color: #F3F4F6; font-family: Consolas, monospace; font-size: 11px; border-radius: 4px;")
         log_layout.addWidget(self.log_text)
         
@@ -1869,8 +1868,8 @@ class FacebookNotificationUI(QMainWindow):
         clear_log_btn.clicked.connect(self.clear_log)
         log_btn_layout.addWidget(clear_log_btn)
         log_layout.addLayout(log_btn_layout)
-        
-        layout.addWidget(log_group)
+
+        layout.addWidget(log_group, 1)
         return tab
 
     # --------------------------------------------------------------------------
