@@ -62,7 +62,7 @@ The application runs standalone on Windows **without requiring Python installati
 
 3. **Launch GUI Application (PyQt6)**:
    ```bash
-   python run_gui.py
+   python run_ui.py
    ```
 
 4. **Run Automated Tests (Unit Tests)**:
@@ -125,7 +125,7 @@ facebook_post_comment_scraper/
 ├── build_installer.bat / .sh             # One-click command to build full setup installer
 ├── build_patch.bat / .sh                 # One-click command to build patch packages
 ├── facebook_notification.spec            # PyInstaller specification file
-├── run_gui.py                            # Main application entry point
+├── run_ui.py                            # Main application entry point
 ├── .version                              # Single source of truth for versioning
 ├── CHANGELOG.md                          # Comprehensive release history and changelog
 ├── README.en.md                          # English documentation

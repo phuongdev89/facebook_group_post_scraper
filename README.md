@@ -63,7 +63,7 @@
 
 3. **Khởi chạy giao diện người dùng (PyQt6)**:
    ```bash
-   python run_gui.py
+   python run_ui.py
    ```
 
 4. **Chạy kiểm thử tự động (Unit Tests)**:
@@ -127,7 +127,7 @@ facebook_post_comment_scraper/
 ├── build_installer.bat / .sh             # Lệnh 1-click tạo bộ cài đặt Full Setup
 ├── build_patch.bat / .sh                 # Lệnh 1-click tạo bản cập nhật Patch
 ├── facebook_notification.spec            # Cấu hình đóng gói PyInstaller
-├── run_gui.py                            # Điểm khởi chạy ứng dụng chính
+├── run_ui.py                            # Điểm khởi chạy ứng dụng chính
 ├── .version                              # File định danh phiên bản duy nhất của ứng dụng
 ├── CHANGELOG.md                          # Chi tiết lịch sử thay đổi qua các phiên bản
 ├── README.en.md                          # Tài liệu tiếng Anh (English Documentation)

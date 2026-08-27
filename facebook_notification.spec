@@ -38,7 +38,7 @@ except ImportError:
     pass
 
 a = Analysis(
-    ['run_gui.py'],
+    ['run_ui.py'],
     pathex=[os.path.abspath('.')],
     binaries=[],
     datas=datas,
