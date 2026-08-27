@@ -4,6 +4,39 @@ Tất cả những thay đổi, cải tiến và bản sửa lỗi của dự á
 
 ---
 
+## [1.0.4] - 2026-08-27
+
+### ✨ Tính Năng Mới (Added)
+- **Xem Trước Ảnh & Video Trực Tiếp Trong Hộp Thoại Chi Tiết Bài Viết**:
+  - Hiển thị thumbnail ảnh và video kích thước nhỏ (110×88px) ngay trong dialog Chi tiết bài viết.
+  - Tải thumbnail bất đồng bộ trên luồng nền — giao diện không bị đơ trong lúc chờ ảnh tải về.
+  - Bấm vào thumbnail bất kỳ để mở URL gốc bằng trình duyệt mặc định của hệ thống.
+  - Video hiển thị biểu tượng 🎬 kèm thumbnail nếu có; ảnh hiển thị trực tiếp từ URL CDN của Facebook.
+- **Hệ Thống Log File Thay Thế Log SQLite**:
+  - Log hoạt động ứng dụng được ghi vào `~/.facebook-notification/access.log`.
+  - Log lỗi được ghi riêng vào `~/.facebook-notification/error.log`.
+  - Giảm đáng kể kích thước file SQLite, cải thiện hiệu năng ghi đọc DB.
+- **Xuất Chẩn Đoán Dạng ZIP Kèm Log File**:
+  - Nút "Gửi phân tích cho Dev" xuất file `.zip` gồm `access.log`, `error.log` và `database_dump.sql` (trừ bảng settings chứa thông tin nhạy cảm).
+  - Hỏi nơi lưu file qua hộp thoại hệ thống trước khi xuất.
+
+### 🛠 Cải Tiến & Tối Ưu (Changed)
+- **Cào Bình Luận Song Song (`ThreadPoolExecutor`)**:
+  - Trong mỗi lượt cào một nhóm, toàn bộ bình luận của các bài viết được tải **đồng thời** tối đa 4 luồng song song thay vì tuần tự từng bài.
+  - Tốc độ cào tổng thể tăng đáng kể khi nhóm có nhiều bài viết.
+  - `fetch_posts` vẫn serialize (do `group_scraper` dùng global state) — an toàn tuyệt đối, không race condition.
+- **Bắt Lỗi An Toàn Hơn Khi Phân Tích Dữ Liệu GraphQL**:
+  - Thêm hàm `_safe(*keys)` để duyệt chuỗi dict lồng nhau mà không bao giờ gặp `AttributeError: 'NoneType' object has no attribute 'get'`.
+  - Áp dụng cho toàn bộ các hàm `extract_group_name`, `extract_creation_time`, `extract_comment_count`, `extract_post_data` trong `group_scraper.py`.
+  - Lỗi parse đơn lẻ không còn làm crash toàn bộ luồng cào.
+
+### 🐛 Sửa Lỗi (Fixed)
+- Sửa lỗi `❌ Lỗi cào dữ liệu: 'NoneType' object has no attribute 'get'` xảy ra khi Facebook trả về `null` trong một số trường JSON của GraphQL response.
+- Sửa lỗi dialog Chi tiết bài viết không hiển thị ảnh/video (chỉ hiện link text) — đã thay bằng thumbnail có thể click.
+- Sửa hàm xuất chẩn đoán: định dạng file đầu ra đổi từ `.diagnose` (SQL text) sang `.zip` (nén kèm log).
+
+---
+
 ## [1.0.3] - 2026-08-20
 
 ### ✨ Tính Năng Mới (Added)

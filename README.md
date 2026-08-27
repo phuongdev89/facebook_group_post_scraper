@@ -17,7 +17,8 @@
 - **Quản Lý Nhóm Thông Minh**:
   - Tự động cào danh sách toàn bộ các nhóm Facebook mà tài khoản đã tham gia thông qua Cookie JSON từ extension (Cookie-Editor, J2Team).
   - Bộ lọc tìm kiếm nhóm theo thời gian thực, hỗ trợ gõ tiếng Việt không dấu.
-- **Cơ Sở Dữ Liệu SQLite Tối Ưu**: Lưu trữ dữ liệu an toàn tại thư mục người dùng (`~/.facebook-notification/`), bật chế độ ghi song song PRAGMA WAL, tự động khử trùng lặp và tự động dọn dẹp log quá 1 ngày.
+- **Cơ Sở Dữ Liệu SQLite Tối Ưu**: Lưu trữ dữ liệu an toàn tại thư mục người dùng (`~/.facebook-notification/`), bật chế độ ghi song song PRAGMA WAL, tự động khử trùng lặp. Log hoạt động ghi ra file (`access.log`, `error.log`) thay vì DB để giữ SQLite nhẹ.
+- **Xem Trước Media Trong Hộp Thoại Chi Tiết**: Thumbnail ảnh & video hiển thị trực tiếp trong dialog Chi tiết bài viết, tải bất đồng bộ, click để mở trình duyệt.
 - **Tự Động Cập Nhật (OTA Updates)**: Kiểm tra và tải bản cập nhật mới nhất trực tiếp từ GitHub Releases hoặc máy chủ file tĩnh.
 
 ---
@@ -36,7 +37,7 @@
   2. Giải nén vào thư mục bất kỳ và nhấp đúp file `FacebookNotification.exe`.
 
 > [!NOTE]
-> **Vị trí lưu trữ dữ liệu:** Toàn bộ cơ sở dữ liệu SQLite (`facebook_scraper.sqlite`), cấu hình AI, token và lịch sử được lưu trữ tại thư mục:  
+> **Vị trí lưu trữ dữ liệu:** Toàn bộ cơ sở dữ liệu SQLite (`facebook_scraper.sqlite`), log hoạt động (`access.log`, `error.log`), cấu hình AI, token và lịch sử được lưu trữ tại thư mục:  
 > `~/.facebook-notification/` (tương đương `C:\Users\<Tên_User>\.facebook-notification`).
 
 ---
@@ -112,6 +113,7 @@ facebook_post_comment_scraper/
 │   │   ├── dialogs/                      # Hộp thoại popup (Cookie, GroupSelect, PromptGuide, Update...)
 │   │   └── workers/                      # Các luồng chạy ngầm QThread (Scraper, AI, Telegram, TestModel...)
 │   └── utils/                            # Tiện ích bổ trợ (Xử lý cookie, bóc tách ID, định dạng ngày giờ)
+│       └── file_logger.py                # Ghi log ra file access.log / error.log (thay thế log SQLite)
 ├── guides/                               # Tài liệu hướng dẫn sử dụng tương tác (HTML)
 │   └── index.html                        # Giao diện Web hướng dẫn sử dụng chi tiết
 ├── installer/                            # Kịch bản Inno Setup để tạo bộ cài đặt Windows
