@@ -17,8 +17,8 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QTableWidget, QTableWidgetItem, QHeaderView,
                              QAbstractItemView, QMenu, QCompleter, QProgressDialog,
                              QFileDialog)
-from PyQt6.QtCore import QThread, pyqtSignal, Qt, QUrl, QTimer
-from PyQt6.QtGui import QFont, QTextCursor, QDesktopServices, QCursor, QTextDocument, QIntValidator, QColor
+from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot, Qt, QUrl, QTimer, QObject
+from PyQt6.QtGui import QFont, QTextCursor, QDesktopServices, QCursor, QTextDocument, QIntValidator, QColor, QPixmap
 
 # Ensure stdout and stderr handle utf-8 on Windows
 if hasattr(sys.stdout, 'reconfigure'):
@@ -1056,6 +1056,67 @@ class GroupListWidget(QWidget):
 
 
 # ==============================================================================
+# Media Thumbnail Widget — dùng cho PostDetailDialog
+# ==============================================================================
+import threading as _threading
+import urllib.request as _urllib_request
+
+class _ThumbSignal(QObject):
+    loaded = pyqtSignal(bytes)
+
+class _MediaThumb(QLabel):
+    """Thumbnail 110×88 — tải ảnh nền, click mở URL bằng trình duyệt hệ thống."""
+
+    def __init__(self, open_url: str, thumb_url: str = "", label: str = "", is_video: bool = False, parent=None):
+        super().__init__(parent)
+        self._open_url = open_url
+        self.setFixedSize(110, 88)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.setToolTip(f"{label} — Bấm để mở trình duyệt")
+        self.setText("🎬" if is_video else "🖼")
+        self.setStyleSheet(
+            "border: 1px solid #D1D5DB; border-radius: 6px; "
+            "background: #F3F4F6; font-size: 26px; color: #6B7280;"
+        )
+        cap = QLabel(label, self)
+        cap.setStyleSheet("font-size: 9px; color: #6B7280; background: transparent;")
+        cap.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        cap.setGeometry(0, 68, 110, 16)
+
+        self._sig = _ThumbSignal()
+        self._sig.loaded.connect(self._apply)
+
+        load_url = thumb_url or (open_url if not is_video else "")
+        if load_url:
+            _threading.Thread(target=self._fetch, args=(load_url,), daemon=True).start()
+
+    def _fetch(self, url: str):
+        try:
+            req = _urllib_request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with _urllib_request.urlopen(req, timeout=8) as r:
+                data = r.read()
+            self._sig.loaded.emit(data)
+        except Exception:
+            pass
+
+    @pyqtSlot(bytes)
+    def _apply(self, data: bytes):
+        pix = QPixmap()
+        if pix.loadFromData(data):
+            self.setPixmap(pix.scaled(
+                self.width(), self.height(),
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation
+            ))
+            self.setText("")
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton and self._open_url:
+            webbrowser.open(self._open_url)
+
+
+# ==============================================================================
 # Dialog: Post Detail & Comments Simulation (PostDetailDialog)
 # ==============================================================================
 class PostDetailDialog(QDialog):
@@ -1234,21 +1295,31 @@ class PostDetailDialog(QDialog):
         photos = self.post_data.get("photos", [])
         videos = self.post_data.get("videos", [])
         if photos or videos:
-            media_box = QFrame()
-            media_box.setStyleSheet("background-color: #EFF6FF; border: 1px dashed #93C5FD; border-radius: 6px; padding: 8px;")
-            mb_layout = QVBoxLayout(media_box)
-            mb_layout.setContentsMargins(8, 6, 8, 6)
-            media_info = QLabel(f"📷 <b>Đính kèm:</b> {len(photos)} ảnh, {len(videos)} video")
-            media_info.setStyleSheet("font-size: 12px; color: #1E40AF;")
-            mb_layout.addWidget(media_info)
+            media_label = QLabel(f"🖼 <b>Ảnh & Video</b> ({len(photos)} ảnh, {len(videos)} video) — Bấm để mở trình duyệt")
+            media_label.setStyleSheet("font-size: 12px; color: #1E40AF; font-weight: bold;")
+            content_layout.addWidget(media_label)
+
+            thumb_row = QWidget()
+            thumb_layout = QHBoxLayout(thumb_row)
+            thumb_layout.setContentsMargins(0, 4, 0, 4)
+            thumb_layout.setSpacing(8)
+            thumb_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
             for idx, p in enumerate(photos, 1):
                 p_url = p.get("url") if isinstance(p, dict) else str(p)
-                if p_url:
-                    lbl = QLabel(f"  • Ảnh #{idx}: <a href='{p_url}'>{p_url[:80]}...</a>")
-                    lbl.setOpenExternalLinks(True)
-                    lbl.setStyleSheet("font-size: 11px; color: #2563EB;")
-                    mb_layout.addWidget(lbl)
-            content_layout.addWidget(media_box)
+                if not p_url:
+                    continue
+                thumb = _MediaThumb(p_url, label=f"Ảnh {idx}", parent=self)
+                thumb_layout.addWidget(thumb)
+
+            for idx, v in enumerate(videos, 1):
+                open_url = (v.get("url") or v.get("playable_url") or "") if isinstance(v, dict) else str(v)
+                thumb_url = v.get("thumbnail") if isinstance(v, dict) else ""
+                thumb = _MediaThumb(open_url, thumb_url=thumb_url, label=f"Video {idx}", is_video=True, parent=self)
+                thumb_layout.addWidget(thumb)
+
+            thumb_layout.addStretch()
+            content_layout.addWidget(thumb_row)
 
         # Divider
         divider = QFrame()
@@ -4491,32 +4562,53 @@ class FacebookNotificationUI(QMainWindow):
             QMessageBox.information(self, "Thành công", "✅ Đã lưu toàn bộ cấu hình vào SQLite!")
 
     def export_diagnose_action(self):
-        """Xuất dữ liệu SQLite ra tệp .diagnose (loại trừ bảng settings) để gửi cho Dev"""
+        """Xuất access.log, error.log và SQL dump (trừ settings) vào file .zip để gửi Dev"""
+        import zipfile
+        import tempfile
+        from src.utils.file_logger import get_log_paths
+
         now_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-        default_name = f"facebook_scraper_diagnose_{now_str}.diagnose"
+        default_name = f"facebook_scraper_diagnose_{now_str}.zip"
         save_path, _ = QFileDialog.getSaveFileName(
             self,
-            "Lưu tệp chẩn đoán (.diagnose) gửi cho Dev",
+            "Lưu tệp chẩn đoán (.zip) gửi cho Dev",
             default_name,
-            "Diagnose File (*.diagnose);;SQL Dump (*.sql);;All Files (*)"
+            "Zip Archive (*.zip);;All Files (*)"
         )
         if not save_path:
             return
 
-        ok, msg, total_records = database.export_diagnostics_sql(save_path)
-        if ok:
-            self.log(f"✅ {msg}")
+        try:
+            log_paths = get_log_paths()
+
+            # Export SQL trừ bảng settings sang temp file
+            with tempfile.NamedTemporaryFile(suffix=".sql", delete=False, mode="w", encoding="utf-8") as tmp_sql:
+                tmp_sql_path = tmp_sql.name
+
+            ok, sql_msg, total_records = database.export_diagnostics_sql(tmp_sql_path)
+
+            with zipfile.ZipFile(save_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+                for label, path in log_paths.items():
+                    if os.path.exists(path):
+                        zf.write(path, f"{label}.log")
+                if ok and os.path.exists(tmp_sql_path):
+                    zf.write(tmp_sql_path, "database_dump.sql")
+
+            os.unlink(tmp_sql_path)
+
+            self.log(f"✅ Đã xuất chẩn đoán: {save_path}")
             QMessageBox.information(
                 self,
                 "Xuất chẩn đoán thành công",
-                f"🎉 <b>Đã xuất dữ liệu chẩn đoán thành công!</b><br><br>"
-                f"• Tổng số bản ghi: <b>{total_records}</b><br>"
-                f"• File đã lưu tại:<br><code>{save_path}</code><br><br>"
-                f"🔒 <i>Lưu ý bảo mật: Toàn bộ bảng cài đặt chứa Token Telegram, API Key AI, Cookie và Proxy đã được loại trừ 100% để đảm bảo an toàn riêng tư. Bạn có thể yên tâm gửi tệp này cho Developer.</i>"
+                f"🎉 <b>Đã xuất tệp chẩn đoán thành công!</b><br><br>"
+                f"• Gồm: access.log, error.log, database_dump.sql<br>"
+                f"• Tổng bản ghi DB: <b>{total_records}</b><br>"
+                f"• File: <code>{save_path}</code><br><br>"
+                f"🔒 <i>Bảng settings (Token, API Key, Cookie, Proxy) đã được loại trừ hoàn toàn.</i>"
             )
-        else:
-            self.log(f"❌ {msg}")
-            QMessageBox.critical(self, "Lỗi xuất chẩn đoán", msg)
+        except Exception as e:
+            self.log(f"❌ Lỗi xuất chẩn đoán: {e}")
+            QMessageBox.critical(self, "Lỗi xuất chẩn đoán", str(e))
 
     def check_for_updates_action(self, manual: bool = True):
         """Kiểm tra bản cập nhật mới từ GitHub và hiển thị UpdateDialog"""
@@ -4916,7 +5008,8 @@ class FacebookNotificationUI(QMainWindow):
         self.log_text.setTextCursor(cursor)
         if hasattr(self, 'log_viewer_dialog') and self.log_viewer_dialog and self.log_viewer_dialog.isVisible():
             self.log_viewer_dialog.append_log(message)
-        database.add_log(message, level="INFO", module="APP")
+        from src.utils.file_logger import add_log as _file_log
+        _file_log(message, level="INFO", module="APP")
 
     def clear_log(self):
         self.log_text.clear()

@@ -3,6 +3,7 @@ import threading
 from PyQt6.QtCore import QThread, pyqtSignal
 import src.database as database
 from src.core.telegram_notifier import send_keyword_match_alert
+from src.utils.file_logger import add_log
 
 
 class TelegramDispatcherThread(QThread):
@@ -34,7 +35,7 @@ class TelegramDispatcherThread(QThread):
 
     def log(self, message: str):
         self.log_signal.emit(message)
-        database.add_log(message, level="INFO", module="TELEGRAM_DISPATCHER")
+        add_log(message, level="INFO", module="TELEGRAM_DISPATCHER")
 
     def run(self):
         self.log("🚀 [Telegram Dispatcher] Thread quét DB & tự động gửi Telegram đã khởi động.")

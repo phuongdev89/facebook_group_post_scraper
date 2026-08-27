@@ -11,8 +11,8 @@ from src.database.repository import (
     mark_post_ai_status,
     mark_post_ai_pending,
     get_post_comments_with_replies,
-    add_log
 )
+from src.utils.file_logger import add_log
 
 
 class AIAnalysisWorker(QThread):

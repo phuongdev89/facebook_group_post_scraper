@@ -45,32 +45,34 @@ if PROXY:
     print(f"Using proxy: {PROXY}")
 
 
+def _safe(obj, *keys, default=None):
+    """Safe nested dict access — returns default if any key missing or value is None/non-dict"""
+    for k in keys:
+        if not isinstance(obj, dict):
+            return default
+        obj = obj.get(k)
+        if obj is None:
+            return default
+    return obj if obj is not None else default
+
+
 def extract_group_name(node):
     """Extract group name from post node"""
     if not node or not isinstance(node, dict):
         return None
     try:
         # Try from context_layout > story > comet_sections > title > story > to
-        context_layout = node.get('comet_sections', {}).get('context_layout', {})
-        story = context_layout.get('story', {})
-        title_section = story.get('comet_sections', {}).get('title', {})
-        title_story = title_section.get('story', {})
-        to_obj = title_story.get('to', {})
+        to_obj = _safe(node, 'comet_sections', 'context_layout', 'story', 'comet_sections', 'title', 'story', 'to')
         if isinstance(to_obj, dict) and to_obj.get('__typename') == 'Group' and to_obj.get('name'):
-            return str(to_obj.get('name')).strip()
+            return str(to_obj['name']).strip()
 
-        # Try from content > story > target_group (if available)
-        content = node.get('comet_sections', {}).get('content', {})
-        content_story = content.get('story', {})
-        target_group = content_story.get('target_group', {})
+        target_group = _safe(node, 'comet_sections', 'content', 'story', 'target_group')
         if isinstance(target_group, dict) and target_group.get('name'):
-            return str(target_group.get('name')).strip()
+            return str(target_group['name']).strip()
 
-        # Try from feedback > associated_group
-        feedback = node.get('feedback', {})
-        associated_group = feedback.get('associated_group', {})
+        associated_group = _safe(node, 'feedback', 'associated_group')
         if isinstance(associated_group, dict) and associated_group.get('name'):
-            return str(associated_group.get('name')).strip()
+            return str(associated_group['name']).strip()
 
         return None
     except Exception:
@@ -80,12 +82,7 @@ def extract_group_name(node):
 def extract_creation_time(node):
     """Extract post creation time (Unix timestamp) from node"""
     try:
-        # node.comet_sections.timestamp.story.creation_time
-        t = node.get('comet_sections', {}).get('timestamp', {}).get('story', {}).get('creation_time')
-        if t:
-            return t
-
-        return None
+        return _safe(node, 'comet_sections', 'timestamp', 'story', 'creation_time')
     except Exception:
         return None
 
@@ -341,58 +338,40 @@ def extract_comment_count(node):
     """Extract comment count from post node"""
     try:
         # Path 1: feedback.comment_rendering_instance.comments.total_count
-        comment_count = node.get("feedback", {}).get("comment_rendering_instance", {}).get("comments", {}).get("total_count")
-        if comment_count is not None:
-            return comment_count
-        
-        # Path 2: comet_sections.feedback.story.story_ufi_container.story.feedback_context.feedback_target_with_context.comment_rendering_instance.comments.total_count
-        comet_sections = node.get("comet_sections", {})
-        feedback_section = comet_sections.get("feedback", {})
-        story = feedback_section.get("story", {})
-        story_ufi_container = story.get("story_ufi_container", {})
-        ufi_story = story_ufi_container.get("story", {})
-        feedback_context = ufi_story.get("feedback_context", {})
-        feedback_target = feedback_context.get("feedback_target_with_context", {})
-        comment_count = feedback_target.get("comment_rendering_instance", {}).get("comments", {}).get("total_count")
-        if comment_count is not None:
-            return comment_count
-        
-        # Path 3: comet_sections.feedback.story.story_ufi_container.story.feedback_context.feedback_target_with_context.comet_ufi_summary_and_actions_renderer.feedback.comment_rendering_instance.comments.total_count
-        comet_ufi = feedback_target.get("comet_ufi_summary_and_actions_renderer", {}).get("feedback", {})
-        comment_count = comet_ufi.get("comment_rendering_instance", {}).get("comments", {}).get("total_count")
-        if comment_count is not None:
-            return comment_count
-        
-        # Path 4: comet_sections.feedback.story.feedback_context.feedback_target_with_context.comment_rendering_instance.comments.total_count (old structure)
-        comet_sections = node.get("comet_sections", {})
-        feedback_section = comet_sections.get("feedback", {})
-        story = feedback_section.get("story", {})
-        feedback_context = story.get("feedback_context", {})
-        feedback_target = feedback_context.get("feedback_target_with_context", {})
-        comment_count = feedback_target.get("comment_rendering_instance", {}).get("comments", {}).get("total_count")
-        if comment_count is not None:
-            return comment_count
-        
-        # Path 5: feedback.comments_count_summary_renderer.feedback.comment_rendering_instance.comments.total_count
-        comments_renderer = node.get("feedback", {}).get("comments_count_summary_renderer", {}).get("feedback", {})
-        comment_count = comments_renderer.get("comment_rendering_instance", {}).get("comments", {}).get("total_count")
-        if comment_count is not None:
-            return comment_count
-        
-        # Path 6: comet_sections.feedback.story.story_ufi_container.story.feedback_context.feedback_target_with_context.comet_ufi_summary_and_actions_renderer.feedback.comments_count_summary_renderer.feedback.comment_rendering_instance.comments.total_count
-        comet_sections = node.get("comet_sections", {})
-        feedback_section = comet_sections.get("feedback", {})
-        story = feedback_section.get("story", {})
-        story_ufi_container = story.get("story_ufi_container", {})
-        ufi_story = story_ufi_container.get("story", {})
-        feedback_context = ufi_story.get("feedback_context", {})
-        feedback_target = feedback_context.get("feedback_target_with_context", {})
-        comet_ufi = feedback_target.get("comet_ufi_summary_and_actions_renderer", {}).get("feedback", {})
-        comments_count_renderer = comet_ufi.get("comments_count_summary_renderer", {}).get("feedback", {})
-        comment_count = comments_count_renderer.get("comment_rendering_instance", {}).get("comments", {}).get("total_count")
-        if comment_count is not None:
-            return comment_count
-            
+        v = _safe(node, 'feedback', 'comment_rendering_instance', 'comments', 'total_count')
+        if v is not None: return v
+
+        # Path 2-3: via story_ufi_container chain
+        v = _safe(node, 'comet_sections', 'feedback', 'story', 'story_ufi_container', 'story',
+                  'feedback_context', 'feedback_target_with_context',
+                  'comment_rendering_instance', 'comments', 'total_count')
+        if v is not None: return v
+
+        v = _safe(node, 'comet_sections', 'feedback', 'story', 'story_ufi_container', 'story',
+                  'feedback_context', 'feedback_target_with_context',
+                  'comet_ufi_summary_and_actions_renderer', 'feedback',
+                  'comment_rendering_instance', 'comments', 'total_count')
+        if v is not None: return v
+
+        # Path 4: old structure without story_ufi_container
+        v = _safe(node, 'comet_sections', 'feedback', 'story',
+                  'feedback_context', 'feedback_target_with_context',
+                  'comment_rendering_instance', 'comments', 'total_count')
+        if v is not None: return v
+
+        # Path 5: comments_count_summary_renderer
+        v = _safe(node, 'feedback', 'comments_count_summary_renderer', 'feedback',
+                  'comment_rendering_instance', 'comments', 'total_count')
+        if v is not None: return v
+
+        # Path 6: full chain with comments_count_summary_renderer
+        v = _safe(node, 'comet_sections', 'feedback', 'story', 'story_ufi_container', 'story',
+                  'feedback_context', 'feedback_target_with_context',
+                  'comet_ufi_summary_and_actions_renderer', 'feedback',
+                  'comments_count_summary_renderer', 'feedback',
+                  'comment_rendering_instance', 'comments', 'total_count')
+        if v is not None: return v
+
         return 0
     except Exception:
         return 0
@@ -590,18 +569,18 @@ def extract_post_data(node, group_name=None):
         return None
     post_id = str(post_id).strip()
 
-    content_story = node.get('comet_sections', {}).get('content', {}).get('story', {})
+    content_story = _safe(node, 'comet_sections', 'content', 'story') or {}
 
     message = ''
-    message_obj = content_story.get('message', {})
-    if message_obj and isinstance(message_obj, dict):
-        message = message_obj.get('text', '')
+    message_obj = content_story.get('message') if isinstance(content_story, dict) else None
+    if isinstance(message_obj, dict):
+        message = message_obj.get('text', '') or ''
     if not message:
-        comet_msg = node.get('comet_sections', {}).get('message', {}).get('story', {}).get('message', {})
-        if comet_msg and isinstance(comet_msg, dict):
-            message = comet_msg.get('text', '')
+        comet_msg = _safe(node, 'comet_sections', 'message', 'story', 'message')
+        if isinstance(comet_msg, dict):
+            message = comet_msg.get('text', '') or ''
         elif isinstance(node.get('message'), dict):
-            message = node.get('message', {}).get('text', '')
+            message = (node.get('message') or {}).get('text', '') or ''
 
     comment_count = extract_comment_count(node)
 
