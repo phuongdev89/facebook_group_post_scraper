@@ -51,7 +51,7 @@ The application runs standalone on Windows **without requiring Python installati
 
 1. **Clone the repository**:
    ```bash
-   git clone https://gitlab.com/phuongdev89/facebook_post_comment_scraper.git
+   git clone https://gitlab.com/phuongdev89/facebook_group_post_scraper.git
    cd facebook_post_comment_scraper
    ```
 

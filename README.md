@@ -52,7 +52,7 @@
 
 1. **Clone repository về máy**:
    ```bash
-   git clone https://gitlab.com/phuongdev89/facebook_post_comment_scraper.git
+   git clone https://gitlab.com/phuongdev89/facebook_group_post_scraper.git
    cd facebook_post_comment_scraper
    ```
 

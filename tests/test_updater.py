@@ -30,11 +30,11 @@ class TestUpdater(unittest.TestCase):
             "name": "Bản phát hành v1.5.0",
             "body": "- Sửa lỗi Telegram\n- Thêm bảng logs",
             "published_at": "2026-08-20T10:00:00Z",
-            "html_url": "https://github.com/phuongdev89/facebook_post_comment_scraper/releases/tag/v1.5.0",
+            "html_url": "https://github.com/phuongdev89/facebook_group_post_scraper/releases/tag/v1.5.0",
             "assets": [
                 {
-                    "name": "FacebookNotification_Patch_v1.5.0.zip",
-                    "browser_download_url": "https://github.com/phuongdev89/facebook_post_comment_scraper/releases/download/v1.5.0/patch.zip"
+                    "name": "FacebookNotification_Patch_v1.5.0.exe",
+                    "browser_download_url": "https://github.com/phuongdev89/facebook_group_post_scraper/releases/download/v1.5.0/FacebookNotification_Patch_v1.5.0.exe"
                 }
             ]
         }
@@ -46,7 +46,7 @@ class TestUpdater(unittest.TestCase):
         self.assertEqual(update_info["current_version"], "1.0.2")
         self.assertEqual(update_info["source"], "github_release")
         self.assertIn("1.5.0", msg)
-        self.assertEqual(update_info["download_url"], "https://github.com/phuongdev89/facebook_post_comment_scraper/releases/download/v1.5.0/patch.zip")
+        self.assertEqual(update_info["download_url"], "https://github.com/phuongdev89/facebook_group_post_scraper/releases/download/v1.5.0/FacebookNotification_Patch_v1.5.0.exe")
 
     @patch("requests.get")
     def test_check_github_update_fallback_raw_version(self, mock_get):

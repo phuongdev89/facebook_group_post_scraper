@@ -14,7 +14,7 @@
 #endif
 
 #define MyAppPublisher "PhuongDev"
-#define MyAppURL "https://gitlab.com/phuongdev89/facebook_post_comment_scraper"
+#define MyAppURL "https://gitlab.com/phuongdev89/facebook_group_post_scraper"
 #define MyAppExeName "FacebookNotification.exe"
 
 [Setup]

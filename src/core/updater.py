@@ -71,22 +71,41 @@ def check_github_update(
             release_url = data.get("html_url") or f"https://github.com/{clean_repo}/releases/latest"
             published_at = data.get("published_at", "")[:10]
 
-            # Tìm file asset tải về (ưu tiên .zip patch hoặc portable hoặc .exe installer)
+            # Tìm file asset tải về (ưu tiên tệp thực thi .exe):
+            # 1. Patch .exe (FacebookNotification_Patch_vX.X.X.exe)
+            # 2. Setup .exe (FacebookNotification_Setup_vX.X.X.exe)
+            # 3. Bất kỳ file .exe nào
+            # 4. Fallback URL trực tiếp theo chuẩn: .../releases/download/{tag}/FacebookNotification_Patch_v{ver}.exe
             assets = data.get("assets", [])
             download_url = ""
+            
+            # Ưu tiên 1: File Patch .exe
             for asset in assets:
                 asset_name = asset.get("name", "").lower()
-                if "patch" in asset_name and asset_name.endswith(".zip"):
+                if "patch" in asset_name and asset_name.endswith(".exe"):
                     download_url = asset.get("browser_download_url", "")
                     break
+            
+            # Ưu tiên 2: File Setup .exe
             if not download_url:
                 for asset in assets:
                     asset_name = asset.get("name", "").lower()
-                    if asset_name.endswith(".zip") or asset_name.endswith(".exe"):
+                    if "setup" in asset_name and asset_name.endswith(".exe"):
                         download_url = asset.get("browser_download_url", "")
                         break
+
+            # Ưu tiên 3: Bất kỳ file .exe nào trong release
             if not download_url:
-                download_url = data.get("zipball_url") or release_url
+                for asset in assets:
+                    asset_name = asset.get("name", "").lower()
+                    if asset_name.endswith(".exe"):
+                        download_url = asset.get("browser_download_url", "")
+                        break
+
+            # Ưu tiên 4: URL trực tiếp file Patch .exe theo chuẩn GitHub Release
+            if not download_url:
+                tag_for_url = raw_tag if raw_tag else latest_ver
+                download_url = f"https://github.com/{clean_repo}/releases/download/{tag_for_url}/FacebookNotification_Patch_v{latest_ver}.exe"
 
             has_update = is_newer_version(latest_ver, cur_ver)
             update_info.update({
@@ -116,11 +135,12 @@ def check_github_update(
             latest_ver = resp.text.strip().lstrip("vV")
             if latest_ver:
                 has_update = is_newer_version(latest_ver, cur_ver)
+                download_url = f"https://github.com/{clean_repo}/releases/download/{latest_ver}/FacebookNotification_Patch_v{latest_ver}.exe"
                 update_info.update({
                     "latest_version": latest_ver,
                     "release_name": f"Phiên bản v{latest_ver}",
                     "changelog": "Vui lòng xem chi tiết cập nhật tại trang GitHub Releases.",
-                    "download_url": f"https://github.com/{clean_repo}/releases/latest",
+                    "download_url": download_url,
                     "release_url": f"https://github.com/{clean_repo}/releases/latest",
                     "source": "raw_version"
                 })

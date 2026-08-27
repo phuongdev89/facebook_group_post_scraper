@@ -8,6 +8,7 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont
 
 from src.core.updater import download_update_file
+from src.utils.helpers import get_app_icon
 
 
 class DownloadWorker(QThread):
@@ -43,6 +44,10 @@ class UpdateDialog(QDialog):
         self.init_ui()
 
     def init_ui(self):
+        icon = get_app_icon()
+        if not icon.isNull():
+            self.setWindowIcon(icon)
+
         latest_ver = self.update_info.get("latest_version", "Mới")
         cur_ver = self.update_info.get("current_version", "")
         pub_date = self.update_info.get("published_at", "")
@@ -195,13 +200,20 @@ class UpdateDialog(QDialog):
             return
 
         latest_ver = self.update_info.get("latest_version", "latest")
-        filename = f"FacebookNotification_v{latest_ver}_update.zip"
+        
+        # Lấy tên file gốc từ URL hoặc giữ nguyên đuôi .exe
+        raw_name = dl_url.split("?")[0].split("/")[-1]
+        if raw_name and raw_name.lower().endswith(".exe"):
+            filename = raw_name
+        else:
+            filename = f"FacebookNotification_Patch_v{latest_ver}.exe"
+
         dest_path = os.path.join(tempfile.gettempdir(), filename)
 
         self.btn_download.setEnabled(False)
         self.progress_bar.setValue(0)
         self.progress_bar.setVisible(True)
-        self.status_label.setText("⏳ Đang tải bản cập nhật từ GitHub...")
+        self.status_label.setText(f"⏳ Đang tải bản cập nhật: {filename}...")
         self.status_label.setVisible(True)
 
         self.download_worker = DownloadWorker(dl_url, dest_path)
@@ -217,24 +229,37 @@ class UpdateDialog(QDialog):
         self.btn_download.setEnabled(True)
         if success:
             self.status_label.setText(f"✅ Tải thành công: {result_path_or_err}")
-            msg_box = QMessageBox(self)
-            msg_box.setIcon(QMessageBox.Icon.Information)
-            msg_box.setWindowTitle("Tải cập nhật thành công")
-            msg_box.setText("🎉 Đã tải bản cập nhật thành công!")
-            msg_box.setInformativeText(
-                f"File cập nhật đã được lưu tại:\n<code>{result_path_or_err}</code>\n\n"
-                "Bạn có muốn mở thư mục chứa file vừa tải để giải nén / cài đặt không?"
-            )
-            btn_open_folder = msg_box.addButton("📂 Mở thư mục", QMessageBox.ButtonRole.ActionRole)
-            msg_box.addButton("Đóng", QMessageBox.ButtonRole.RejectRole)
-            msg_box.exec()
+            filename = os.path.basename(result_path_or_err)
 
-            if msg_box.clickedButton() == btn_open_folder:
-                folder = os.path.dirname(os.path.abspath(result_path_or_err))
-                if sys.platform == 'win32':
-                    os.startfile(folder)
-                else:
-                    webbrowser.open(f"file://{folder}")
+            reply = QMessageBox.question(
+                self,
+                "Cài đặt bản cập nhật",
+                f"🎉 <b>Đã tải bản cập nhật thành công!</b><br><br>"
+                f"• Tệp cài đặt: <code>{filename}</code><br><br>"
+                f"<b>Bạn có muốn cài đặt ngay bây giờ không?</b><br>"
+                f"<i>(Ứng dụng sẽ tự động đóng để khởi chạy bộ cài đặt)</i>",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes
+            )
+
+            if reply == QMessageBox.StandardButton.Yes:
+                try:
+                    import subprocess
+                    if sys.platform == 'win32':
+                        os.startfile(result_path_or_err)
+                    else:
+                        subprocess.Popen([result_path_or_err], shell=True)
+
+                    # Đóng ứng dụng ngay lập tức
+                    from PyQt6.QtWidgets import QApplication
+                    app = QApplication.instance()
+                    if app:
+                        app.quit()
+                    else:
+                        sys.exit(0)
+                except Exception as e:
+                    QMessageBox.critical(self, "Lỗi khởi chạy", f"Không thể tự động chạy tệp cài đặt:\n{e}")
+
             self.accept()
         else:
             self.status_label.setText(f"❌ Tải thất bại: {result_path_or_err}")

@@ -3,7 +3,7 @@
 ## Bối cảnh & Tech Spec Dự án
 
 - **Mục tiêu:** Cào bài viết, comment, reply, ảnh từ Facebook (page, group, single post) qua GraphQL API không chính thức, xuất JSON.
-- **Repo GitLab:** `git@gitlab.com:phuongdev89/facebook_post_comment_scraper.git`. **Nhánh chính: `main`**
+- **Repo GitLab:** `git@gitlab.com:phuongdev89/facebook_group_post_scraper.git`. **Nhánh chính: `main`**
 - **Nhánh làm việc theo quy ước:** `feature/issue-<id>` tạo từ nhánh `main`.
 - **Tech Stack:**
   - **Language:** Python 3.8+

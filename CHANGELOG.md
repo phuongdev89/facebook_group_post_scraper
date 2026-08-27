@@ -20,6 +20,11 @@ Tất cả những thay đổi, cải tiến và bản sửa lỗi của dự á
   - Cho phép người dùng bấm vào bất kỳ tiêu đề cột nào của bảng **Dữ liệu cào** (Tab 2) và **Lịch sử phân tích** (Tab 3) để sắp xếp tăng dần hoặc giảm dần kèm chỉ báo mũi tên trực quan (▲ / ▼).
   - Tích hợp lớp `SmartTableWidgetItem` tự động so sánh số tự nhiên đối với STT, Post ID, Số lượng bình luận và Thời gian đăng bài.
 
+- **Cải Tiến Trình Cập Nhật Tự Động OTA (Tải Trực Tiếp `.exe` & Cài Đặt 1-Click)**:
+  - Tải trực tiếp tệp thực thi bản vá/bộ cài (`FacebookNotification_Patch_vX.X.X.exe` hoặc `Setup_vX.X.X.exe`), giữ nguyên đuôi `.exe` thay vì lưu nhầm dạng `.zip`.
+  - Sau khi tải xong, phần mềm hiển thị hộp thoại xác nhận: **"Bạn có muốn cài đặt ngay bây giờ không?"**.
+  - Khi người dùng bấm **Có (⚡ Cài đặt ngay)**: Ứng dụng tự động khởi chạy tệp cài đặt `.exe` và đóng ứng dụng ngay lập tức mà không cần mở thư mục thủ công.
+
 ### 🛠 Cải Tiến & Tối Ưu (Changed)
 - **Tối Ưu Không Gian & Bố Cục Cột Bảng Dữ Liệu**:
   - **Tab 2 (Dữ liệu cào)**: Rút ngắn cột "Nhóm / Trang" về `150px` với chế độ rút gọn chuỗi (`...`) và tooltip đầy đủ; mở rộng tối đa cột "Nội dung bài viết" (`Stretch`) chiếm toàn bộ diện tích còn trống.
