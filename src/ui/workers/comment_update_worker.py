@@ -38,6 +38,8 @@ class CommentUpdateWorker(QThread):
         self.log("🛑 Nhận được yêu cầu DỪNG cập nhật bình luận...")
 
     def log(self, message: str):
+        from src.utils.file_logger import add_log
+        add_log(message, module="COMMENT_UPDATER")
         self.log_signal.emit(message)
 
     def _apply_proxy(self):

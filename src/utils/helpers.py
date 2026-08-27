@@ -269,3 +269,26 @@ def extract_post_id_from_url(url: str) -> str:
 
 def save_post_data(post_type: str, post_id: str, post_data: dict, comments_data: list = None, db_path: str = None) -> dict:
     return save_or_update_post(post_type, post_id, post_data, comments_data, db_path=db_path)
+
+
+def get_app_icon_path() -> str:
+    """Trả về đường dẫn tuyệt đối đến file icon ứng dụng (.ico, .png, hoặc .svg)"""
+    import os
+    import sys
+    # Support PyInstaller bundle directory or dev source directory
+    base_dir = getattr(sys, '_MEIPASS', os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+    for name in ("icon.ico", "icon.png", "icon.svg"):
+        candidate = os.path.join(base_dir, "assets", name)
+        if os.path.exists(candidate):
+            return candidate
+    return ""
+
+
+def get_app_icon():
+    """Trả về đối tượng QIcon cho cửa sổ ứng dụng"""
+    from PyQt6.QtGui import QIcon
+    icon_path = get_app_icon_path()
+    if icon_path:
+        return QIcon(icon_path)
+    return QIcon()
+

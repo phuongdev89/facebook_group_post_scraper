@@ -112,7 +112,15 @@ facebook_post_comment_scraper/
 │   │   ├── dialogs/                      # Modal dialogs (Cookie, GroupSelect, PromptGuide, Update...)
 │   │   └── workers/                      # Background QThreads (Scraper, AI, Telegram, TestModel...)
 │   └── utils/                            # Helper utilities (Cookie parser, ID extractor, date formatter)
+│       ├── file_logger.py                # Real-time access.log / error.log file logging
+│       └── helpers.py                    # Extract helpers, media parser & app icon loader
+├── assets/                               # Brand identity assets (SVG, PNG 512px, Windows ICO)
+│   ├── favicon.svg
+│   ├── icon.ico
+│   ├── icon.png
+│   └── icon.svg
 ├── guides/                               # Interactive HTML user guides and documentation
+│   ├── favicon.svg                       # Web favicon for guides
 │   └── index.html                        # Web-based detailed documentation and manual
 ├── installer/                            # Inno Setup build configurations
 │   ├── setup.iss                         # Full Windows installer setup script

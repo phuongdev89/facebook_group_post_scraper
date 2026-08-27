@@ -40,6 +40,8 @@ class ScraperThread(QThread):
             self.ai_worker.stop()
 
     def log(self, message):
+        from src.utils.file_logger import add_log
+        add_log(message, module="SCRAPER")
         self.log_signal.emit(message)
 
     def _apply_proxy(self):

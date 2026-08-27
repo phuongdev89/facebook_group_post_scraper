@@ -21,6 +21,8 @@ class GroupFetchWorker(QThread):
         self._is_stopped = True
 
     def log(self, msg: str):
+        from src.utils.file_logger import add_log
+        add_log(msg, module="GROUP_FETCHER")
         self.log_signal.emit(msg)
         self.status_signal.emit(msg)
 

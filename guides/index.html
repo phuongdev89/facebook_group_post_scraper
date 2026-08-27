@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hướng Dẫn Sử Dụng - Facebook Post & Comment Scraper AI</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="alternate icon" type="image/png" href="../assets/icon.png">
     <style>
         :root {
             --primary: #2563eb;
@@ -876,18 +878,17 @@ socks5://admin:123456@103.150.12.34:1080</code></pre>
                     <p>Tích chọn ô vuông ở đầu bảng để chọn tất cả, hoặc tích chọn từng bài viết cụ thể để thao tác.</p>
                 </div>
                 <div class="card">
-                    <div class="card-title">🔍 Xem chi tiết bài đăng</div>
-                    <p>Nhấp đúp chuột vào bất kỳ dòng nào (hoặc bấm <i>Xem chi tiết</i>) để mở cửa sổ xem toàn văn bài đăng, link gốc và danh sách bình luận kèm phản hồi phân cấp.</p>
+                    <div class="card-title">↕️ Sắp xếp tăng/giảm theo cột (Sort A-Z / Z-A)</div>
+                    <p>Bấm trực tiếp vào bất kỳ tiêu đề cột nào trên đầu bảng (STT, Post ID, Nhóm, Số bình luận, Thời gian...) để đảo chiều sắp xếp tăng dần hoặc giảm dần kèm biểu tượng chỉ hướng (▲ / ▼).</p>
                 </div>
                 <div class="card">
-                    <div class="card-title">🗑️ Xóa bản ghi linh hoạt</div>
-                    <p>• <b>Xóa lẻ:</b> Bấm nút Xóa ở cột Thao tác hoặc nhấp chuột phải ➔ Chọn <i>Xóa bài viết này</i>.<br>
-                    • <b>Xóa đã chọn:</b> Xóa nhanh hàng loạt bài viết được tích chọn.<br>
-                    • <b>Xóa tất cả:</b> Xóa trắng toàn bộ bài viết trong cơ sở dữ liệu SQLite.</p>
+                    <div class="card-title">🔍 Xem chi tiết & Rê chuột xem Tooltip</div>
+                    <p>Nhấp đúp chuột vào bất kỳ dòng nào (hoặc bấm <i>Xem chi tiết</i>) để mở cửa sổ xem toàn văn bài đăng, link gốc và danh sách bình luận kèm phản hồi phân cấp. Tên nhóm hoặc nội dung dài tự động rút gọn <code>...</code> và hiển thị trọn vẹn khi rê chuột.</p>
                 </div>
                 <div class="card">
-                    <div class="card-title">📥 Xuất dữ liệu Excel / CSV</div>
-                    <p>Xuất toàn bộ bảng dữ liệu bài viết ra file Excel (.xlsx) hoặc CSV để phân tích, báo cáo hoặc lưu trữ bên ngoài.</p>
+                    <div class="card-title">🗑️ Xóa bản ghi & Xuất Excel / CSV</div>
+                    <p>• <b>Xóa lẻ / Xóa đã chọn / Xóa tất cả:</b> Xóa linh hoạt bài viết trong SQLite.<br>
+                    • <b>Xuất Excel/CSV:</b> Xuất toàn bộ bảng dữ liệu ra file Excel (.xlsx) hoặc CSV để phân tích, báo cáo.</p>
                 </div>
             </div>
         </section>
@@ -923,38 +924,46 @@ socks5://admin:123456@103.150.12.34:1080</code></pre>
             <table>
                 <thead>
                     <tr>
-                        <th style="width: 20%;">Cột</th>
-                        <th>Ý nghĩa</th>
+                        <th style="width: 25%;">Cột dữ liệu</th>
+                        <th>Ý nghĩa & Hành vi hiển thị</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <td><b>Kết quả</b></td>
-                        <td><code>Khớp [Gửi Tele]</code> (Màu xanh) hoặc <code>Bỏ qua [Không khớp]</code> (Màu xám).</td>
+                        <td><b>☑️ Checkbox</b></td>
+                        <td>Tích chọn từng dòng hoặc chọn toàn bộ trang để xóa hàng loạt hoặc gửi lại Telegram.</td>
                     </tr>
                     <tr>
-                        <td><b>Thiết bị / Sản phẩm</b></td>
-                        <td>Tên máy / sản phẩm / dịch vụ cụ thể AI trích xuất được (ví dụ: <i>iPad Pro M1 128GB Wifi</i>).</td>
+                        <td><b>STT / Post ID</b></td>
+                        <td>Định danh bài viết. Hỗ trợ bấm vào tiêu đề cột để sắp xếp số tự nhiên tăng/giảm.</td>
                     </tr>
                     <tr>
-                        <td><b>Giá</b></td>
+                        <td><b>Nhóm / Trang & Mục tiêu</b></td>
+                        <td>Thu gọn hiển thị (<code>...</code>) khi văn bản dài, hiển thị đầy đủ tooltip khi rê chuột vào.</td>
+                    </tr>
+                    <tr>
+                        <td><b>Từ khóa & Model AI</b></td>
+                        <td>Từ khóa kích hoạt và model AI đã thực hiện phân tích bản ghi.</td>
+                    </tr>
+                    <tr>
+                        <td><b>Giá / Ngân sách</b></td>
                         <td>Mức giá do người bán công bố (ví dụ: <i>13.500.000đ</i> hoặc <i>Thương lượng</i>).</td>
                     </tr>
                     <tr>
-                        <td><b>Loại người bán</b></td>
-                        <td>Chủ bài đăng hoặc Người bình luận (kèm trích dẫn câu từ thực tế).</td>
-                    </tr>
-                    <tr>
-                        <td><b>Lý do AI</b></td>
-                        <td>Giải thích tóm tắt vì sao AI đưa ra quyết định thông báo hay bỏ qua.</td>
-                    </tr>
-                    <tr>
                         <td><b>Telegram</b></td>
-                        <td>Trạng thái gửi tin nhắn: <code>Đã gửi</code>, <code>Chưa gửi</code> hoặc <code>Không gửi</code>.</td>
+                        <td>Trạng thái gửi tin nhắn: <code>✅ Đã gửi</code>, <code>⏳ Chờ gửi</code> hoặc <code>❌ Lỗi</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><b>Vai trò & Trích đoạn (Mở rộng)</b></td>
+                        <td>Chủ bài đăng hoặc Người bình luận kèm trích dẫn câu từ thực tế (chiếm diện tích rộng).</td>
+                    </tr>
+                    <tr>
+                        <td><b>Đánh giá AI (Mở rộng)</b></td>
+                        <td>Nhận định chi tiết vì sao AI đưa ra quyết định đánh giá bài viết (chiếm diện tích rộng).</td>
                     </tr>
                 </tbody>
             </table>
-            <p>Hỗ trợ đầy đủ các nút <b>Xóa lẻ</b>, <b>Xóa đã chọn</b>, <b>Xóa tất cả</b> và <b>Xuất Excel/CSV</b>.</p>
+            <p>💡 <b>Mẹo:</b> Bấm vào bất kỳ tiêu đề cột nào trên bảng để sắp xếp dữ liệu (A-Z hoặc Z-A). Hỗ trợ đầy đủ các nút <b>Xóa lẻ</b>, <b>Xóa đã chọn</b>, <b>Xóa tất cả</b> và <b>Xuất Excel/CSV</b>.</p>
         </section>
 
         <!-- Section 15: FAQ & Troubleshooting -->

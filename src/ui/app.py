@@ -40,7 +40,7 @@ import src.core.ai_analyzer as ai_analyzer
 from src.core.updater import check_github_update
 
 # Import scraper modules
-from src.utils.helpers import extract_group_id_from_url, save_post_data
+from src.utils.helpers import extract_group_id_from_url, save_post_data, get_app_icon
 from src.core.comment_scraper import fetch_comments as fetch_comments_for_post
 from src.core.group_scraper import fetch_posts as fetch_group_posts
 from src.core.group_fetcher import fetch_user_joined_groups, parse_cookies_from_any
@@ -94,6 +94,40 @@ def parse_cookies(cookie_string):
             if k and k.lower() not in _JUNK_KEYS:
                 cookies[k] = value.strip()
     return cookies
+
+
+# ==============================================================================
+# Helper: Smart Table Widget Item for Custom Sorting (Numbers, Dates, Strings)
+# ==============================================================================
+class SmartTableWidgetItem(QTableWidgetItem):
+    """Custom QTableWidgetItem supporting natural numeric, timestamp and text sorting."""
+    def __init__(self, text="", sort_key=None):
+        super().__init__(str(text) if text is not None else "")
+        self.sort_key = sort_key
+
+    def __lt__(self, other):
+        if not isinstance(other, QTableWidgetItem):
+            return super().__lt__(other)
+        
+        # 1. Custom sort key if provided
+        k1 = getattr(self, "sort_key", None)
+        k2 = getattr(other, "sort_key", None)
+        if k1 is not None and k2 is not None:
+            try:
+                return k1 < k2
+            except TypeError:
+                return str(k1) < str(k2)
+        
+        # 2. Check if both texts are numeric
+        t1 = self.text().strip().replace(",", "")
+        t2 = other.text().strip().replace(",", "")
+        try:
+            return float(t1) < float(t2)
+        except (ValueError, TypeError):
+            pass
+        
+        # 3. Fallback to case-insensitive text sort
+        return self.text().lower() < other.text().lower()
 
 
 # ==============================================================================
@@ -1674,13 +1708,13 @@ class FacebookNotificationUI(QMainWindow):
 
         # Background Telegram Dispatcher Thread (Quét DB gửi Telegram tự động)
         self.telegram_dispatcher = TelegramDispatcherThread(check_interval=5)
-        self.telegram_dispatcher.log_signal.connect(self.log)
+        self.telegram_dispatcher.log_signal.connect(self.log_ui)
         self.telegram_dispatcher.notification_sent_signal.connect(self.on_telegram_notification_sent)
         self.telegram_dispatcher.start()
 
         # Background AI Dispatcher Thread (Quét DB phân tích AI tự động độc lập)
         self.ai_dispatcher = AIAnalysisWorker(check_interval=3)
-        self.ai_dispatcher.log_signal.connect(self.log)
+        self.ai_dispatcher.log_signal.connect(self.log_ui)
         self.ai_dispatcher.analysis_completed_signal.connect(self.on_ai_analysis_completed)
         self.ai_dispatcher.start()
 
@@ -1712,6 +1746,9 @@ class FacebookNotificationUI(QMainWindow):
     
     def init_ui(self):
         self.setWindowTitle(f"📘 Facebook Scraper & AI Notification System v{APP_VERSION}")
+        app_icon = get_app_icon()
+        if not app_icon.isNull():
+            self.setWindowIcon(app_icon)
         self.setGeometry(100, 100, 1100, 820)
         
         central_widget = QWidget()
@@ -2174,13 +2211,17 @@ class FacebookNotificationUI(QMainWindow):
         self.history_table.setHorizontalHeaderLabels([
             "☑️", "STT", "Post ID", "Nhóm / Trang", "Nội dung bài viết", "Bình luận", "Thời gian", "Hành động"
         ])
+        self.history_table.setTextElideMode(Qt.TextElideMode.ElideRight)
         
         header = self.history_table.horizontalHeader()
+        header.setSectionsClickable(True)
+        header.setSortIndicatorShown(True)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         self.history_table.setColumnWidth(0, 42)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
+        self.history_table.setColumnWidth(3, 150)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
@@ -2191,6 +2232,7 @@ class FacebookNotificationUI(QMainWindow):
         self.history_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.history_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.history_table.setAlternatingRowColors(True)
+        self.history_table.setSortingEnabled(True)
         self.history_table.setStyleSheet("""
             QTableWidget {
                 background-color: #FFFFFF;
@@ -2207,6 +2249,9 @@ class FacebookNotificationUI(QMainWindow):
                 font-size: 12px;
                 padding: 6px;
                 border: 1px solid #E5E7EB;
+            }
+            QHeaderView::section:hover {
+                background-color: #E5E7EB;
             }
             QTableWidget::item:selected {
                 background-color: #DBEAFE;
@@ -2446,7 +2491,7 @@ class FacebookNotificationUI(QMainWindow):
             ai_config=ai_config,
             keywords=keywords
         )
-        self.comment_update_worker.log_signal.connect(self.log)
+        self.comment_update_worker.log_signal.connect(self.log_ui)
         self.comment_update_worker.progress_signal.connect(self.update_progress)
         self.comment_update_worker.post_status_signal.connect(self.on_post_comment_updating_status)
         self.comment_update_worker.finished_signal.connect(self.comment_update_finished)
@@ -2651,6 +2696,7 @@ class FacebookNotificationUI(QMainWindow):
         posts = database.get_all_posts_summary(limit=self.history_page_size, offset=offset, search_query=search_query, filters=filters)
         self.history_posts_data = posts
         
+        self.history_table.setSortingEnabled(False)
         self.history_table.setRowCount(0)
 
         all_page_selected = bool(posts)
@@ -2673,14 +2719,18 @@ class FacebookNotificationUI(QMainWindow):
             creation_time = post.get("creation_time")
             created_at_str = post.get("created_at", "")
             time_display = ""
+            sort_time = 0
             if creation_time:
                 try:
                     dt = datetime.fromtimestamp(int(creation_time))
                     time_display = dt.strftime("%d/%m/%Y %H:%M")
+                    sort_time = int(creation_time)
                 except Exception:
                     time_display = str(creation_time)
+                    sort_time = str(creation_time)
             elif created_at_str:
                 time_display = str(created_at_str)[:16]
+                sort_time = str(created_at_str)
 
             permalink = post.get("permalink") or f"https://www.facebook.com/{post_id}"
 
@@ -2700,31 +2750,41 @@ class FacebookNotificationUI(QMainWindow):
             self.history_table.setCellWidget(row_idx, 0, cb_container)
 
             # Col 1: STT
-            item_stt = QTableWidgetItem(str(offset + row_idx + 1))
+            item_stt = SmartTableWidgetItem(str(offset + row_idx + 1), sort_key=offset + row_idx + 1)
             item_stt.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             item_stt.setData(Qt.ItemDataRole.UserRole, post_id)
 
             # Col 2: Post ID
-            item_id = QTableWidgetItem(post_id)
+            try:
+                pid_key = int(post_id)
+            except ValueError:
+                pid_key = post_id
+            item_id = SmartTableWidgetItem(post_id, sort_key=pid_key)
             item_id.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            item_id.setToolTip(post_id)
             item_id.setData(Qt.ItemDataRole.UserRole, post_id)
 
-            # Col 3: Group Name
-            item_group = QTableWidgetItem(group_name)
+            # Col 3: Group Name (Shortened with full tooltip)
+            item_group = SmartTableWidgetItem(group_name)
+            item_group.setToolTip(group_name)
             item_group.setData(Qt.ItemDataRole.UserRole, post_id)
 
-            # Col 4: Message
-            item_msg = QTableWidgetItem(clean_message)
+            # Col 4: Message (Stretch with full tooltip)
+            item_msg = SmartTableWidgetItem(clean_message)
             item_msg.setToolTip(message)
             item_msg.setData(Qt.ItemDataRole.UserRole, post_id)
 
             # Col 5: Comment Count
-            item_cmt = QTableWidgetItem(str(comment_count))
+            try:
+                cmt_key = int(comment_count)
+            except (ValueError, TypeError):
+                cmt_key = 0
+            item_cmt = SmartTableWidgetItem(str(comment_count), sort_key=cmt_key)
             item_cmt.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             item_cmt.setData(Qt.ItemDataRole.UserRole, post_id)
 
             # Col 6: Time
-            item_time = QTableWidgetItem(time_display)
+            item_time = SmartTableWidgetItem(time_display, sort_key=sort_time)
             item_time.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             item_time.setData(Qt.ItemDataRole.UserRole, post_id)
 
@@ -2774,6 +2834,8 @@ class FacebookNotificationUI(QMainWindow):
             btn_layout.addWidget(del_btn)
 
             self.history_table.setCellWidget(row_idx, 7, btn_container)
+
+        self.history_table.setSortingEnabled(True)
 
         if hasattr(self, 'history_select_all_cb'):
             self.history_select_all_cb.blockSignals(True)
@@ -3039,17 +3101,21 @@ class FacebookNotificationUI(QMainWindow):
         self.ai_analysis_table.setHorizontalHeaderLabels([
             "☑️", "STT", "Post ID", "Nhóm / Trang", "Từ khóa", "Model AI", "Mục tiêu / Nhu cầu", "Giá / Ngân sách", "Telegram", "Vai trò & Trích đoạn", "Đánh giá AI", "Hành động"
         ])
+        self.ai_analysis_table.setTextElideMode(Qt.TextElideMode.ElideRight)
 
-        
         header = self.ai_analysis_table.horizontalHeader()
+        header.setSectionsClickable(True)
+        header.setSortIndicatorShown(True)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         self.ai_analysis_table.setColumnWidth(0, 42)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
+        self.ai_analysis_table.setColumnWidth(3, 130)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Interactive)
+        self.ai_analysis_table.setColumnWidth(6, 130)
         header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(8, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(9, QHeaderView.ResizeMode.Stretch)
@@ -3061,6 +3127,7 @@ class FacebookNotificationUI(QMainWindow):
         self.ai_analysis_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.ai_analysis_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.ai_analysis_table.setAlternatingRowColors(True)
+        self.ai_analysis_table.setSortingEnabled(True)
         self.ai_analysis_table.setStyleSheet("""
             QTableWidget {
                 background-color: #FFFFFF;
@@ -3077,6 +3144,9 @@ class FacebookNotificationUI(QMainWindow):
                 font-size: 12px;
                 padding: 6px;
                 border: 1px solid #DDD6FE;
+            }
+            QHeaderView::section:hover {
+                background-color: #DDD6FE;
             }
             QTableWidget::item:selected {
                 background-color: #DDD6FE;
@@ -3365,6 +3435,7 @@ class FacebookNotificationUI(QMainWindow):
         analyses = database.get_all_ai_analyses(limit=self.ai_page_size, offset=offset, search_query=search_query, filters=filters)
         self.ai_analyses_data = analyses
         
+        self.ai_analysis_table.setSortingEnabled(False)
         self.ai_analysis_table.setRowCount(0)
 
         all_page_selected = bool(analyses)
@@ -3403,62 +3474,74 @@ class FacebookNotificationUI(QMainWindow):
             self.ai_analysis_table.setCellWidget(row_idx, 0, cb_container)
 
             # Col 1: STT
-            item_stt = QTableWidgetItem(str(offset + row_idx + 1))
+            item_stt = SmartTableWidgetItem(str(offset + row_idx + 1), sort_key=offset + row_idx + 1)
             item_stt.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             item_stt.setData(Qt.ItemDataRole.UserRole, post_id)
+            item_stt.setData(Qt.ItemDataRole.UserRole + 1, analysis_id)
 
             # Col 2: Post ID
-            item_id = QTableWidgetItem(post_id)
+            try:
+                pid_key = int(post_id)
+            except ValueError:
+                pid_key = post_id
+            item_id = SmartTableWidgetItem(post_id, sort_key=pid_key)
             item_id.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            item_id.setToolTip(post_id)
             item_id.setData(Qt.ItemDataRole.UserRole, post_id)
+            item_id.setData(Qt.ItemDataRole.UserRole + 1, analysis_id)
 
-            # Col 3: Nhóm / Trang
-            item_group = QTableWidgetItem(group_name)
+            # Col 3: Nhóm / Trang (Shortened with full tooltip)
+            item_group = SmartTableWidgetItem(group_name)
+            item_group.setToolTip(group_name)
             item_group.setData(Qt.ItemDataRole.UserRole, post_id)
+            item_group.setData(Qt.ItemDataRole.UserRole + 1, analysis_id)
 
             # Col 4: Từ khóa khớp
-            item_kw = QTableWidgetItem(matched_kw)
+            item_kw = SmartTableWidgetItem(matched_kw)
             item_kw.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            item_kw.setToolTip(matched_kw)
             item_kw.setData(Qt.ItemDataRole.UserRole, post_id)
 
             # Col 5: Model AI
-            item_model = QTableWidgetItem(model_used)
+            item_model = SmartTableWidgetItem(model_used)
             item_model.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            item_model.setToolTip(model_used)
             item_model.setData(Qt.ItemDataRole.UserRole, post_id)
 
-            # Col 6: Mục tiêu / Nhu cầu
-            item_dev = QTableWidgetItem(target_name)
+            # Col 6: Mục tiêu / Nhu cầu (Shortened with full tooltip)
+            item_dev = SmartTableWidgetItem(target_name)
+            item_dev.setToolTip(target_name)
             item_dev.setData(Qt.ItemDataRole.UserRole, post_id)
 
             # Col 7: Giá / Ngân sách
-            item_price = QTableWidgetItem(price)
+            item_price = SmartTableWidgetItem(price)
             item_price.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            item_price.setToolTip(price)
             item_price.setData(Qt.ItemDataRole.UserRole, post_id)
 
             # Col 8: Trạng thái Telegram
             tg_val = item.get("telegram_sent", 0)
             if tg_val == 1:
-                item_tg = QTableWidgetItem("✅ Đã gửi")
+                item_tg = SmartTableWidgetItem("✅ Đã gửi", sort_key=1)
                 item_tg.setToolTip("Đã gửi cảnh báo Telegram thành công")
             elif tg_val == -1:
-                item_tg = QTableWidgetItem("❌ Lỗi")
+                item_tg = SmartTableWidgetItem("❌ Lỗi", sort_key=-1)
                 item_tg.setToolTip("Gửi Telegram thất bại. Chọn dòng và bấm 'Gửi lại Telegram' để gửi lại.")
             else:
-                item_tg = QTableWidgetItem("⏳ Chờ gửi")
+                item_tg = SmartTableWidgetItem("⏳ Chờ gửi", sort_key=0)
                 item_tg.setToolTip("Đang trong hàng đợi chờ Background Dispatcher Thread gửi.")
             item_tg.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             item_tg.setData(Qt.ItemDataRole.UserRole, post_id)
 
-            # Col 9: Vai trò & Trích đoạn
-            item_snip = QTableWidgetItem(snippet_display)
-            item_snip.setToolTip(matched_snippet)
+            # Col 9: Vai trò & Trích đoạn (Wider with full tooltip)
+            item_snip = SmartTableWidgetItem(snippet_display)
+            item_snip.setToolTip(matched_snippet or snippet_display)
             item_snip.setData(Qt.ItemDataRole.UserRole, post_id)
 
-            # Col 10: Đánh giá AI
-            item_reason = QTableWidgetItem(reason)
+            # Col 10: Đánh giá AI (Wider with full tooltip)
+            item_reason = SmartTableWidgetItem(reason)
             item_reason.setToolTip(reason)
             item_reason.setData(Qt.ItemDataRole.UserRole, post_id)
-
 
             self.ai_analysis_table.setItem(row_idx, 1, item_stt)
             self.ai_analysis_table.setItem(row_idx, 2, item_id)
@@ -3526,6 +3609,8 @@ class FacebookNotificationUI(QMainWindow):
             del_btn.clicked.connect(lambda checked, aid=analysis_id, pid=post_id: self.delete_ai_analysis_record(aid, pid))
             btn_layout.addWidget(del_btn)
 
+        self.ai_analysis_table.setSortingEnabled(True)
+
         if hasattr(self, 'ai_select_all_cb'):
             self.ai_select_all_cb.blockSignals(True)
             self.ai_select_all_cb.setChecked(all_page_selected and bool(analyses))
@@ -3562,11 +3647,9 @@ class FacebookNotificationUI(QMainWindow):
         if not stt_item:
             return
         post_id = stt_item.data(Qt.ItemDataRole.UserRole)
+        analysis_id = stt_item.data(Qt.ItemDataRole.UserRole + 1)
         if not post_id:
             return
-
-        analysis_item = self.ai_analyses_data[row] if row < len(self.ai_analyses_data) else {}
-        analysis_id = analysis_item.get("id")
 
         menu = QMenu(self)
         view_action = menu.addAction("🔍 Xem chi tiết bài viết & bình luận")
@@ -3579,7 +3662,8 @@ class FacebookNotificationUI(QMainWindow):
         if action == view_action:
             self.show_post_detail(post_id)
         elif action == open_action:
-            permalink = analysis_item.get("permalink") or f"https://www.facebook.com/{post_id}"
+            post_data = database.get_post_by_id(str(post_id)) or {}
+            permalink = post_data.get("permalink") or f"https://www.facebook.com/{post_id}"
             webbrowser.open(permalink)
         elif action == copy_id_action:
             QApplication.clipboard().setText(str(post_id))
@@ -4346,7 +4430,7 @@ class FacebookNotificationUI(QMainWindow):
         self.ai_test_worker.model_testing_started.connect(on_model_started)
         self.ai_test_worker.progress_signal.connect(on_progress)
         self.ai_test_worker.model_tested_single.connect(on_single_tested)
-        self.ai_test_worker.log_signal.connect(self.log)
+        self.ai_test_worker.log_signal.connect(self.log_ui)
         self.ai_test_worker.finished_all_signal.connect(on_all_finished)
         self.ai_test_worker.start()
 
@@ -4913,7 +4997,7 @@ class FacebookNotificationUI(QMainWindow):
         self.progress_bar.setValue(0)
 
         self.scraper_thread = ScraperThread(params, self.cookies, self.fb_dtsg, tg_config, ai_config)
-        self.scraper_thread.log_signal.connect(self.log)
+        self.scraper_thread.log_signal.connect(self.log_ui)
         self.scraper_thread.progress_signal.connect(self.update_progress)
         self.scraper_thread.finished_signal.connect(self.scraping_finished)
         self.scraper_thread.start()
@@ -4999,15 +5083,21 @@ class FacebookNotificationUI(QMainWindow):
         self.log_viewer_dialog.raise_()
         self.log_viewer_dialog.activateWindow()
 
-    def log(self, message):
+    def log_ui(self, message):
+        """Cập nhật log lên giao diện (dành cho các worker đã tự ghi file)."""
         self.log_text.append(message)
         cursor = self.log_text.textCursor()
         cursor.movePosition(QTextCursor.MoveOperation.End)
         self.log_text.setTextCursor(cursor)
         if hasattr(self, 'log_viewer_dialog') and self.log_viewer_dialog and self.log_viewer_dialog.isVisible():
             self.log_viewer_dialog.append_log(message)
-        from src.utils.file_logger import add_log as _file_log
-        _file_log(message, level="INFO", module="APP")
+
+    def log(self, message, module="APP", save_to_file=True):
+        """Cập nhật log lên giao diện và ghi trực tiếp vào access.log/error.log."""
+        self.log_ui(message)
+        if save_to_file:
+            from src.utils.file_logger import add_log as _file_log
+            _file_log(message, module=module)
 
     def clear_log(self):
         self.log_text.clear()
@@ -5018,6 +5108,9 @@ class FacebookNotificationUI(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     app.setStyle('Fusion')
+    app_icon = get_app_icon()
+    if not app_icon.isNull():
+        app.setWindowIcon(app_icon)
     window = FacebookNotificationUI()
     window.show()
     sys.exit(app.exec())

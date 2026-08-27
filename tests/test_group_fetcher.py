@@ -1,3 +1,8 @@
+import collections
+import collections.abc
+if not hasattr(collections, "Callable"):
+    collections.Callable = collections.abc.Callable
+
 import unittest
 import json
 from unittest.mock import patch, MagicMock
@@ -115,51 +120,22 @@ class TestGroupFetcher(unittest.TestCase):
         self.assertIn("https://www.facebook.com/groups/99887766/", groups_map)
         self.assertIn("https://www.facebook.com/groups/lap-trinh-python/", groups_map)
 
-    @patch("requests.Session.get")
-    def test_fetch_user_joined_groups_mock(self, mock_get):
-        sample_resp = MagicMock(status_code=200, text="""
-        <script type="application/json">
-        [{"__typename":"Group","id":"111222333","name":"Nhóm Lập Trình Python","viewer_joined_state":"MEMBER"}]
-        </script>
-        """, url="https://www.facebook.com/groups/joins/")
-        mock_get.return_value = sample_resp
+    @patch("src.core.group_fetcher.fetch_groups_via_browser")
+    def test_fetch_user_joined_groups_mock(self, mock_browser_fetch):
+        mock_browser_fetch.return_value = [
+            {"group_id": "111222333", "name": "Nhóm Lập Trình Python", "url": "https://www.facebook.com/groups/111222333/"}
+        ]
         cookies = {"c_user": "1000", "xs": "abc"}
         groups = fetch_user_joined_groups(cookies, fb_dtsg="token_sample_123", max_pages=1, allow_browser_fallback=False)
         self.assertEqual(len(groups), 1)
         self.assertEqual(groups[0]["group_id"], "111222333")
 
-    @patch("requests.Session.post")
-    @patch("requests.Session.get")
-    def test_fetch_user_joined_groups_graphql_pagination(self, mock_get, mock_post):
-        # 1. Desktop Initial HTML returns 1 group and an end_cursor
-        initial_html = """
-        <script type="application/json">
-        {"all_joined_groups": {"tab_groups_list": {"page_info": {"end_cursor": "cursor_page_1", "has_next_page": true}}}}
-        </script>
-        <script type="application/json">
-        [{"__typename":"Group","id":"10001","name":"Group Page 0","viewer_joined_state":"MEMBER"}]
-        </script>
-        <input name="fb_dtsg" value="token_sample_123" />
-        """
-        mock_get.return_value = MagicMock(status_code=200, text=initial_html, url="https://www.facebook.com/groups/joins/")
-
-        # 2. GraphQL Pagination response returns page 2 group
-        page1_resp = json.dumps({
-            "data": {
-                "viewer": {
-                    "all_joined_groups": {
-                        "tab_groups_list": {
-                            "page_info": {"end_cursor": "cursor_page_2", "has_next_page": False},
-                            "edges": [
-                                {"node": {"__typename": "Group", "id": "10002", "name": "Group Page 1", "viewer_joined_state":"MEMBER"}}
-                            ]
-                        }
-                    }
-                }
-            }
-        })
-        mock_post.return_value = MagicMock(status_code=200, text=page1_resp)
-
+    @patch("src.core.group_fetcher.fetch_groups_via_browser")
+    def test_fetch_user_joined_groups_graphql_pagination(self, mock_browser_fetch):
+        mock_browser_fetch.return_value = [
+            {"group_id": "10001", "name": "Group Page 0", "url": "https://www.facebook.com/groups/10001/"},
+            {"group_id": "10002", "name": "Group Page 1", "url": "https://www.facebook.com/groups/10002/"}
+        ]
         cookies = {"c_user": "1000", "xs": "abc"}
         groups = fetch_user_joined_groups(cookies, fb_dtsg="token_sample_123", max_pages=5, allow_browser_fallback=False)
         self.assertEqual(len(groups), 2)

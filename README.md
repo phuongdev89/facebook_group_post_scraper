@@ -113,8 +113,15 @@ facebook_post_comment_scraper/
 │   │   ├── dialogs/                      # Hộp thoại popup (Cookie, GroupSelect, PromptGuide, Update...)
 │   │   └── workers/                      # Các luồng chạy ngầm QThread (Scraper, AI, Telegram, TestModel...)
 │   └── utils/                            # Tiện ích bổ trợ (Xử lý cookie, bóc tách ID, định dạng ngày giờ)
-│       └── file_logger.py                # Ghi log ra file access.log / error.log (thay thế log SQLite)
+│       ├── file_logger.py                # Ghi log ra file access.log / error.log theo thời gian thực
+│       └── helpers.py                    # Trợ giúp trích xuất link, ảnh, token & app icon
+├── assets/                               # Tài nguyên icon nhận diện (SVG, PNG 512px, Windows ICO)
+│   ├── favicon.svg
+│   ├── icon.ico
+│   ├── icon.png
+│   └── icon.svg
 ├── guides/                               # Tài liệu hướng dẫn sử dụng tương tác (HTML)
+│   ├── favicon.svg                       # Web favicon cho tài liệu hướng dẫn
 │   └── index.html                        # Giao diện Web hướng dẫn sử dụng chi tiết
 ├── installer/                            # Kịch bản Inno Setup để tạo bộ cài đặt Windows
 │   ├── setup.iss                         # Kịch bản đóng gói bộ cài đặt chính (Full Setup)

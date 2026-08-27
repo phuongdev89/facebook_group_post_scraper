@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563EB" />
+      <stop offset="50%" stop-color="#1D4ED8" />
+      <stop offset="100%" stop-color="#0F172A" />
+    </linearGradient>
+
+    <!-- Glowing AI Lens Gradient -->
+    <linearGradient id="lensGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="50%" stop-color="#06B6D4" />
+      <stop offset="100%" stop-color="#0284C7" />
+    </linearGradient>
+
+    <!-- Spark Gold/Amber Gradient -->
+    <linearGradient id="sparkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047" />
+      <stop offset="50%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#D97706" />
+    </linearGradient>
+
+    <!-- Drop Shadow Filter -->
+    <filter id="dropShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.45" />
+    </filter>
+
+    <!-- Glow Filter -->
+    <filter id="cyanGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+
+    <filter id="goldGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Main Squircle Background -->
+  <rect x="24" y="24" width="464" height="464" rx="108" fill="url(#bgGrad)" filter="url(#dropShadow)" />
+
+  <!-- Glossy Inner Border / Highlight -->
+  <rect x="26" y="26" width="460" height="460" rx="106" fill="none" stroke="#60A5FA" stroke-width="4" stroke-opacity="0.4" />
+  
+  <!-- Subtle Grid / Radar Target lines in background -->
+  <circle cx="340" cy="170" r="100" fill="none" stroke="#60A5FA" stroke-width="1.5" stroke-opacity="0.2" stroke-dasharray="6,6" />
+  <circle cx="340" cy="170" r="65" fill="none" stroke="#38BDF8" stroke-width="1.5" stroke-opacity="0.25" stroke-dasharray="4,4" />
+
+  <!-- Modern Facebook "f" Symbol -->
+  <g fill="#FFFFFF">
+    <path d="M 275 488 V 305 H 336 L 346 230 H 275 V 182 C 275 160 281 145 313 145 H 350 V 78 C 343 77 321 75 295 75 C 241 75 204 108 204 169 V 230 H 140 V 305 H 204 V 488 Z" />
+  </g>
+
+  <!-- AI Radar / Lens in Top-Right -->
+  <g filter="url(#cyanGlow)">
+    <!-- Lens Outer Ring -->
+    <circle cx="350" cy="160" r="54" fill="#0F172A" stroke="url(#lensGrad)" stroke-width="8" />
+    <!-- Lens Glass Reflection -->
+    <circle cx="350" cy="160" r="46" fill="url(#lensGrad)" fill-opacity="0.35" />
+    <!-- Radar Sweep Arc -->
+    <path d="M 350 114 A 46 46 0 0 1 396 160 L 350 160 Z" fill="#38BDF8" fill-opacity="0.4" />
+  </g>
+
+  <!-- AI Spark / Notification Star in Top Right (4-pointed star) -->
+  <g filter="url(#goldGlow)">
+    <path d="M 390 100 Q 390 135 425 135 Q 390 135 390 170 Q 390 135 355 135 Q 390 135 390 100 Z" fill="url(#sparkGrad)" />
+  </g>
+
+  <!-- Small Comment Pulse Dot at Bottom-Right -->
+  <circle cx="380" cy="380" r="14" fill="#10B981" filter="url(#cyanGlow)" />
+  <circle cx="380" cy="380" r="8" fill="#FFFFFF" />
+</svg>

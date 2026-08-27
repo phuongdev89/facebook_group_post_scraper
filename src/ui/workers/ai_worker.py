@@ -245,6 +245,10 @@ class TestAIModelsWorker(QThread):
     def stop(self):
         self.stop_requested = True
 
+    def log(self, message: str):
+        add_log(message, module="AI_TEST")
+        self.log_signal.emit(message)
+
     def run(self):
         from src.core.ai_analyzer import verify_single_model_pure_json
         results = []
@@ -256,7 +260,7 @@ class TestAIModelsWorker(QThread):
 
             self.model_testing_started.emit(model_name)
             self.progress_signal.emit(idx + 1, total, model_name)
-            self.log_signal.emit(f"🧪 [{idx+1}/{total}] Đang test model: {model_name}...")
+            self.log(f"🧪 [{idx+1}/{total}] Đang test model: {model_name}...")
 
             is_valid, is_thinking, msg, data = verify_single_model_pure_json(
                 base_url=self.base_url,
@@ -278,7 +282,7 @@ class TestAIModelsWorker(QThread):
             self.model_tested_single.emit(res)
             
             status_icon = "✅" if is_valid else ("🧠" if is_thinking else "❌")
-            self.log_signal.emit(f"   {status_icon} Model {model_name}: {msg}")
+            self.log(f"   {status_icon} Model {model_name}: {msg}")
 
         self.finished_all_signal.emit(results)
 

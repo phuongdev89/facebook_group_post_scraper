@@ -4,6 +4,29 @@ Tất cả những thay đổi, cải tiến và bản sửa lỗi của dự á
 
 ---
 
+## [1.0.5] - 2026-08-27
+
+### ✨ Tính Năng Mới (Added)
+- **Ghi Log Thời Gian Thực (`RealtimeFileHandler`)**:
+  - Xây dựng `RealtimeFileHandler` với cơ chế flush bộ đệm và gọi `os.fsync(fileno)` ngay lập tức trên từng dòng log.
+  - Người dùng và nhà phát triển có thể mở xem trực tiếp `access.log` và `error.log` bất kỳ lúc nào trong quá trình quét mà không cần đợi kết thúc phiên quét.
+  - Tự động nhận diện các bản ghi lỗi/cảnh báo (`❌`, `🛑`, `Lỗi`, `Exception`, `Error`, v.v.) để phân luồng đồng thời vào cả `error.log` và `access.log`.
+  - Các worker chạy ngầm (`ScraperThread`, `CommentUpdateWorker`, `GroupFetchWorker`, `AIWorker`, `TelegramWorker`) ghi log trực tiếp xuống file trong thread nền, tránh nghẽn luồng giao diện chính.
+- **Bộ Nhận Diện Thương Hiệu (Favicon & Application Icon)**:
+  - Thiết kế bộ icon nhận diện cao cấp phong cách Facebook Blue + AI Radar Lens & Smart Beacon (đầy đủ định dạng SVG, PNG 512x512 và multi-size Windows ICO `16x16` đến `256x256`).
+  - Tự động tích hợp vào cửa sổ Desktop App (`QMainWindow`, `QApplication`), thanh Taskbar, các Dialogs con và tài liệu web `guides/index.html`.
+  - Tích hợp icon vào file `.exe` PyInstaller và bộ cài đặt Inno Setup (`setup.iss`).
+- **Sắp Xếp Dữ Liệu Linh Hoạt Qua Tiêu Đề Bảng (Click Thead Sort A-Z / Z-A)**:
+  - Cho phép người dùng bấm vào bất kỳ tiêu đề cột nào của bảng **Dữ liệu cào** (Tab 2) và **Lịch sử phân tích** (Tab 3) để sắp xếp tăng dần hoặc giảm dần kèm chỉ báo mũi tên trực quan (▲ / ▼).
+  - Tích hợp lớp `SmartTableWidgetItem` tự động so sánh số tự nhiên đối với STT, Post ID, Số lượng bình luận và Thời gian đăng bài.
+
+### 🛠 Cải Tiến & Tối Ưu (Changed)
+- **Tối Ưu Không Gian & Bố Cục Cột Bảng Dữ Liệu**:
+  - **Tab 2 (Dữ liệu cào)**: Rút ngắn cột "Nhóm / Trang" về `150px` với chế độ rút gọn chuỗi (`...`) và tooltip đầy đủ; mở rộng tối đa cột "Nội dung bài viết" (`Stretch`) chiếm toàn bộ diện tích còn trống.
+  - **Tab 3 (Lịch sử phân tích)**: Rút ngắn cột "Nhóm / Trang" và "Mục tiêu / Nhu cầu" về `130px`; mở rộng toàn diện hai cột "Vai trò & Trích đoạn" và "Đánh giá AI" (`Stretch`) giúp đọc nhận định phân tích rõ ràng và thuận tiện hơn.
+
+---
+
 ## [1.0.4] - 2026-08-27
 
 ### ✨ Tính Năng Mới (Added)

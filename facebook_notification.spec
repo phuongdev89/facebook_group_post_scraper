@@ -24,6 +24,7 @@ hidden_imports = [
 datas = [
     ('src', 'src'),
     ('guides', 'guides'),
+    ('assets', 'assets'),
 ]
 
 # Include version file
@@ -36,6 +37,8 @@ try:
     datas.append((certifi.where(), 'certifi'))
 except ImportError:
     pass
+
+icon_file = 'assets/icon.ico' if os.path.exists('assets/icon.ico') else None
 
 a = Analysis(
     ['run_ui.py'],
@@ -75,7 +78,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,
+    icon=icon_file,
 )
 
 coll = COLLECT(
