@@ -6,6 +6,9 @@ from PyQt6.QtCore import Qt, pyqtSignal, QThread
 from src.core.ai_analyzer import DEFAULT_GEMINI_MODELS, fetch_gemini_models_from_api
 
 
+from src.utils.i18n import tr, get_current_language
+
+
 class FetchGeminiModelsWorker(QThread):
     finished_signal = pyqtSignal(bool, list, str)
 
@@ -40,13 +43,13 @@ class GeminiModelSelectorWidget(QWidget):
 
         # Header bar
         header_layout = QHBoxLayout()
-        self.status_label = QLabel("✨ <b>Danh sách Models Gemini:</b>")
+        self.status_label = QLabel(f"✨ <b>{tr('model_sel_gemini_title')}</b>")
         self.status_label.setStyleSheet("color: #0369A1; font-size: 12px;")
         header_layout.addWidget(self.status_label)
 
         header_layout.addStretch()
 
-        self.btn_select_all = QPushButton("Chọn tất cả")
+        self.btn_select_all = QPushButton(tr("btn_select_all"))
         self.btn_select_all.setStyleSheet("""
             QPushButton {
                 background-color: #F0FDF4;
@@ -62,8 +65,8 @@ class GeminiModelSelectorWidget(QWidget):
         self.btn_select_all.clicked.connect(self.select_all)
         header_layout.addWidget(self.btn_select_all)
 
-        self.btn_refresh = QPushButton("🔄 Tải Models từ Key")
-        self.btn_refresh.setToolTip("Gửi yêu cầu tới Google AI Studio để tải toàn bộ model khả dụng cho API Key của bạn")
+        self.btn_refresh = QPushButton("🔄 " + ("Fetch Models" if get_current_language() == "en" else "Tải Models từ Key"))
+        self.btn_refresh.setToolTip("Fetch all available Gemini models for your API Key" if get_current_language() == "en" else "Gửi yêu cầu tới Google AI Studio để tải toàn bộ model khả dụng cho API Key của bạn")
         self.btn_refresh.setStyleSheet("""
             QPushButton {
                 background-color: #E0F2FE;
@@ -103,6 +106,16 @@ class GeminiModelSelectorWidget(QWidget):
         main_layout.addWidget(self.scroll_area)
 
         self.render_checkboxes()
+
+    def retranslate_ui(self):
+        """Retranslate dynamic labels and buttons"""
+        if hasattr(self, 'status_label'):
+            self.status_label.setText(f"✨ <b>{tr('model_sel_gemini_title')}</b>")
+        if hasattr(self, 'btn_select_all'):
+            self.btn_select_all.setText(tr("btn_select_all"))
+        if hasattr(self, 'btn_refresh'):
+            self.btn_refresh.setText("🔄 " + ("Fetch Models" if get_current_language() == "en" else "Tải Models từ Key"))
+            self.btn_refresh.setToolTip("Fetch all available Gemini models for your API Key" if get_current_language() == "en" else "Gửi yêu cầu tới Google AI Studio để tải toàn bộ model khả dụng cho API Key của bạn")
 
     def set_models(self, models_list: list, selected_names: list[str] = None):
         """Cập nhật danh sách model và trạng thái tích chọn"""

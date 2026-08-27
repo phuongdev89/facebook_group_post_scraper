@@ -5,6 +5,17 @@ from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 block_cipher = None
 
+# Determine project root directory (parent of installer/)
+SPEC_DIR = os.path.dirname(os.path.abspath(SPEC)) if 'SPEC' in locals() else os.path.abspath('.')
+if os.path.basename(SPEC_DIR) == 'installer':
+    ROOT_DIR = os.path.dirname(SPEC_DIR)
+else:
+    ROOT_DIR = SPEC_DIR
+
+# Add ROOT_DIR to sys.path so modules can be imported
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
 # Collect all modules from src
 src_submodules = collect_submodules('src')
 requests_submodules = collect_submodules('requests')
@@ -22,14 +33,15 @@ hidden_imports = [
 ] + src_submodules + requests_submodules
 
 datas = [
-    ('src', 'src'),
-    ('guides', 'guides'),
-    ('assets', 'assets'),
+    (os.path.join(ROOT_DIR, 'src'), 'src'),
+    (os.path.join(ROOT_DIR, 'guides'), 'guides'),
+    (os.path.join(ROOT_DIR, 'assets'), 'assets'),
 ]
 
 # Include version file
-if os.path.exists('.version'):
-    datas.append(('.version', '.'))
+version_file = os.path.join(ROOT_DIR, '.version')
+if os.path.exists(version_file):
+    datas.append((version_file, '.'))
 
 # Optional certifi bundle
 try:
@@ -38,11 +50,12 @@ try:
 except ImportError:
     pass
 
-icon_file = 'assets/icon.ico' if os.path.exists('assets/icon.ico') else None
+icon_path = os.path.join(ROOT_DIR, 'assets', 'icon.ico')
+icon_file = icon_path if os.path.exists(icon_path) else None
 
 a = Analysis(
-    ['run_ui.py'],
-    pathex=[os.path.abspath('.')],
+    [os.path.join(ROOT_DIR, 'run_ui.py')],
+    pathex=[ROOT_DIR],
     binaries=[],
     datas=datas,
     hiddenimports=hidden_imports,

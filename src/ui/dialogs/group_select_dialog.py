@@ -9,6 +9,9 @@ from PyQt6.QtCore import Qt, pyqtSignal, QRect, QPoint, QSize, QEvent
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont
 
 
+from src.utils.i18n import tr, get_current_language
+
+
 def _strip_accents(text: str) -> str:
     """Loại bỏ dấu tiếng Việt để tìm kiếm không phân biệt dấu"""
     if not text:
@@ -32,7 +35,7 @@ class GroupItemDelegate(QStyledItemDelegate):
 
         # Lấy dữ liệu nhóm
         data = index.data(Qt.ItemDataRole.UserRole) or {}
-        name = data.get("name") or "Nhóm chưa đặt tên"
+        name = data.get("name") or ("Unnamed group" if get_current_language() == "en" else "Nhóm chưa đặt tên")
         url = data.get("url") or ""
         check_val = index.data(Qt.ItemDataRole.CheckStateRole)
         is_checked = (check_val in (2, Qt.CheckState.Checked, Qt.CheckState.Checked.value))
@@ -60,13 +63,15 @@ class GroupItemDelegate(QStyledItemDelegate):
         box_rect = QRect(box_x, box_y, box_size, box_size)
 
         if is_checked:
-            # Trạng thái CHECKED: Nền xanh biển đậm + Dấu tích trắng sắc nét
+            # Trạng thái CHECKED: Nền xanh dương #2563EB + Dấu tích trắng ✓
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(QColor("#2563EB")))
             painter.drawRoundedRect(box_rect, 4, 4)
 
-            # Vẽ dấu tích ✓ trắng rõ ràng
-            pen = QPen(QColor("#FFFFFF"), 2.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+            # Vẽ dấu tích ✓ trắng
+            pen = QPen(QColor("#FFFFFF"), 2.2)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
             painter.setPen(pen)
             p1 = QPoint(box_x + 4, box_y + 9)
             p2 = QPoint(box_x + 8, box_y + 13)
@@ -121,7 +126,7 @@ class GroupSelectDialog(QDialog):
     """
     def __init__(self, groups: list[dict], current_existing_urls: list[str] = None, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("📋 Danh sách Nhóm Facebook từ Cookie")
+        self.setWindowTitle("📋 " + ("Facebook Groups from Cookie" if get_current_language() == "en" else "Danh sách Nhóm Facebook từ Cookie"))
         self.resize(780, 580)
         self.setMinimumSize(600, 420)
 
@@ -141,11 +146,11 @@ class GroupSelectDialog(QDialog):
         title_box = QVBoxLayout()
         title_box.setSpacing(2)
 
-        title_label = QLabel("<b>🌐 Danh sách Nhóm Facebook từ Cookie</b>")
+        title_label = QLabel("<b>🌐 " + ("Facebook Groups from Cookie" if get_current_language() == "en" else "Danh sách Nhóm Facebook từ Cookie") + "</b>")
         title_label.setStyleSheet("font-size: 15px; color: #1E3A8A;")
         title_box.addWidget(title_label)
 
-        sub_label = QLabel("Tích chọn các nhóm bạn muốn thêm vào danh sách quét bài viết.")
+        sub_label = QLabel("Select groups you want to add to target scraping list." if get_current_language() == "en" else "Tích chọn các nhóm bạn muốn thêm vào danh sách quét bài viết.")
         sub_label.setStyleSheet("font-size: 12px; color: #4B5563;")
         title_box.addWidget(sub_label)
         header_layout.addLayout(title_box)
@@ -153,7 +158,7 @@ class GroupSelectDialog(QDialog):
         header_layout.addStretch()
 
         # Count Badges
-        self.total_badge = QLabel(f"Tổng: {len(self.all_groups)} nhóm")
+        self.total_badge = QLabel(f"{('Total:' if get_current_language() == 'en' else 'Tổng:')} {len(self.all_groups)} {('groups' if get_current_language() == 'en' else 'nhóm')}")
         self.total_badge.setStyleSheet("""
             background-color: #F3F4F6;
             color: #374151;
@@ -165,7 +170,7 @@ class GroupSelectDialog(QDialog):
         """)
         header_layout.addWidget(self.total_badge)
 
-        self.selected_badge = QLabel("Đã chọn: 0 nhóm")
+        self.selected_badge = QLabel(f"{('Selected:' if get_current_language() == 'en' else 'Đã chọn:')} 0 {('groups' if get_current_language() == 'en' else 'nhóm')}")
         self.selected_badge.setStyleSheet("""
             background-color: #DBEAFE;
             color: #1E40AF;
@@ -198,7 +203,7 @@ class GroupSelectDialog(QDialog):
         filter_layout.addWidget(search_icon)
 
         self.filter_input = QLineEdit()
-        self.filter_input.setPlaceholderText("Lọc nhóm theo tên, URL, hoặc ID nhóm (gõ không dấu hoặc có dấu)...")
+        self.filter_input.setPlaceholderText("Filter groups by name, URL or group ID..." if get_current_language() == "en" else "Lọc nhóm theo tên, URL, hoặc ID nhóm (gõ không dấu hoặc có dấu)...")
         self.filter_input.setStyleSheet("""
             QLineEdit {
                 border: 1px solid #D1D5DB;
@@ -215,7 +220,7 @@ class GroupSelectDialog(QDialog):
         filter_layout.addWidget(self.filter_input, stretch=1)
 
         self.clear_filter_btn = QPushButton("❌")
-        self.clear_filter_btn.setToolTip("Xóa từ khóa lọc")
+        self.clear_filter_btn.setToolTip("Clear filter" if get_current_language() == "en" else "Xóa từ khóa lọc")
         self.clear_filter_btn.setFixedSize(26, 26)
         self.clear_filter_btn.setStyleSheet("""
             QPushButton {
@@ -236,7 +241,7 @@ class GroupSelectDialog(QDialog):
         tools_layout = QHBoxLayout()
         tools_layout.setSpacing(6)
 
-        self.select_all_btn = QPushButton("✅ Chọn tất cả")
+        self.select_all_btn = QPushButton("✅ " + tr("btn_select_all"))
         self.select_all_btn.setStyleSheet("""
             QPushButton {
                 background-color: #EFF6FF;
@@ -252,7 +257,7 @@ class GroupSelectDialog(QDialog):
         self.select_all_btn.clicked.connect(self.select_all)
         tools_layout.addWidget(self.select_all_btn)
 
-        self.deselect_all_btn = QPushButton("⬜ Bỏ chọn")
+        self.deselect_all_btn = QPushButton("⬜ " + tr("btn_deselect_all"))
         self.deselect_all_btn.setStyleSheet("""
             QPushButton {
                 background-color: #F3F4F6;
@@ -268,7 +273,7 @@ class GroupSelectDialog(QDialog):
         self.deselect_all_btn.clicked.connect(self.deselect_all)
         tools_layout.addWidget(self.deselect_all_btn)
 
-        self.select_visible_btn = QPushButton("🔍 Chọn các nhóm đang lọc")
+        self.select_visible_btn = QPushButton("🔍 " + ("Select Filtered" if get_current_language() == "en" else "Chọn các nhóm đang lọc"))
         self.select_visible_btn.setStyleSheet("""
             QPushButton {
                 background-color: #F5F3FF;
@@ -284,7 +289,7 @@ class GroupSelectDialog(QDialog):
         self.select_visible_btn.clicked.connect(self.select_visible)
         tools_layout.addWidget(self.select_visible_btn)
 
-        self.invert_selection_btn = QPushButton("🔄 Đảo chọn")
+        self.invert_selection_btn = QPushButton("🔄 " + tr("group_mgr_invert"))
         self.invert_selection_btn.setStyleSheet("""
             QPushButton {
                 background-color: #F3F4F6;
@@ -302,7 +307,7 @@ class GroupSelectDialog(QDialog):
 
         tools_layout.addStretch()
 
-        self.visible_count_label = QLabel(f"Hiển thị: {len(self.all_groups)} nhóm")
+        self.visible_count_label = QLabel(f"{('Showing:' if get_current_language() == 'en' else 'Hiển thị:')} {len(self.all_groups)} {('groups' if get_current_language() == 'en' else 'nhóm')}")
         self.visible_count_label.setStyleSheet("color: #6B7280; font-size: 11px;")
         tools_layout.addWidget(self.visible_count_label)
 
@@ -325,16 +330,16 @@ class GroupSelectDialog(QDialog):
         import_opts_layout = QHBoxLayout()
         import_opts_layout.setSpacing(16)
         
-        mode_label = QLabel("<b>Chế độ nhập:</b>")
+        mode_label = QLabel("<b>" + ("Import mode:" if get_current_language() == "en" else "Chế độ nhập:") + "</b>")
         mode_label.setStyleSheet("font-size: 12px; color: #374151;")
         import_opts_layout.addWidget(mode_label)
 
-        self.radio_append = QRadioButton("➕ Thêm vào danh sách hiện tại (giữ nhóm cũ, khử trùng)")
+        self.radio_append = QRadioButton("➕ " + ("Append to current list (keep old groups & deduplicate)" if get_current_language() == "en" else "Thêm vào danh sách hiện tại (giữ nhóm cũ, khử trùng)"))
         self.radio_append.setChecked(True)
         self.radio_append.setStyleSheet("font-size: 12px; color: #1F2937;")
         import_opts_layout.addWidget(self.radio_append)
 
-        self.radio_replace = QRadioButton("🔄 Thay thế toàn bộ danh sách hiện tại")
+        self.radio_replace = QRadioButton("🔄 " + ("Replace entire current list" if get_current_language() == "en" else "Thay thế toàn bộ danh sách hiện tại"))
         self.radio_replace.setStyleSheet("font-size: 12px; color: #1F2937;")
         import_opts_layout.addWidget(self.radio_replace)
 
@@ -355,13 +360,13 @@ class GroupSelectDialog(QDialog):
         # 6. Bottom Action Buttons
         btn_layout = QHBoxLayout()
         
-        hint_label = QLabel("💡 <i>Nhấp vào bất kỳ hàng nào để tích chọn/bỏ chọn nhóm.</i>")
+        hint_label = QLabel("💡 <i>" + ("Click any row to toggle selection." if get_current_language() == "en" else "Nhấp vào bất kỳ hàng nào để tích chọn/bỏ chọn nhóm.") + "</i>")
         hint_label.setStyleSheet("color: #6B7280; font-size: 11px;")
         btn_layout.addWidget(hint_label)
 
         btn_layout.addStretch()
 
-        self.cancel_btn = QPushButton("❌ Hủy")
+        self.cancel_btn = QPushButton("❌ " + tr("kw_btn_cancel"))
         self.cancel_btn.setStyleSheet("""
             QPushButton {
                 background-color: #F3F4F6;
@@ -377,7 +382,7 @@ class GroupSelectDialog(QDialog):
         self.cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(self.cancel_btn)
 
-        self.import_btn = QPushButton("📥 Nhập nhóm đã chọn")
+        self.import_btn = QPushButton("📥 " + ("Import Selected Groups" if get_current_language() == "en" else "Nhập nhóm đã chọn"))
         self.import_btn.setStyleSheet("""
             QPushButton {
                 background-color: #2563EB;

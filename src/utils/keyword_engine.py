@@ -606,7 +606,68 @@ def _collect_flat_and(node: ASTNode) -> List[ASTNode]:
     return [node]
 
 
-def explain_node(node: ASTNode) -> str:
+def explain_node(node: ASTNode, lang: str = "vi") -> str:
+    is_en = (lang == "en")
+    if is_en:
+        if node is None:
+            return "no keyword restrictions"
+
+        if isinstance(node, TermNode):
+            return f'keyword "{node.term}"'
+
+        if isinstance(node, NotNode):
+            if isinstance(node.child, TermNode):
+                return f'does not contain keyword "{node.child.term}"'
+            elif isinstance(node.child, OrNode):
+                or_terms = _collect_flat_or(node.child)
+                if _is_all_terms(or_terms):
+                    terms_str = " or ".join([f'"{t.term}"' for t in or_terms])
+                    return f'does not contain any of ({terms_str})'
+            return f'does not contain ({explain_node(node.child, lang)})'
+
+        if isinstance(node, OrNode):
+            branches = _collect_flat_or(node)
+            if _is_all_terms(branches):
+                terms_str = " or ".join([f'"{t.term}"' for t in branches])
+                return f'at least 1 of keywords {terms_str}'
+            return " OR ".join([explain_node(b, lang) for b in branches])
+
+        if isinstance(node, AndNode):
+            branches = _collect_flat_and(node)
+            if _is_all_terms(branches):
+                count = len(branches)
+                terms_str = " and ".join([f'"{t.term}"' for t in branches])
+                return f'contains all {count} terms {terms_str}'
+
+            term_nodes = [b for b in branches if isinstance(b, TermNode)]
+            other_nodes = [b for b in branches if not isinstance(b, TermNode)]
+
+            parts = []
+            if term_nodes:
+                if len(term_nodes) == 1:
+                    parts.append(f'contains keyword "{term_nodes[0].term}"')
+                else:
+                    t_str = " and ".join([f'"{t.term}"' for t in term_nodes])
+                    parts.append(f'contains all {len(term_nodes)} terms {t_str}')
+
+            for on in other_nodes:
+                if isinstance(on, OrNode):
+                    or_terms = _collect_flat_or(on)
+                    if _is_all_terms(or_terms):
+                        terms_str = " or ".join([f'"{t.term}"' for t in or_terms])
+                        parts.append(f'plus at least 1 of keywords {terms_str}')
+                    else:
+                        parts.append(f'plus ({explain_node(on, lang)})')
+                elif isinstance(on, NotNode):
+                    parts.append(f'and {explain_node(on, lang)}')
+                else:
+                    parts.append(f'and ({explain_node(on, lang)})')
+
+            return " ".join(parts)
+
+        return node.to_string()
+
+    # Vietnamese Default
     if node is None:
         return "không giới hạn từ khóa"
 
@@ -621,14 +682,14 @@ def explain_node(node: ASTNode) -> str:
             if _is_all_terms(or_terms):
                 terms_str = " hoặc ".join([f'"{t.term}"' for t in or_terms])
                 return f'không chứa bất kỳ từ khóa nào trong ({terms_str})'
-        return f'không chứa ({explain_node(node.child)})'
+        return f'không chứa ({explain_node(node.child, lang)})'
 
     if isinstance(node, OrNode):
         branches = _collect_flat_or(node)
         if _is_all_terms(branches):
             terms_str = " hoặc ".join([f'"{t.term}"' for t in branches])
             return f'1 trong các từ khóa {terms_str}'
-        return " HOẶC ".join([explain_node(b) for b in branches])
+        return " HOẶC ".join([explain_node(b, lang) for b in branches])
 
     if isinstance(node, AndNode):
         branches = _collect_flat_and(node)
@@ -657,41 +718,70 @@ def explain_node(node: ASTNode) -> str:
                     terms_str = " hoặc ".join([f'"{t.term}"' for t in or_terms])
                     parts.append(f'kèm thêm 1 trong các từ khóa {terms_str}')
                 else:
-                    parts.append(f'kèm thêm ({explain_node(on)})')
+                    parts.append(f'kèm thêm ({explain_node(on, lang)})')
             elif isinstance(on, NotNode):
-                parts.append(f'và {explain_node(on)}')
+                parts.append(f'và {explain_node(on, lang)}')
             else:
-                parts.append(f'và ({explain_node(on)})')
+                parts.append(f'và ({explain_node(on, lang)})')
                 
         return " ".join(parts)
 
     return node.to_string()
 
 
-def explain_expression(expr: str) -> str:
+def explain_expression(expr: str, lang: str = None) -> str:
     """
-    Chuyển đổi biểu thức logic thành câu giải thích tự nhiên bằng tiếng Việt.
+    Chuyển đổi biểu thức logic thành câu giải thích tự nhiên bằng tiếng Việt hoặc tiếng Anh.
     Ví dụ: ("a1" and ("bán" or "pass" or "thanh lý")) or ("combo" and "xé lẻ")
     -> Lọc bài viết có chứa từ khóa "a1" kèm thêm 1 trong các từ khóa "bán" hoặc "pass" hoặc "thanh lý" HOẶC bài viết có chứa cả 2 từ "combo" và "xé lẻ"
     """
+    if lang is None:
+        try:
+            from src.utils.i18n import get_current_language
+            lang = get_current_language()
+        except Exception:
+            lang = "vi"
+
+    is_en = (lang == "en")
     expr = str(expr or "").strip()
     if not expr:
-        return "Không lọc từ khóa (lấy tất cả bài viết và bình luận)."
+        return "No keyword filter (captures all posts and comments)." if is_en else "Không lọc từ khóa (lấy tất cả bài viết và bình luận)."
 
     try:
         tokens = tokenize(expr)
         if not tokens:
-            return "Không lọc từ khóa (lấy tất cả bài viết và bình luận)."
+            return "No keyword filter (captures all posts and comments)." if is_en else "Không lọc từ khóa (lấy tất cả bài viết và bình luận)."
         parser = Parser(tokens)
         ast = parser.parse()
         if ast is None:
-            return "Không lọc từ khóa (lấy tất cả bài viết và bình luận)."
+            return "No keyword filter (captures all posts and comments)." if is_en else "Không lọc từ khóa (lấy tất cả bài viết và bình luận)."
 
+        if is_en:
+            if isinstance(ast, OrNode):
+                or_branches = _collect_flat_or(ast)
+                explained_branches = []
+                for b in or_branches:
+                    b_exp = explain_node(b, lang="en")
+                    if not b_exp.startswith("contains") and not b_exp.startswith("posts") and not b_exp.startswith("post"):
+                        b_exp = f"posts containing {b_exp}"
+                    elif not b_exp.startswith("posts"):
+                        b_exp = f"posts {b_exp}"
+                    explained_branches.append(b_exp)
+                return "Filter " + " OR ".join(explained_branches)
+            else:
+                exp = explain_node(ast, lang="en")
+                if not exp.startswith("contains") and not exp.startswith("posts") and not exp.startswith("post"):
+                    exp = f"posts containing {exp}"
+                elif not exp.startswith("posts"):
+                    exp = f"posts {exp}"
+                return f"Filter {exp}"
+
+        # Vietnamese
         if isinstance(ast, OrNode):
             or_branches = _collect_flat_or(ast)
             explained_branches = []
             for b in or_branches:
-                b_exp = explain_node(b)
+                b_exp = explain_node(b, lang="vi")
                 if not b_exp.startswith("có chứa") and not b_exp.startswith("bài viết") and not b_exp.startswith("chứa"):
                     b_exp = f"bài viết có chứa {b_exp}"
                 elif not b_exp.startswith("bài viết"):
@@ -699,12 +789,12 @@ def explain_expression(expr: str) -> str:
                 explained_branches.append(b_exp)
             return "Lọc " + " HOẶC ".join(explained_branches)
         else:
-            exp = explain_node(ast)
+            exp = explain_node(ast, lang="vi")
             if not exp.startswith("có chứa") and not exp.startswith("bài viết") and not exp.startswith("chứa"):
                 exp = f"bài viết có chứa {exp}"
             elif not exp.startswith("bài viết"):
                 exp = f"bài viết {exp}"
             return f"Lọc {exp}"
     except Exception:
-        return f"Lọc bài viết theo biểu thức: {expr}"
+        return f"Filter posts by expression: {expr}" if is_en else f"Lọc bài viết theo biểu thức: {expr}"
 

@@ -1,6 +1,6 @@
 # Facebook Notification & Scraper AI 🕷️
 
-**[🇻🇳 Tiếng Việt](README.md) | [🇬🇧 English](README.en.md)**
+**[🇻🇳 Tiếng Việt](README.md) | [🇬🇧 English](README.en.md) | [📖 Hướng Dẫn HTML (guides/index.html)](guides/index.html)**
 
 Ứng dụng chuyên nghiệp thu thập (cào) bài viết, bình luận từ các hội nhóm Facebook, tự động phân tích và sàng lọc nội dung bằng AI (Google Gemini & OpenAI / OpenRouter / DeepSeek / Ollama), sau đó gửi cảnh báo tức thì qua Telegram Bot.
 
@@ -8,10 +8,11 @@
 
 ## 🎯 Điểm Nổi Bật
 
+- **🌐 Hỗ Trợ Đa Ngôn Ngữ Tức Thì (Tiếng Việt 🇻🇳 / English 🇬🇧)**: Chuyển đổi toàn bộ giao diện, bảng dữ liệu, diễn giải biểu thức và thông báo sang Tiếng Việt hoặc Tiếng Anh chỉ với 1 cú click vào biểu tượng cờ trên thanh tiêu đề.
 - **Thuần HTTP Requests & Cào Đa Luồng Song Song (1-10 Luồng)**: Hoạt động hoàn toàn qua Facebook GraphQL API và giao thức HTTP, không cần mở trình duyệt giả lập. Hỗ trợ quét song song đồng thời từ 1 đến 10 nhóm Facebook độc lập với tốc độ vượt trội.
-- **Bộ Lọc Từ Khóa Boolean Logic & Diễn Giải Tiếng Việt**:
+- **Bộ Lọc Từ Khóa Boolean Logic & Diễn Giải Ngôn Ngữ Tự Nhiên**:
   - Hỗ trợ xây dựng biểu thức logic chuyên sâu (`AND`, `OR`, `NOT`, `()`).
-  - Hộp thoại cấu hình 2 chế độ: **🧱 Dựng trực quan (Visual Rule Builder)** và **✍️ Tự nhập biểu thức (Raw Expression)**, tự động diễn giải ý nghĩa sang tiếng Việt thời gian thực.
+  - Hộp thoại cấu hình 2 chế độ: **🧱 Dựng trực quan (Visual Rule Builder)** và **✍️ Tự nhập biểu thức (Raw Expression)**, tự động diễn giải ý nghĩa sang tiếng Việt / tiếng Anh thời gian thực.
   - Tùy biến cào bình luận linh hoạt (`Cmt tối thiểu`): `0` (không cào bình luận, nhanh nhất), `-1` (cào tất cả bình luận), `> 0` (cào tối đa/tối thiểu N bình luận/bài, không bỏ qua bài viết ít cmt).
   - Giới hạn thời gian bài viết (Cutoff timestamp): Lọc bài viết 1-7 ngày trước hoặc tùy chỉnh lịch.
 - **Phân Tích AI Đa Nền Tảng & Khử Trùng Lặp Thông Minh**:
@@ -36,12 +37,9 @@
 
 Ứng dụng hỗ trợ chạy độc lập trên Windows mà **không cần cài đặt môi trường Python**:
 
-- **Bộ cài đặt Windows Setup (Khuyến nghị)**:
+- **Bộ cài đặt Windows Setup**:
   1. Tải file `FacebookNotification_Setup_vX.X.X.exe` từ mục Releases.
   2. Nhấp đúp để cài đặt theo hướng dẫn. Ứng dụng sẽ tự tạo biểu tượng trên Desktop và Start Menu.
-- **Gói Portable ZIP (Chạy ngay)**:
-  1. Tải file `FacebookNotification-vX.X.X-windows-x64-portable.zip`.
-  2. Giải nén vào thư mục bất kỳ và nhấp đúp file `FacebookNotification.exe`.
 
 > [!NOTE]
 > **Vị trí lưu trữ dữ liệu:** Toàn bộ cơ sở dữ liệu SQLite (`facebook_scraper.sqlite`), log hoạt động (`access.log`, `error.log`), cấu hình AI, token và lịch sử được lưu trữ tại thư mục:  
@@ -82,14 +80,12 @@
 
 ## 🛠️ Đóng Gói Ứng Dụng (Build & Packaging)
 
-Dự án cung cấp sẵn các công cụ đóng gói chuyên dụng tại thư mục gốc và thư mục `scripts/`:
+Dự án cung cấp sẵn cấu hình PyInstaller và Inno Setup tại thư mục `installer/`:
 
 | Kịch bản | Lệnh thực thi | Kết quả đầu ra |
 | :--- | :--- | :--- |
-| **Bản Standalone (PyInstaller)** | `python scripts/build_standalone.py` | Thư mục chạy độc lập `dist/FacebookNotification/` |
-| **Gói Portable ZIP** | `python scripts/create_portable_zip.py` | File nén `dist/FacebookNotification-vX.X.X-windows-x64-portable.zip` |
-| **Bản Patch siêu nhẹ (.zip & .exe)** | `build_patch.bat` *(hoặc `bash build_patch.sh`)* | File cập nhật đè siêu nhẹ (~14MB) `dist/FacebookNotification_Patch_vX.X.X.*` |
-| **Bộ cài đặt Setup (.exe)** | `build_installer.bat` *(hoặc `bash build_installer.sh`)* | Bộ cài đặt Inno Setup `dist/FacebookNotification_Setup_vX.X.X.exe` |
+| **Bản Standalone (PyInstaller)** | `pyinstaller installer/build.spec` | Thư mục chạy độc lập `dist/FacebookNotification/` |
+| **Bộ cài đặt Setup (.exe)** | `installer/build_setup.bat` *(hoặc `bash installer/build_setup.sh`)* | Bộ cài đặt Inno Setup `dist/FacebookNotification_Setup_vX.X.X.exe` |
 
 ---
 
@@ -114,38 +110,41 @@ facebook_post_comment_scraper/
 │   │   ├── connection.py                 # Quản lý kết nối SQLite & chế độ WAL
 │   │   ├── schema.py                     # Cấu trúc bảng, cột và chỉ mục (indexes)
 │   │   └── repository.py                 # Thao tác dữ liệu (CRUD, khử trùng lặp, nhật ký log)
+│   ├── locales/                          # Từ điển đa ngôn ngữ (i18n)
+│   │   ├── en.json                       # Ngôn ngữ Tiếng Anh
+│   │   └── vi.json                       # Ngôn ngữ Tiếng Việt
 │   ├── ui/                               # Giao diện đồ họa PyQt6
 │   │   ├── app.py                        # Cửa sổ chính (MainWindow) và điều hướng 4 Tab
-│   │   ├── components/                   # Các Widget tùy biến (Gemini/OpenAI Model Selector, TagWidget...)
-│   │   ├── dialogs/                      # Hộp thoại popup (Cookie, GroupSelect, PromptGuide, Update...)
-│   │   └── workers/                      # Các luồng chạy ngầm QThread (Scraper, AI, Telegram, TestModel...)
-│   └── utils/                            # Tiện ích bổ trợ (Xử lý cookie, bóc tách ID, định dạng ngày giờ)
+│   │   ├── components/                   # Các Widget tùy biến (Model Selector, Keyword Filter...)
+│   │   ├── dialogs/                      # Hộp thoại popup (Cookie, GroupSelect, PromptGuide...)
+│   │   └── workers/                      # Các luồng chạy ngầm QThread (Scraper, AI, Telegram...)
+│   └── utils/                            # Tiện ích bổ trợ (i18n, keyword engine, logger, helpers)
+│       ├── i18n.py                       # Quản lý ngôn ngữ động thời gian thực
+│       ├── keyword_engine.py             # Bộ phân tích AST & giải nghĩa từ khóa Boolean
 │       ├── file_logger.py                # Ghi log ra file access.log / error.log theo thời gian thực
 │       └── helpers.py                    # Trợ giúp trích xuất link, ảnh, token & app icon
-├── assets/                               # Tài nguyên icon nhận diện (SVG, PNG 512px, Windows ICO)
+├── assets/                               # Tài nguyên icon nhận diện (SVG, PNG 512px, Windows ICO, cờ quốc gia)
+│   ├── flags/                            # Icon cờ chuyển đổi ngôn ngữ (vn.svg, us.svg)
 │   ├── favicon.svg
 │   ├── icon.ico
 │   ├── icon.png
 │   └── icon.svg
-├── guides/                               # Tài liệu hướng dẫn sử dụng tương tác (HTML)
+├── guides/                               # Tài liệu hướng dẫn sử dụng tương tác (HTML song ngữ)
 │   ├── favicon.svg                       # Web favicon cho tài liệu hướng dẫn
-│   └── index.html                        # Giao diện Web hướng dẫn sử dụng chi tiết
-├── installer/                            # Kịch bản Inno Setup để tạo bộ cài đặt Windows
-│   ├── setup.iss                         # Kịch bản đóng gói bộ cài đặt chính (Full Setup)
-│   └── patch.iss                         # Kịch bản đóng gói bản cập nhật vá lỗi (Lightweight Patch)
-├── scripts/                              # Các kịch bản Python hỗ trợ đóng gói và phân phối
-│   ├── build_standalone.py               # Đóng gói PyInstaller kèm file metadata phiên bản
-│   ├── create_portable_zip.py            # Nén thư mục độc lập thành file Portable ZIP
-│   └── create_patch_zip.py               # Tạo file ZIP bản vá siêu nhẹ
+│   ├── index.html                        # Hướng dẫn chi tiết Tiếng Việt
+│   └── en.html                           # Hướng dẫn chi tiết English
+├── installer/                            # Kịch bản đóng gói PyInstaller & Inno Setup
+│   ├── build.spec                        # File cấu hình PyInstaller
+│   ├── setup.iss                         # Kịch bản Inno Setup tạo bộ cài đặt Windows
+│   ├── build_setup.bat                   # File thực thi build setup trên Windows
+│   └── build_setup.sh                    # Shell script build setup trên Linux/macOS
 ├── tests/                                # Bộ bài kiểm thử tự động (Unit Tests)
-├── build_installer.bat / .sh             # Lệnh 1-click tạo bộ cài đặt Full Setup
-├── build_patch.bat / .sh                 # Lệnh 1-click tạo bản cập nhật Patch
-├── facebook_notification.spec            # Cấu hình đóng gói PyInstaller
 ├── run_ui.py                            # Điểm khởi chạy ứng dụng chính
 ├── .version                              # File định danh phiên bản duy nhất của ứng dụng
 ├── CHANGELOG.md                          # Chi tiết lịch sử thay đổi qua các phiên bản
-├── README.en.md                          # Tài liệu tiếng Anh (English Documentation)
-└── README.md                             # Tài liệu giới thiệu tổng quan dự án
+├── CHANGELOG.en.md                       # Changelog in English
+├── README.md                             # Tài liệu giới thiệu tiếng Việt
+└── README.en.md                          # English Documentation
 ```
 
 ---

@@ -13,8 +13,8 @@ import src.core.comment_scraper as cs
 import src.core.group_scraper as gs
 
 def test_version():
-    assert c.APP_VERSION == "1.0.7", f"Expected 1.0.7, got {c.APP_VERSION}"
-    print("✅ Version check passed: v1.0.7")
+    assert c.APP_VERSION in ("1.0.7", "1.0.8"), f"Expected 1.0.7 or 1.0.8, got {c.APP_VERSION}"
+    print(f"✅ Version check passed: v{c.APP_VERSION}")
 
 def test_keyword_complex_logic():
     expr = '("a1" and ("bán" or "pass" or "thanh lý")) or ("combo" and "xé lẻ")'

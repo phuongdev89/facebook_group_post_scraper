@@ -18,6 +18,9 @@ from src.utils.keyword_engine import (
 )
 
 
+from src.utils.i18n import tr, get_current_language
+
+
 class ConditionRowWidget(QWidget):
     """Một dòng điều kiện trong nhóm: [Dropdown AND/OR/NOT] [Ô nhập từ khóa] [Nút Xóa]"""
     changed = pyqtSignal()
@@ -34,9 +37,9 @@ class ConditionRowWidget(QWidget):
         layout.setSpacing(6)
 
         self.op_combo = QComboBox()
-        self.op_combo.addItem("VÀ (AND)", "AND")
-        self.op_combo.addItem("HOẶC (OR)", "OR")
-        self.op_combo.addItem("KHÔNG CHỨA (NOT)", "NOT")
+        self.op_combo.addItem(tr("filter_op_and"), "AND")
+        self.op_combo.addItem(tr("filter_op_or"), "OR")
+        self.op_combo.addItem(tr("filter_op_not"), "NOT")
         self.op_combo.setFixedWidth(140)
         self.op_combo.setStyleSheet("""
             QComboBox {
@@ -63,7 +66,7 @@ class ConditionRowWidget(QWidget):
         # Text input
         self.text_input = QLineEdit()
         self.text_input.setText(text)
-        self.text_input.setPlaceholderText("Nhập từ đơn lẻ hoặc cụm từ (ví dụ: a1, bán, xé lẻ)...")
+        self.text_input.setPlaceholderText(tr("filter_input_placeholder"))
         self.text_input.setStyleSheet("""
             QLineEdit {
                 padding: 5px 8px;
@@ -106,6 +109,20 @@ class ConditionRowWidget(QWidget):
             self.op_combo.setCurrentIndex(idx)
         self.text_input.setText(text)
 
+    def retranslate_ui(self):
+        curr_op = self.op_combo.currentData()
+        self.op_combo.blockSignals(True)
+        self.op_combo.clear()
+        self.op_combo.addItem(tr("filter_op_and"), "AND")
+        self.op_combo.addItem(tr("filter_op_or"), "OR")
+        self.op_combo.addItem(tr("filter_op_not"), "NOT")
+        idx = self.op_combo.findData(curr_op)
+        if idx >= 0:
+            self.op_combo.setCurrentIndex(idx)
+        self.op_combo.blockSignals(False)
+        if hasattr(self, 'text_input'):
+            self.text_input.setPlaceholderText(tr("filter_input_placeholder"))
+
 
 class GroupCardWidget(QFrame):
     """Khối một nhóm điều kiện (Hỗ trợ toán tử nối từ nhóm 2 trở đi)"""
@@ -143,14 +160,14 @@ class GroupCardWidget(QFrame):
         op_h_layout.setContentsMargins(0, 0, 0, 0)
         op_h_layout.setSpacing(4)
 
-        op_prefix_lbl = QLabel("Toán tử nối:")
+        op_prefix_lbl = QLabel(tr("filter_op_prefix"))
         op_prefix_lbl.setStyleSheet("color: #4B5563; font-size: 11px; font-weight: bold;")
         op_h_layout.addWidget(op_prefix_lbl)
 
         self.group_op_combo = QComboBox()
-        self.group_op_combo.addItem("HOẶC (OR)", "OR")
-        self.group_op_combo.addItem("VÀ (AND)", "AND")
-        self.group_op_combo.addItem("VÀ KHÔNG CHỨA (AND NOT)", "NOT")
+        self.group_op_combo.addItem(tr("filter_op_or"), "OR")
+        self.group_op_combo.addItem(tr("filter_op_and"), "AND")
+        self.group_op_combo.addItem(tr("filter_op_not"), "NOT")
         self.group_op_combo.setFixedWidth(175)
         self.group_op_combo.setStyleSheet("""
             QComboBox {
@@ -174,7 +191,7 @@ class GroupCardWidget(QFrame):
         op_h_layout.addWidget(self.group_op_combo)
         header_layout.addWidget(self.group_op_container)
 
-        self.badge_lbl = QLabel(f"🔹 Nhóm điều kiện #{self.group_index}")
+        self.badge_lbl = QLabel(tr("filter_group_badge").format(idx=self.group_index))
         self.badge_lbl.setStyleSheet("font-weight: bold; color: #1E293B; font-size: 12px;")
         header_layout.addWidget(self.badge_lbl)
 
@@ -183,7 +200,7 @@ class GroupCardWidget(QFrame):
 
         header_layout.addStretch()
 
-        self.del_group_btn = QPushButton("🗑️ Xóa nhóm")
+        self.del_group_btn = QPushButton(tr("filter_del_group"))
         self.del_group_btn.setStyleSheet("""
             QPushButton {
                 background-color: transparent;
@@ -209,7 +226,7 @@ class GroupCardWidget(QFrame):
 
         # Bottom action bar of this group
         btn_layout = QHBoxLayout()
-        add_cond_btn = QPushButton("+ Thêm điều kiện trong nhóm")
+        add_cond_btn = QPushButton(tr("filter_add_cond"))
         add_cond_btn.setStyleSheet("""
             QPushButton {
                 background-color: #EEF2FF;
@@ -250,7 +267,7 @@ class GroupCardWidget(QFrame):
 
     def set_group_index(self, idx: int):
         self.group_index = idx
-        self.badge_lbl.setText(f"🔹 Nhóm điều kiện #{self.group_index}")
+        self.badge_lbl.setText(tr("filter_group_badge").format(idx=self.group_index))
         if hasattr(self, 'group_op_container'):
             self.group_op_container.setVisible(self.group_index > 1)
 
@@ -266,6 +283,28 @@ class GroupCardWidget(QFrame):
             "group_op": self.get_group_op(),
             "items": items if items else [{"op": "AND", "text": ""}]
         }
+
+    def retranslate_ui(self):
+        curr_op = self.group_op_combo.currentData()
+        self.group_op_combo.blockSignals(True)
+        self.group_op_combo.clear()
+        self.group_op_combo.addItem(tr("filter_op_or"), "OR")
+        self.group_op_combo.addItem(tr("filter_op_and"), "AND")
+        self.group_op_combo.addItem(tr("filter_op_not"), "NOT")
+        idx = self.group_op_combo.findData(curr_op)
+        if idx >= 0:
+            self.group_op_combo.setCurrentIndex(idx)
+        self.group_op_combo.blockSignals(False)
+
+        if hasattr(self, 'badge_lbl'):
+            self.badge_lbl.setText(tr("filter_group_badge").format(idx=self.group_index))
+        if hasattr(self, 'del_group_btn'):
+            self.del_group_btn.setText(tr("filter_del_group"))
+        if hasattr(self, 'add_cond_btn'):
+            self.add_cond_btn.setText(tr("filter_add_cond"))
+        for r in self.rows:
+            if hasattr(r, 'retranslate_ui'):
+                r.retranslate_ui()
 
 
 class KeywordFilterWidget(QWidget):
@@ -290,19 +329,19 @@ class KeywordFilterWidget(QWidget):
 
         # Header Box
         header_box = QHBoxLayout()
-        header_lbl = QLabel("<b>Bộ lọc Từ khóa & Biểu thức Logic:</b>")
+        header_lbl = QLabel(f"<b>{tr('kw_card_title')}</b>")
         header_lbl.setStyleSheet("font-size: 12px; color: #1E293B;")
         header_box.addWidget(header_lbl)
 
         # Mode Selection Radio Buttons
         self.mode_group = QButtonGroup(self)
         
-        self.radio_visual = QRadioButton("🧱 Dựng điều kiện trực quan (Visual Builder)")
+        self.radio_visual = QRadioButton(tr("filter_mode_visual"))
         self.radio_visual.setChecked(True)
         self.mode_group.addButton(self.radio_visual, 0)
         header_box.addWidget(self.radio_visual)
 
-        self.radio_raw = QRadioButton("✍️ Tự nhập biểu thức (Raw Expression)")
+        self.radio_raw = QRadioButton(tr("filter_mode_raw"))
         self.mode_group.addButton(self.radio_raw, 1)
         header_box.addWidget(self.radio_raw)
 
@@ -311,7 +350,7 @@ class KeywordFilterWidget(QWidget):
         header_box.addStretch()
 
         # Syntax Status Label
-        self.syntax_status_lbl = QLabel("✅ Cú pháp hợp lệ")
+        self.syntax_status_lbl = QLabel(tr("filter_syntax_valid"))
         self.syntax_status_lbl.setStyleSheet("color: #10B981; font-weight: bold; font-size: 11px;")
         header_box.addWidget(self.syntax_status_lbl)
 
@@ -345,7 +384,7 @@ class KeywordFilterWidget(QWidget):
 
         # Bottom Bar of Visual Builder
         bottom_bar = QHBoxLayout()
-        add_group_btn = QPushButton("➕ Thêm nhóm điều kiện mới")
+        add_group_btn = QPushButton(tr("filter_add_new_group"))
         add_group_btn.setStyleSheet("""
             QPushButton {
                 background-color: #10B981;
@@ -361,21 +400,21 @@ class KeywordFilterWidget(QWidget):
         bottom_bar.addWidget(add_group_btn)
 
         bottom_bar.addSpacing(15)
-        preset_lbl = QLabel("Mẫu nhanh:")
+        preset_lbl = QLabel(tr("filter_quick_presets"))
         preset_lbl.setStyleSheet("color: #6B7280; font-size: 11px;")
         bottom_bar.addWidget(preset_lbl)
 
-        btn_sample1 = QPushButton('Mẫu A1 Bán/Pass')
+        btn_sample1 = QPushButton("Mẫu A1 Bán/Pass" if get_current_language() == "vi" else "Preset: Buy/Sell A1")
         btn_sample1.setStyleSheet("font-size: 10px; padding: 3px 6px;")
         btn_sample1.clicked.connect(lambda: self.set_expression('("a1" and ("bán" or "pass" or "thanh lý")) or ("combo" and "xé lẻ")'))
         bottom_bar.addWidget(btn_sample1)
 
-        btn_sample2 = QPushButton('Mẫu Phủ định NOT lock')
+        btn_sample2 = QPushButton("Mẫu Phủ định NOT lock" if get_current_language() == "vi" else "Preset: NOT lock")
         btn_sample2.setStyleSheet("font-size: 10px; padding: 3px 6px;")
         btn_sample2.clicked.connect(lambda: self.set_expression('(iphone or samsung) and not (lock or "dính icloud" or xác)'))
         bottom_bar.addWidget(btn_sample2)
 
-        btn_clear = QPushButton('Xóa hết')
+        btn_clear = QPushButton(tr("filter_btn_clear"))
         btn_clear.setStyleSheet("font-size: 10px; padding: 3px 6px; color: #DC2626;")
         btn_clear.clicked.connect(self.clear_all)
         bottom_bar.addWidget(btn_clear)
@@ -408,7 +447,7 @@ class KeywordFilterWidget(QWidget):
         self.raw_expr_input.textChanged.connect(self.on_raw_input_changed)
         raw_layout.addWidget(self.raw_expr_input)
 
-        raw_hint = QLabel("<i>💡 Cú pháp: Dùng toán tử <b>AND</b>, <b>OR</b>, <b>NOT</b> và dấu ngoặc <b>( )</b>. Cụm từ nhiều từ đặt trong dấu ngoặc kép <b>\"...\"</b>.</i>")
+        raw_hint = QLabel(tr("filter_raw_hint"))
         raw_hint.setStyleSheet("color: #6B7280; font-size: 11px;")
         raw_layout.addWidget(raw_hint)
 
@@ -484,10 +523,10 @@ class KeywordFilterWidget(QWidget):
         ok, msg = validate_expression(expr_clean)
 
         if not expr_clean:
-            self.syntax_status_lbl.setText("ℹ️ Chưa nhập điều kiện (Không lọc)")
+            self.syntax_status_lbl.setText(tr("filter_syntax_empty"))
             self.syntax_status_lbl.setStyleSheet("color: #6B7280; font-size: 11px;")
         elif ok:
-            self.syntax_status_lbl.setText("✅ Cú pháp hợp lệ")
+            self.syntax_status_lbl.setText(tr("filter_syntax_valid"))
             self.syntax_status_lbl.setStyleSheet("color: #10B981; font-weight: bold; font-size: 11px;")
         else:
             self.syntax_status_lbl.setText(msg)
@@ -509,8 +548,8 @@ class KeywordFilterWidget(QWidget):
             if raw_text and not ok:
                 QMessageBox.warning(
                     self,
-                    "Cú pháp biểu thức chưa hợp lệ",
-                    f"Biểu thức hiện tại có lỗi cú pháp:\n{msg}\n\nVui lòng sửa lại trước khi chuyển sang chế độ trực quan."
+                    "Invalid Syntax" if get_current_language() == "en" else "Cú pháp biểu thức chưa hợp lệ",
+                    f"{msg}"
                 )
                 # Rollback radio về Raw
                 self.radio_raw.setChecked(True)
@@ -574,3 +613,26 @@ class KeywordFilterWidget(QWidget):
         self._suppress_events = False
 
         self.validate_and_emit(expr)
+
+    def retranslate_ui(self):
+        """Retranslate dynamic labels, radio buttons and placeholders"""
+        if hasattr(self, 'radio_visual'):
+            self.radio_visual.setText(tr("filter_mode_visual"))
+        if hasattr(self, 'radio_raw'):
+            self.radio_raw.setText(tr("filter_mode_raw"))
+        if hasattr(self, 'btn_add_group'):
+            self.btn_add_group.setText(tr("filter_btn_add_group"))
+        if hasattr(self, 'btn_clear'):
+            self.btn_clear.setText(tr("filter_btn_clear"))
+        if hasattr(self, 'raw_expr_input'):
+            self.raw_expr_input.setPlaceholderText(
+                'e.g.: ("a1" and ("sell" or "pass")) or ("combo" and "split")'
+                if get_current_language() == "en" else
+                'Ví dụ: ("a1" and ("bán" or "pass" or "thanh lý")) or ("combo" and "xé lẻ")'
+            )
+        if hasattr(self, 'raw_hint'):
+            self.raw_hint.setText(tr("filter_raw_hint"))
+        for g in self.groups_widgets:
+            if hasattr(g, 'retranslate_ui'):
+                g.retranslate_ui()
+        self.validate_and_emit(self.get_expression())

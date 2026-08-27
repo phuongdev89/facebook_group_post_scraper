@@ -4,6 +4,19 @@ Tất cả những thay đổi, cải tiến và bản sửa lỗi của dự á
 
 ---
 
+## [1.0.8] - 2026-08-28
+
+### ✨ Tính Năng Mới & Đa Ngôn Ngữ (Added)
+- **Hệ Thống Đa Ngôn Ngữ Tức Thì (Multilingual i18n - Tiếng Việt 🇻🇳 & English 🇬🇧)**:
+  - Tích hợp bộ chuyển đổi ngôn ngữ động với 2 file từ điển JSON chuẩn hóa tại `src/locales/vi.json` và `src/locales/en.json`.
+  - Bổ sung 2 nút icon lá cờ (🇻🇳 và 🇬🇧) ở góc trên bên phải thanh tiêu đề: Nhấp để chuyển đổi ngôn ngữ tức thì cho toàn bộ giao diện, bảng dữ liệu, nút tác vụ, hộp thoại cài đặt, cookie và bộ lọc.
+  - Tự động lưu lựa chọn ngôn ngữ vào SQLite và khôi phục khi mở lại app.
+  - Xây dựng tài liệu hướng dẫn sử dụng chi tiết song ngữ giao diện web HTML [`guides/index.html`](guides/index.html) và [`guides/en.html`](guides/en.html).
+- **Bộ Lọc Từ Khóa Diễn Giải Đa Ngôn Ngữ**:
+  - Tự động dịch và giải nghĩa biểu thức logic từ khóa sang ngôn ngữ tự nhiên thời gian thực theo ngôn ngữ đang chọn (Tiếng Việt hoặc Tiếng Anh).
+
+---
+
 ## [1.0.7] - 2026-08-27
 
 ### ✨ Tính Năng Mới & Kiến Trúc Đa Luồng (Added)

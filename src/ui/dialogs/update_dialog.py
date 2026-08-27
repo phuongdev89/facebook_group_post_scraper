@@ -11,6 +11,9 @@ from src.core.updater import download_update_file
 from src.utils.helpers import get_app_icon
 
 
+from src.utils.i18n import tr, get_current_language
+
+
 class DownloadWorker(QThread):
     progress_signal = pyqtSignal(int)
     finished_signal = pyqtSignal(bool, str)
@@ -48,20 +51,20 @@ class UpdateDialog(QDialog):
         if not icon.isNull():
             self.setWindowIcon(icon)
 
-        latest_ver = self.update_info.get("latest_version", "Mới")
+        latest_ver = self.update_info.get("latest_version", "New")
         cur_ver = self.update_info.get("current_version", "")
         pub_date = self.update_info.get("published_at", "")
         changelog = self.update_info.get("changelog", "")
-        rel_name = self.update_info.get("release_name") or f"Phiên bản v{latest_ver}"
+        rel_name = self.update_info.get("release_name") or f"Version v{latest_ver}"
         
-        self.setWindowTitle(f"🔄 Cập nhật phần mềm — v{latest_ver}")
+        self.setWindowTitle(f"🔄 {tr('update_dialog_title')} — v{latest_ver}")
         self.setFixedSize(580, 520)
 
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
 
         # Header Title
-        header_label = QLabel("🚀 Đã có phiên bản cập nhật mới!")
+        header_label = QLabel("🚀 " + ("New Version Available!" if get_current_language() == "en" else "Đã có phiên bản cập nhật mới!"))
         header_font = QFont("Arial", 14, QFont.Weight.Bold)
         header_label.setFont(header_font)
         header_label.setStyleSheet("color: #1E40AF; margin-top: 4px;")
@@ -81,27 +84,31 @@ class UpdateDialog(QDialog):
         info_layout.setSpacing(6)
 
         v_row = QHBoxLayout()
-        v_label = QLabel(f"<b>Phiên bản mới:</b> <span style='color: #15803D; font-size: 14px; font-weight: bold;'>v{latest_ver}</span> (Hiện tại: <code>v{cur_ver}</code>)")
+        v_label = QLabel(
+            f"<b>{('New Version:' if get_current_language() == 'en' else 'Phiên bản mới:')}</b> "
+            f"<span style='color: #15803D; font-size: 14px; font-weight: bold;'>v{latest_ver}</span> "
+            f"({('Current:' if get_current_language() == 'en' else 'Hiện tại:')} <code>v{cur_ver}</code>)"
+        )
         v_row.addWidget(v_label)
         if pub_date:
-            d_label = QLabel(f"<span style='color: #6B7280; font-size: 11px;'>Phát hành: {pub_date}</span>")
+            d_label = QLabel(f"<span style='color: #6B7280; font-size: 11px;'>{('Published:' if get_current_language() == 'en' else 'Phát hành:')} {pub_date}</span>")
             d_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             v_row.addWidget(d_label)
         info_layout.addLayout(v_row)
 
-        if rel_name and rel_name != f"Phiên bản v{latest_ver}":
-            name_lbl = QLabel(f"<b>Tiêu đề:</b> {rel_name}")
+        if rel_name and rel_name != f"Version v{latest_ver}" and rel_name != f"Phiên bản v{latest_ver}":
+            name_lbl = QLabel(f"<b>{('Title:' if get_current_language() == 'en' else 'Tiêu đề:')}</b> {rel_name}")
             name_lbl.setStyleSheet("color: #374151; font-size: 12px;")
             info_layout.addWidget(name_lbl)
 
         layout.addWidget(info_frame)
 
         # Changelog Label & Box
-        layout.addWidget(QLabel("<b>Nội dung cập nhật / Ghi chú phát hành (Changelog):</b>"))
+        layout.addWidget(QLabel(f"<b>{tr('update_changelog_title')}</b>"))
 
         self.changelog_text = QTextEdit()
         self.changelog_text.setReadOnly(True)
-        self.changelog_text.setPlainText(changelog if changelog else "Không có ghi chú chi tiết cho bản cập nhật này.")
+        self.changelog_text.setPlainText(changelog if changelog else ("No detailed release notes." if get_current_language() == "en" else "Không có ghi chú chi tiết cho bản cập nhật này."))
         self.changelog_text.setStyleSheet("""
             QTextEdit {
                 background-color: #F9FAFB;
@@ -140,7 +147,7 @@ class UpdateDialog(QDialog):
         # Action Buttons
         btn_layout = QHBoxLayout()
 
-        self.btn_open_web = QPushButton("🌐 Mở trang GitHub Release")
+        self.btn_open_web = QPushButton("🌐 " + ("Open GitHub Release" if get_current_language() == "en" else "Mở trang GitHub Release"))
         self.btn_open_web.setStyleSheet("""
             QPushButton {
                 background-color: #F3F4F6;
@@ -158,7 +165,7 @@ class UpdateDialog(QDialog):
 
         btn_layout.addStretch()
 
-        self.btn_download = QPushButton("🚀 Tải bản cập nhật")
+        self.btn_download = QPushButton(tr("btn_download_update"))
         self.btn_download.setStyleSheet("""
             QPushButton {
                 background-color: #10B981;
@@ -174,7 +181,7 @@ class UpdateDialog(QDialog):
         self.btn_download.clicked.connect(self.start_download)
         btn_layout.addWidget(self.btn_download)
 
-        self.btn_close = QPushButton("Để sau")
+        self.btn_close = QPushButton(tr("btn_remind_later"))
         self.btn_close.setStyleSheet("""
             QPushButton {
                 background-color: transparent;

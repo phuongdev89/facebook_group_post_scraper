@@ -17,8 +17,12 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QTableWidget, QTableWidgetItem, QHeaderView,
                              QAbstractItemView, QMenu, QCompleter, QProgressDialog,
                              QFileDialog, QDateTimeEdit)
-from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot, Qt, QUrl, QTimer, QObject, QDateTime
-from PyQt6.QtGui import QFont, QTextCursor, QDesktopServices, QCursor, QTextDocument, QIntValidator, QColor, QPixmap
+from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot, Qt, QUrl, QTimer, QObject, QDateTime, QSize
+from PyQt6.QtGui import QFont, QTextCursor, QDesktopServices, QCursor, QTextDocument, QIntValidator, QColor, QPixmap, QIcon
+from src.utils.i18n import (
+    tr, get_current_language, set_current_language,
+    get_flag_svg_path, register_language_listener
+)
 
 # Ensure stdout and stderr handle utf-8 on Windows
 if hasattr(sys.stdout, 'reconfigure'):
@@ -320,15 +324,8 @@ def parse_and_clean_fb_url(url: str) -> str:
 
 def show_group_help_dialog(parent=None):
     """Hiển thị hộp thoại hướng dẫn định dạng URL nhóm Facebook"""
-    msg = (
-        "<b>Hướng dẫn nhập / dán URL nhóm Facebook:</b><br><br>"
-        "• <b>URL nhóm:</b> <code>https://www.facebook.com/groups/123456789</code> hoặc <code>https://www.facebook.com/groups/ten-nhom/</code><br>"
-        "• <b>URL bài viết bất kỳ trong nhóm:</b> <code>https://www.facebook.com/groups/123456789/posts/987654321</code><br>"
-        "• <b>ID nhóm số:</b> <code>123456789</code><br>"
-        "• <b>URL chia sẻ nhóm:</b> <code>https://www.facebook.com/share/g/.../</code><br><br>"
-        "<i>⚡ Khi bạn nhập hoặc dán link bài viết rồi bấm ra ngoài (blur), hệ thống sẽ <b>tự động phân tích và chuyển đổi thành link nhóm chuẩn</b>.</i>"
-    )
-    QMessageBox.information(parent, "❓ Hướng dẫn nhập URL nhóm", msg)
+    msg = tr("group_help_content")
+    QMessageBox.information(parent, tr("group_help_title"), msg)
 
 
 class GroupSlugResolverWorker(QThread):
@@ -380,17 +377,17 @@ class GroupRowWidget(QWidget):
 
         # Name input
         self.name_input = QLineEdit(name)
-        self.name_input.setPlaceholderText("Tên group (tự động điền)")
+        self.name_input.setPlaceholderText(tr("col_group_name") + " (" + ("auto" if get_current_language() == "en" else "tự động điền") + ")")
         self.name_input.setStyleSheet("padding: 6px; font-size: 12px; border: 1px solid #D1D5DB; border-radius: 4px;")
         self.name_input.textChanged.connect(lambda: self.changed.emit())
         layout.addWidget(self.name_input, stretch=2)
 
         # URL input (với auto-parse khi paste / gõ / blur)
         self.url_input = QLineEdit(url)
-        self.url_input.setPlaceholderText("URL group (vd: https://www.facebook.com/groups/...) hoặc link bài viết")
+        self.url_input.setPlaceholderText(tr("col_group_url"))
         self.url_input.setStyleSheet("padding: 6px; font-size: 12px; border: 1px solid #D1D5DB; border-radius: 4px;")
         if self.last_scraped_at:
-            self.url_input.setToolTip(f"Lần cào gần nhất: {self.last_scraped_at}")
+            self.url_input.setToolTip(f"{tr('col_post_time')}: {self.last_scraped_at}")
         self.url_input.textChanged.connect(self._on_url_text_changed)
         self.url_input.editingFinished.connect(self._on_url_blur)
         layout.addWidget(self.url_input, stretch=6)
@@ -405,7 +402,7 @@ class GroupRowWidget(QWidget):
         # Delete button '🗑️'
         self.delete_btn = QPushButton("🗑️")
         self.delete_btn.setFixedSize(30, 30)
-        self.delete_btn.setToolTip("Xóa nhóm này")
+        self.delete_btn.setToolTip(tr("btn_delete"))
         self.delete_btn.setStyleSheet("""
             QPushButton {
                 background-color: #FEE2E2;
@@ -539,7 +536,7 @@ class BatchGroupInputDialog(QDialog):
     """Dialog phụ để dán nhanh nhiều link / ID nhóm cùng lúc (mỗi dòng 1 link)"""
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("📥 Nhập nhanh nhiều link nhóm (Batch Paste)")
+        self.setWindowTitle("📥 " + ("Batch Import Facebook Groups" if get_current_language() == "en" else "Nhập nhanh nhiều link nhóm (Batch Paste)"))
         self.resize(560, 420)
         self.init_ui()
 
@@ -549,7 +546,7 @@ class BatchGroupInputDialog(QDialog):
         layout.setSpacing(10)
         self.setLayout(layout)
 
-        label = QLabel("<b>Dán danh sách URL hoặc link bài viết nhóm (mỗi dòng 1 link):</b>")
+        label = QLabel("<b>" + ("Paste list of URLs or post links (one per line):" if get_current_language() == "en" else "Dán danh sách URL hoặc link bài viết nhóm (mỗi dòng 1 link):") + "</b>")
         label.setStyleSheet("color: #1F2937; font-size: 13px;")
         layout.addWidget(label)
 
@@ -564,19 +561,19 @@ class BatchGroupInputDialog(QDialog):
         self.text_edit.setStyleSheet("padding: 8px; font-family: Consolas, monospace; font-size: 12px; border: 1px solid #D1D5DB; border-radius: 4px;")
         layout.addWidget(self.text_edit)
 
-        hint = QLabel("<i>⚡ Các link bài viết sẽ tự động được phân tích và chuẩn hóa thành link nhóm chuẩn.</i>")
+        hint = QLabel("<i>⚡ " + ("Post links will be automatically normalized into group URLs." if get_current_language() == "en" else "Các link bài viết sẽ tự động được phân tích và chuẩn hóa thành link nhóm chuẩn.") + "</i>")
         hint.setStyleSheet("color: #6B7280; font-size: 11px;")
         layout.addWidget(hint)
 
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
 
-        cancel_btn = QPushButton("Hủy")
+        cancel_btn = QPushButton(tr("btn_cancel"))
         cancel_btn.setStyleSheet("padding: 6px 14px; font-size: 12px;")
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
 
-        import_btn = QPushButton("➕ Thêm vào danh sách")
+        import_btn = QPushButton("➕ " + ("Add to list" if get_current_language() == "en" else "Thêm vào danh sách"))
         import_btn.setStyleSheet("""
             QPushButton {
                 background-color: #2563EB;
@@ -608,7 +605,7 @@ class GroupManagerDialog(QDialog):
     """Cửa sổ phóng to để quản lý danh sách nhóm Facebook với đầy đủ tính năng & bộ lọc Filter"""
     def __init__(self, initial_groups: list[dict], parent=None):
         super().__init__(parent)
-        self.setWindowTitle("📋 Quản lý danh sách Nhóm Facebook")
+        self.setWindowTitle("📋 " + tr("group_mgr_title"))
         self.resize(860, 600)
         self.setMinimumSize(680, 420)
         self.row_widgets: list[GroupRowWidget] = []
@@ -622,19 +619,19 @@ class GroupManagerDialog(QDialog):
 
         # Header toolbar
         header_layout = QHBoxLayout()
-        self.title_label = QLabel("<b>📋 Danh sách Nhóm Facebook:</b>")
+        self.title_label = QLabel(f"<b>📋 {tr('group_mgr_title')}:</b>")
         self.title_label.setStyleSheet("font-size: 14px; color: #1E3A8A;")
         header_layout.addWidget(self.title_label)
 
-        self.count_badge = QLabel("0 nhóm")
+        self.count_badge = QLabel("0 " + ("groups" if get_current_language() == "en" else "nhóm"))
         self.count_badge.setStyleSheet("background-color: #DBEAFE; color: #1E40AF; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: bold;")
         header_layout.addWidget(self.count_badge)
 
         header_layout.addStretch()
 
         # Cookie fetch button
-        self.cookie_fetch_btn = QPushButton("🌐 Lấy nhóm từ Cookie")
-        self.cookie_fetch_btn.setToolTip("Tải danh sách nhóm Facebook mà tài khoản đã tham gia qua Cookie")
+        self.cookie_fetch_btn = QPushButton(tr("btn_fetch_cookie_groups"))
+        self.cookie_fetch_btn.setToolTip("Fetch Facebook groups joined by account from Cookie" if get_current_language() == "en" else "Tải danh sách nhóm Facebook mà tài khoản đã tham gia qua Cookie")
         self.cookie_fetch_btn.setStyleSheet("""
             QPushButton {
                 background-color: #7C3AED;
@@ -650,8 +647,8 @@ class GroupManagerDialog(QDialog):
         header_layout.addWidget(self.cookie_fetch_btn)
 
         # Batch paste button
-        batch_btn = QPushButton("📥 Dán nhiều link")
-        batch_btn.setToolTip("Dán nhanh nhiều link / ID nhóm cùng lúc")
+        batch_btn = QPushButton("📥 " + ("Batch Paste" if get_current_language() == "en" else "Dán nhiều link"))
+        batch_btn.setToolTip("Quickly paste multiple group URLs / IDs" if get_current_language() == "en" else "Dán nhanh nhiều link / ID nhóm cùng lúc")
         batch_btn.setStyleSheet("""
             QPushButton {
                 background-color: #8B5CF6;
@@ -667,8 +664,8 @@ class GroupManagerDialog(QDialog):
         header_layout.addWidget(batch_btn)
 
         # Help button
-        help_btn = QPushButton("❓ Hướng dẫn")
-        help_btn.setToolTip("Xem hướng dẫn định dạng URL")
+        help_btn = QPushButton("❓ " + ("Guide" if get_current_language() == "en" else "Hướng dẫn"))
+        help_btn.setToolTip("View group URL format guide" if get_current_language() == "en" else "Xem hướng dẫn định dạng URL")
         help_btn.setStyleSheet("""
             QPushButton {
                 background-color: #E0E7FF;
@@ -684,7 +681,7 @@ class GroupManagerDialog(QDialog):
         header_layout.addWidget(help_btn)
 
         # Clear all button
-        clear_all_btn = QPushButton("🧹 Xóa tất cả")
+        clear_all_btn = QPushButton("🧹 " + ("Clear all" if get_current_language() == "en" else "Xóa tất cả"))
         clear_all_btn.setStyleSheet("""
             QPushButton {
                 background-color: #F3F4F6;
@@ -700,7 +697,7 @@ class GroupManagerDialog(QDialog):
         header_layout.addWidget(clear_all_btn)
 
         # Add button
-        add_btn = QPushButton("➕ Thêm nhóm")
+        add_btn = QPushButton(tr("btn_add_group"))
         add_btn.setStyleSheet("""
             QPushButton {
                 background-color: #2563EB;
@@ -722,13 +719,13 @@ class GroupManagerDialog(QDialog):
         filter_layout.setSpacing(6)
         
         self.filter_input = QLineEdit()
-        self.filter_input.setPlaceholderText("🔍 Lọc nhóm theo tên, link URL hoặc ID nhóm (gõ có dấu hoặc không dấu)...")
+        self.filter_input.setPlaceholderText("🔍 " + ("Filter groups by name, URL or group ID..." if get_current_language() == "en" else "Lọc nhóm theo tên, link URL hoặc ID nhóm (gõ có dấu hoặc không dấu)..."))
         self.filter_input.setStyleSheet("padding: 6px 10px; font-size: 12px; border: 1px solid #D1D5DB; border-radius: 4px; background: white;")
         self.filter_input.textChanged.connect(self.apply_filter)
         filter_layout.addWidget(self.filter_input, stretch=1)
 
         clear_filter_btn = QPushButton("❌")
-        clear_filter_btn.setToolTip("Xóa bộ lọc")
+        clear_filter_btn.setToolTip("Clear filter" if get_current_language() == "en" else "Xóa bộ lọc")
         clear_filter_btn.setFixedSize(26, 26)
         clear_filter_btn.setStyleSheet("background: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 13px; font-size: 10px;")
         clear_filter_btn.clicked.connect(lambda: self.filter_input.clear())
@@ -754,18 +751,18 @@ class GroupManagerDialog(QDialog):
 
         # Bottom action buttons
         bottom_layout = QHBoxLayout()
-        hint = QLabel("💡 <i>Gợi ý: Dán link bài viết rồi bấm ra ngoài để tự động chuyển thành link nhóm.</i>")
+        hint = QLabel("💡 <i>" + ("Tip: Paste post link and blur to automatically convert to group link." if get_current_language() == "en" else "Gợi ý: Dán link bài viết rồi bấm ra ngoài để tự động chuyển thành link nhóm.") + "</i>")
         hint.setStyleSheet("color: #6B7280; font-size: 12px;")
         bottom_layout.addWidget(hint)
 
         bottom_layout.addStretch()
 
-        cancel_btn = QPushButton("❌ Hủy")
+        cancel_btn = QPushButton(tr("btn_cancel"))
         cancel_btn.setStyleSheet("padding: 8px 18px; font-size: 13px;")
         cancel_btn.clicked.connect(self.reject)
         bottom_layout.addWidget(cancel_btn)
 
-        save_btn = QPushButton("💾 Lưu & Áp dụng")
+        save_btn = QPushButton("💾 " + ("Save & Apply" if get_current_language() == "en" else "Lưu & Áp dụng"))
         save_btn.setStyleSheet("""
             QPushButton {
                 background-color: #10B981;
@@ -834,7 +831,8 @@ class GroupManagerDialog(QDialog):
     def update_count_badge(self):
         valid_count = len([r for r in self.row_widgets if r.get_data()["url"] or r.get_data()["name"]])
         total_rows = len(self.row_widgets)
-        self.count_badge.setText(f"{valid_count} nhóm" if valid_count == total_rows else f"{valid_count}/{total_rows} nhóm")
+        unit = "groups" if get_current_language() == "en" else "nhóm"
+        self.count_badge.setText(f"{valid_count} {unit}" if valid_count == total_rows else f"{valid_count}/{total_rows} {unit}")
 
     def apply_filter(self):
         query = self.filter_input.text().strip().lower()
@@ -902,14 +900,14 @@ class GroupListWidget(QWidget):
 
         # Header toolbar with "+ Thêm nhóm", "🌐 Lấy nhóm từ Cookie", "⛶ Phóng to", and "❓ Hướng dẫn" button
         header_layout = QHBoxLayout()
-        title_label = QLabel("Danh sách Nhóm Facebook (Tự động lưu vào SQLite):")
-        title_label.setStyleSheet("font-weight: bold; font-size: 12px; color: #1F2937;")
-        header_layout.addWidget(title_label)
+        self.title_label = QLabel(tr("group_box_target_groups") + ":")
+        self.title_label.setStyleSheet("font-weight: bold; font-size: 12px; color: #1F2937;")
+        header_layout.addWidget(self.title_label)
 
         header_layout.addStretch()
 
         # Cookie Fetch button
-        self.fetch_cookie_btn = QPushButton("🌐 Lấy nhóm từ Cookie")
+        self.fetch_cookie_btn = QPushButton(tr("btn_fetch_cookie_groups"))
         self.fetch_cookie_btn.setToolTip("Tự động tải danh sách nhóm Facebook mà tài khoản đã tham gia từ Cookie")
         self.fetch_cookie_btn.setStyleSheet("""
             QPushButton {
@@ -927,8 +925,8 @@ class GroupListWidget(QWidget):
         header_layout.addWidget(self.fetch_cookie_btn)
 
         # 1 Help button for the whole widget
-        self.help_btn = QPushButton("❓ Hướng dẫn")
-        self.help_btn.setToolTip("Hướng dẫn lấy và dán URL nhóm chính xác")
+        self.help_btn = QPushButton("❓ " + ("Guide" if get_current_language() == "en" else "Hướng dẫn"))
+        self.help_btn.setToolTip("Guide on formatting Facebook group URLs" if get_current_language() == "en" else "Hướng dẫn lấy và dán URL nhóm chính xác")
         self.help_btn.setStyleSheet("""
             QPushButton {
                 background-color: #E0E7FF;
@@ -946,7 +944,7 @@ class GroupListWidget(QWidget):
         header_layout.addWidget(self.help_btn)
 
         # Maximize / Expand button
-        self.expand_btn = QPushButton("⛶ Phóng to")
+        self.expand_btn = QPushButton("⛶ " + tr("btn_expand_groups"))
         self.expand_btn.setToolTip("Mở cửa sổ phóng to để quản lý danh sách nhóm thuận tiện hơn")
         self.expand_btn.setStyleSheet("""
             QPushButton {
@@ -965,7 +963,7 @@ class GroupListWidget(QWidget):
         header_layout.addWidget(self.expand_btn)
 
         # Add button
-        self.add_btn = QPushButton("➕ Thêm nhóm")
+        self.add_btn = QPushButton(tr("btn_add_group"))
         self.add_btn.setStyleSheet("""
             QPushButton {
                 background-color: #2563EB;
@@ -1083,6 +1081,26 @@ class GroupListWidget(QWidget):
         groups = self.get_groups()
         database.save_all_groups(groups)
 
+    def retranslate_ui(self):
+        if hasattr(self, 'title_label'):
+            self.title_label.setText(tr("group_box_target_groups") + ":")
+        if hasattr(self, 'fetch_cookie_btn'):
+            self.fetch_cookie_btn.setText(tr("btn_fetch_cookie_groups"))
+        if hasattr(self, 'help_btn'):
+            self.help_btn.setText("❓ " + ("Guide" if get_current_language() == "en" else "Hướng dẫn"))
+            self.help_btn.setToolTip("Guide on formatting Facebook group URLs" if get_current_language() == "en" else "Hướng dẫn lấy và dán URL nhóm chính xác")
+        if hasattr(self, 'expand_btn'):
+            self.expand_btn.setText("⛶ " + tr("btn_expand_groups"))
+        if hasattr(self, 'add_btn'):
+            self.add_btn.setText(tr("btn_add_group"))
+        for r in self.row_widgets:
+            if hasattr(r, 'name_input'):
+                r.name_input.setPlaceholderText(tr("col_group_name") + " (" + ("auto" if get_current_language() == "en" else "tự động điền") + ")")
+            if hasattr(r, 'url_input'):
+                r.url_input.setPlaceholderText(tr("col_group_url"))
+            if hasattr(r, 'delete_btn'):
+                r.delete_btn.setToolTip(tr("btn_delete"))
+
     def setEnabled(self, enabled: bool):
         super().setEnabled(enabled)
         self.add_btn.setEnabled(enabled)
@@ -1163,7 +1181,7 @@ class PostDetailDialog(QDialog):
         super().__init__(parent)
         self.post_data = post_data or {}
         post_id = str(self.post_data.get("post_id", "N/A"))
-        self.setWindowTitle(f"Chi tiết bài viết — ID: {post_id}")
+        self.setWindowTitle(f"{tr('dialog_post_detail')} — ID: {post_id}")
         self.resize(850, 680)
         self.setStyleSheet("""
             QDialog {
@@ -1219,7 +1237,7 @@ class PostDetailDialog(QDialog):
 
         # Open in browser button
         permalink = self.post_data.get("permalink") or f"https://www.facebook.com/{post_id}"
-        open_fb_btn = QPushButton("🔗 Mở trên Facebook")
+        open_fb_btn = QPushButton(tr("btn_open_facebook"))
         open_fb_btn.setStyleSheet("""
             QPushButton {
                 background-color: #2563EB;
@@ -1253,35 +1271,33 @@ class PostDetailDialog(QDialog):
 
             ai_top = QHBoxLayout()
             model_tag = ai_info.get("model_used") or "AI"
-            ai_title = QLabel(f"🤖 <b>Kết quả Đánh giá AI</b> (Model: <code>{model_tag}</code>)")
+            ai_title = QLabel(f"🤖 <b>{('AI Assessment Result' if get_current_language() == 'en' else 'Kết quả Đánh giá AI')}</b> (Model: <code>{model_tag}</code>)")
             ai_title.setStyleSheet("font-size: 13px; color: #5B21B6;")
             ai_top.addWidget(ai_title)
             ai_top.addStretch()
 
             if ai_info.get("should_notify"):
-                notify_badge = QLabel("🔔 KHỚP THÔNG BÁO")
+                notify_badge = QLabel("🔔 " + ("MATCHED NOTIFICATION" if get_current_language() == "en" else "KHỚP THÔNG BÁO"))
                 notify_badge.setStyleSheet("background-color: #DCFCE7; color: #166534; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: bold;")
                 ai_top.addWidget(notify_badge)
             else:
-                skip_badge = QLabel("⚪ BỎ QUA")
+                skip_badge = QLabel("⚪ " + ("SKIPPED" if get_current_language() == "en" else "BỎ QUA"))
                 skip_badge.setStyleSheet("background-color: #F1F5F9; color: #64748B; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: bold;")
                 ai_top.addWidget(skip_badge)
 
             ai_card_layout.addLayout(ai_top)
 
-
             target_name = ai_info.get("target_name") or ai_info.get("device_name") or "N/A"
-            dev_price = ai_info.get("price") or ai_info.get("price_or_budget") or "Thỏa thuận / Không rõ"
+            dev_price = ai_info.get("price") or ai_info.get("price_or_budget") or ("Negotiable / Unknown" if get_current_language() == "en" else "Thỏa thuận / Không rõ")
             actor_role = ai_info.get("actor_role") or ai_info.get("seller_type") or "N/A"
             matched_snippet = ai_info.get("matched_snippet") or ai_info.get("seller_snippet") or ""
             reason = ai_info.get("reason") or ""
 
-            details_text = f"🎯 <b>Mục tiêu:</b> {target_name} | 💰 <b>Giá/Lương:</b> {dev_price} | 📍 <b>Vai trò:</b> {actor_role}"
+            details_text = f"🎯 <b>{tr('col_target_demand')}:</b> {target_name} | 💰 <b>{tr('col_price')}:</b> {dev_price} | 📍 <b>{('Role' if get_current_language() == 'en' else 'Vai trò')}:</b> {actor_role}"
             if matched_snippet:
-                details_text += f"<br>💬 <b>Trích đoạn:</b> <i>\"{matched_snippet}\"</i>"
+                details_text += f"<br>💬 <b>{('Snippet' if get_current_language() == 'en' else 'Trích đoạn')}:</b> <i>\"{matched_snippet}\"</i>"
             if reason:
-                details_text += f"<br>💡 <b>Lý do AI:</b> <i>{reason}</i>"
-
+                details_text += f"<br>💡 <b>{('Reason' if get_current_language() == 'en' else 'Lý do AI')}:</b> <i>{reason}</i>"
 
             ai_content_lbl = QLabel(details_text)
             ai_content_lbl.setWordWrap(True)
@@ -1309,13 +1325,13 @@ class PostDetailDialog(QDialog):
         content_layout.setSpacing(14)
 
         # Post Message Content
-        msg_label = QLabel("📝 <b>Nội dung bài viết:</b>")
+        msg_label = QLabel(f"📝 <b>{tr('col_post_content')}:</b>")
         msg_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #374151;")
         content_layout.addWidget(msg_label)
 
         msg_box = QTextEdit()
         msg_box.setReadOnly(True)
-        msg_box.setPlainText(self.post_data.get("message", "(Không có nội dung văn bản)"))
+        msg_box.setPlainText(self.post_data.get("message", "(No text content)" if get_current_language() == "en" else "(Không có nội dung văn bản)"))
         msg_box.setMaximumHeight(150)
         msg_box.setStyleSheet("""
             QTextEdit {
@@ -1333,7 +1349,7 @@ class PostDetailDialog(QDialog):
         photos = self.post_data.get("photos", [])
         videos = self.post_data.get("videos", [])
         if photos or videos:
-            media_label = QLabel(f"🖼 <b>Ảnh & Video</b> ({len(photos)} ảnh, {len(videos)} video) — Bấm để mở trình duyệt")
+            media_label = QLabel(f"🖼 <b>{('Photos & Videos' if get_current_language() == 'en' else 'Ảnh & Video')}</b> ({len(photos)} photos, {len(videos)} videos) — " + ("Click to open in browser" if get_current_language() == "en" else "Bấm để mở trình duyệt"))
             media_label.setStyleSheet("font-size: 12px; color: #1E40AF; font-weight: bold;")
             content_layout.addWidget(media_label)
 
@@ -1368,12 +1384,12 @@ class PostDetailDialog(QDialog):
 
         # Comments Section
         comments = self.post_data.get("comments", [])
-        cmt_header = QLabel(f"💬 <b>Danh sách Bình luận & Phản hồi ({len(comments)} comments)</b>")
+        cmt_header = QLabel(f"💬 <b>{('Comments & Replies' if get_current_language() == 'en' else 'Danh sách Bình luận & Phản hồi')} ({len(comments)} comments)</b>")
         cmt_header.setStyleSheet("font-size: 14px; font-weight: bold; color: #111827; margin-top: 4px;")
         content_layout.addWidget(cmt_header)
 
         if not comments:
-            empty_cmt = QLabel("<i>Chưa có bình luận nào được lưu cho bài viết này.</i>")
+            empty_cmt = QLabel("<i>" + ("No comments saved for this post." if get_current_language() == "en" else "Chưa có bình luận nào được lưu cho bài viết này.") + "</i>")
             empty_cmt.setStyleSheet("color: #9CA3AF; font-size: 12px; padding: 10px;")
             content_layout.addWidget(empty_cmt)
         else:
@@ -1497,7 +1513,7 @@ class LogViewerDialog(QDialog):
 
     def __init__(self, initial_text: str = "", parent=None):
         super().__init__(parent)
-        self.setWindowTitle("📋 Nhật ký hoạt động chi tiết (Logs Viewer)")
+        self.setWindowTitle("📋 " + tr("log_viewer_title"))
         self.resize(920, 620)
         self.setMinimumSize(600, 400)
         self.init_ui(initial_text)
@@ -1511,30 +1527,30 @@ class LogViewerDialog(QDialog):
         # Top Bar: Search & Controls
         top_layout = QHBoxLayout()
         
-        search_label = QLabel("🔍 Tìm kiếm:")
+        search_label = QLabel("🔍 " + ("Search:" if get_current_language() == "en" else "Tìm kiếm:"))
         search_label.setStyleSheet("font-weight: bold; color: #374151; font-size: 12px;")
         top_layout.addWidget(search_label)
 
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Nhập từ khóa tìm kiếm trong logs...")
+        self.search_input.setPlaceholderText(tr("log_search_placeholder"))
         self.search_input.setStyleSheet("padding: 5px 8px; font-size: 12px; border: 1px solid #D1D5DB; border-radius: 4px;")
         self.search_input.returnPressed.connect(self.search_next)
         self.search_input.textChanged.connect(self.on_search_text_changed)
         top_layout.addWidget(self.search_input, stretch=2)
 
-        find_next_btn = QPushButton("Tiếp theo ⬇")
+        find_next_btn = QPushButton("Next ⬇" if get_current_language() == "en" else "Tiếp theo ⬇")
         find_next_btn.setStyleSheet("padding: 5px 10px; font-size: 12px;")
         find_next_btn.clicked.connect(self.search_next)
         top_layout.addWidget(find_next_btn)
 
-        find_prev_btn = QPushButton("Trước đó ⬆")
+        find_prev_btn = QPushButton("Prev ⬆" if get_current_language() == "en" else "Trước đó ⬆")
         find_prev_btn.setStyleSheet("padding: 5px 10px; font-size: 12px;")
         find_prev_btn.clicked.connect(self.search_prev)
         top_layout.addWidget(find_prev_btn)
 
         top_layout.addSpacing(15)
 
-        self.auto_scroll_cb = QCheckBox("Tự động cuộn")
+        self.auto_scroll_cb = QCheckBox(tr("log_auto_scroll"))
         self.auto_scroll_cb.setChecked(True)
         self.auto_scroll_cb.setStyleSheet("font-weight: bold; color: #1E40AF;")
         top_layout.addWidget(self.auto_scroll_cb)
@@ -1572,7 +1588,7 @@ class LogViewerDialog(QDialog):
 
         bottom_layout.addStretch()
 
-        copy_btn = QPushButton("📋 Sao chép toàn bộ")
+        copy_btn = QPushButton("📋 " + tr("log_btn_copy"))
         copy_btn.setStyleSheet("""
             QPushButton {
                 background-color: #3B82F6;
@@ -1587,7 +1603,7 @@ class LogViewerDialog(QDialog):
         copy_btn.clicked.connect(self.copy_all_logs)
         bottom_layout.addWidget(copy_btn)
 
-        clear_btn = QPushButton("🗑 Xóa Log")
+        clear_btn = QPushButton("🗑 " + tr("btn_clear_logs"))
         clear_btn.setStyleSheet("""
             QPushButton {
                 background-color: #EF4444;
@@ -1602,7 +1618,7 @@ class LogViewerDialog(QDialog):
         clear_btn.clicked.connect(self.clear_log)
         bottom_layout.addWidget(clear_btn)
 
-        close_btn = QPushButton("Đóng")
+        close_btn = QPushButton(tr("btn_close"))
         close_btn.setStyleSheet("padding: 6px 16px; font-size: 12px;")
         close_btn.clicked.connect(self.close)
         bottom_layout.addWidget(close_btn)
@@ -1612,7 +1628,7 @@ class LogViewerDialog(QDialog):
     def _get_stats_text(self) -> str:
         lines = len(self.log_text.toPlainText().splitlines())
         chars = len(self.log_text.toPlainText())
-        return f"Tổng cộng: {lines} dòng ({chars:,} ký tự)"
+        return f"{'Total' if get_current_language() == 'en' else 'Tổng cộng'}: {lines} {'lines' if get_current_language() == 'en' else 'dòng'} ({chars:,} {'chars' if get_current_language() == 'en' else 'ký tự'})"
 
     def append_log(self, message: str):
         self.log_text.append(message)
@@ -1749,7 +1765,7 @@ class FacebookNotificationUI(QMainWindow):
             self.telegram_dispatcher.trigger_check_now()
     
     def init_ui(self):
-        self.setWindowTitle(f"📘 Facebook Scraper & AI Notification System v{APP_VERSION}")
+        self.setWindowTitle(f"📘 {tr('app_title')} v{APP_VERSION}")
         app_icon = get_app_icon()
         if not app_icon.isNull():
             self.setWindowIcon(app_icon)
@@ -1761,12 +1777,76 @@ class FacebookNotificationUI(QMainWindow):
         main_layout = QVBoxLayout()
         central_widget.setLayout(main_layout)
         
-        # Header Title
-        title = QLabel(f"📘 Facebook Scraper & AI Notification System <span style='font-size: 13px; color: #2563EB; font-weight: bold;'>v{APP_VERSION}</span>")
-        title.setFont(QFont("Arial", 16, QFont.Weight.Bold))
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("color: #1E3A8A; margin-bottom: 4px;")
-        main_layout.addWidget(title)
+        # Header Bar with Centered Title and Top-Right Flag Switcher
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 4)
+        
+        # Left dummy spacer for perfect center alignment
+        left_spacer = QWidget()
+        left_spacer.setFixedWidth(86)
+        header_layout.addWidget(left_spacer)
+        
+        # Center Title
+        self.title_lbl = QLabel(f"📘 {tr('app_title')} <span style='font-size: 13px; color: #2563EB; font-weight: bold;'>v{APP_VERSION}</span>")
+        self.title_lbl.setFont(QFont("Arial", 16, QFont.Weight.Bold))
+        self.title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.title_lbl.setStyleSheet("color: #1E3A8A;")
+        header_layout.addWidget(self.title_lbl, stretch=1)
+        
+        # Right: Language Flag Switcher (VN Flag & US Flag)
+        lang_container = QWidget()
+        lang_layout = QHBoxLayout(lang_container)
+        lang_layout.setContentsMargins(0, 0, 0, 0)
+        lang_layout.setSpacing(6)
+        
+        self.btn_lang_vi = QPushButton()
+        self.btn_lang_vi.setFixedSize(38, 28)
+        self.btn_lang_vi.setIcon(QIcon(get_flag_svg_path("vi")))
+        self.btn_lang_vi.setIconSize(QSize(28, 20))
+        self.btn_lang_vi.setCheckable(True)
+        self.btn_lang_vi.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_lang_vi.setToolTip(tr("flag_vi_tooltip"))
+        self.btn_lang_vi.clicked.connect(lambda: self.set_app_language("vi"))
+        
+        self.btn_lang_us = QPushButton()
+        self.btn_lang_us.setFixedSize(38, 28)
+        self.btn_lang_us.setIcon(QIcon(get_flag_svg_path("us")))
+        self.btn_lang_us.setIconSize(QSize(28, 20))
+        self.btn_lang_us.setCheckable(True)
+        self.btn_lang_us.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_lang_us.setToolTip(tr("flag_us_tooltip"))
+        self.btn_lang_us.clicked.connect(lambda: self.set_app_language("en"))
+        
+        flag_btn_style = """
+            QPushButton {
+                background-color: #F8FAFC;
+                border: 1px solid #CBD5E1;
+                border-radius: 5px;
+                padding: 1px;
+            }
+            QPushButton:hover {
+                background-color: #E2E8F0;
+                border: 1px solid #94A3B8;
+            }
+            QPushButton:checked {
+                background-color: #DBEAFE;
+                border: 2px solid #2563EB;
+                border-radius: 5px;
+                padding: 0px;
+            }
+        """
+        self.btn_lang_vi.setStyleSheet(flag_btn_style)
+        self.btn_lang_us.setStyleSheet(flag_btn_style)
+        
+        is_vi = (get_current_language() == "vi")
+        self.btn_lang_vi.setChecked(is_vi)
+        self.btn_lang_us.setChecked(not is_vi)
+        
+        lang_layout.addWidget(self.btn_lang_vi)
+        lang_layout.addWidget(self.btn_lang_us)
+        header_layout.addWidget(lang_container)
+        
+        main_layout.addLayout(header_layout)
         
         # 4 Tabs Widget
         self.tabs = QTabWidget()
@@ -1786,10 +1866,10 @@ class FacebookNotificationUI(QMainWindow):
         self.ai_analysis_tab = self.create_ai_analysis_tab()
         self.config_tab = self.create_config_tab()
         
-        self.tabs.addTab(self.group_posts_tab, "📁 Group Posts")
-        self.tabs.addTab(self.history_tab, "📜 Dữ liệu cào")
-        self.tabs.addTab(self.ai_analysis_tab, "🤖 Lịch sử phân tích")
-        self.tabs.addTab(self.config_tab, "⚙️ Cấu hình")
+        self.tabs.addTab(self.group_posts_tab, tr("tab_group_posts"))
+        self.tabs.addTab(self.history_tab, tr("tab_scraped_data"))
+        self.tabs.addTab(self.ai_analysis_tab, tr("tab_ai_history"))
+        self.tabs.addTab(self.config_tab, tr("tab_settings"))
 
     # --------------------------------------------------------------------------
     # Tab 1: Group Posts
@@ -1802,7 +1882,7 @@ class FacebookNotificationUI(QMainWindow):
         # Top Action Bar: Cookie & Guide buttons
         top_bar_layout = QHBoxLayout()
 
-        self.cookie_btn = QPushButton("🔑 Cấu hình Authentication (Cookie & Token)")
+        self.cookie_btn = QPushButton(tr("btn_cookie_config"))
         self.cookie_btn.setStyleSheet("""
             QPushButton {
                 background-color: #7C3AED;
@@ -1817,8 +1897,8 @@ class FacebookNotificationUI(QMainWindow):
         self.cookie_btn.clicked.connect(self.configure_cookies)
         top_bar_layout.addWidget(self.cookie_btn, stretch=3)
 
-        self.guide_btn = QPushButton("📖 Hướng Dẫn Sử Dụng (HTML)")
-        self.guide_btn.setToolTip("Mở toàn bộ tài liệu hướng dẫn sử dụng chi tiết trong trình duyệt web")
+        self.guide_btn = QPushButton(tr("btn_user_guide"))
+        self.guide_btn.setToolTip(tr("btn_user_guide_tooltip"))
         self.guide_btn.setStyleSheet("""
             QPushButton {
                 background-color: #0284C7;
@@ -1836,9 +1916,9 @@ class FacebookNotificationUI(QMainWindow):
         layout.addLayout(top_bar_layout)
         
         # Input group
-        input_group = QGroupBox("Cài đặt quét Nhóm Facebook")
+        self.group_box_input = QGroupBox(tr("group_box_target_groups"))
         input_layout = QVBoxLayout()
-        input_group.setLayout(input_layout)
+        self.group_box_input.setLayout(input_layout)
         
         # Dynamic Group List Widget (persisted in SQLite facebook_groups)
         self.group_list_widget = GroupListWidget()
@@ -1859,17 +1939,17 @@ class FacebookNotificationUI(QMainWindow):
         kw_card_layout.setSpacing(4)
 
         kw_header_layout = QHBoxLayout()
-        kw_title = QLabel("<b>🔍 Bộ lọc Từ khóa & Biểu thức Logic:</b>")
-        kw_title.setStyleSheet("color: #1E293B; font-size: 12px;")
-        kw_header_layout.addWidget(kw_title)
+        self.kw_title = QLabel(f"<b>{tr('kw_card_title')}:</b>")
+        self.kw_title.setStyleSheet("color: #1E293B; font-size: 12px;")
+        kw_header_layout.addWidget(self.kw_title)
 
-        self.kw_syntax_badge = QLabel("ℹ️ Không lọc")
+        self.kw_syntax_badge = QLabel("ℹ️ " + tr("kw_card_empty"))
         self.kw_syntax_badge.setStyleSheet("color: #6B7280; font-size: 11px;")
         kw_header_layout.addWidget(self.kw_syntax_badge)
 
         kw_header_layout.addStretch()
 
-        self.btn_edit_filter = QPushButton("⛶ Phóng to / Cấu hình bộ lọc...")
+        self.btn_edit_filter = QPushButton(tr("kw_card_btn_config"))
         self.btn_edit_filter.setToolTip("Mở cửa sổ cấu hình bộ lọc từ khóa chuyên sâu (Trực quan & Tự nhập biểu thức)")
         self.btn_edit_filter.setStyleSheet("""
             QPushButton {
@@ -1886,8 +1966,8 @@ class FacebookNotificationUI(QMainWindow):
         kw_header_layout.addWidget(self.btn_edit_filter)
         kw_card_layout.addLayout(kw_header_layout)
 
-        # Diễn giải ý nghĩa bộ lọc bằng tiếng Việt
-        self.kw_explanation_lbl = QLabel("Không lọc từ khóa (lấy tất cả bài viết và bình luận).")
+        # Diễn giải ý nghĩa bộ lọc bằng ngôn ngữ tự nhiên
+        self.kw_explanation_lbl = QLabel(tr("kw_card_empty"))
         self.kw_explanation_lbl.setStyleSheet("color: #0F172A; font-size: 12px; font-weight: 500;")
         self.kw_explanation_lbl.setWordWrap(True)
         kw_card_layout.addWidget(self.kw_explanation_lbl)
@@ -1906,7 +1986,8 @@ class FacebookNotificationUI(QMainWindow):
         params_row.setSpacing(8)
 
         # 1. Số lượng bài viết
-        params_row.addWidget(QLabel("Bài/nhóm:"))
+        self.lbl_posts_per_group = QLabel(tr("param_posts_per_group"))
+        params_row.addWidget(self.lbl_posts_per_group)
         self.group_post_count = QSpinBox()
         self.group_post_count.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
         self.group_post_count.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -1920,12 +2001,13 @@ class FacebookNotificationUI(QMainWindow):
         # 2. Bình luận tối thiểu (-1 = tất cả, 0 = không lấy, >0 = tối thiểu)
         cmt_lbl_layout = QHBoxLayout()
         cmt_lbl_layout.setSpacing(2)
-        cmt_lbl_layout.addWidget(QLabel("Cmt tối thiểu:"))
-        help_cmt_btn = QPushButton("?")
-        help_cmt_btn.setFixedSize(16, 16)
-        help_cmt_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        help_cmt_btn.setToolTip("💡 Hướng dẫn Cmt tối thiểu (Số cmt cần cào/bài):\n• 0: Không cào bình luận (chỉ lấy bài viết, nhanh nhất)\n• -1: Cào TẤT CẢ bình luận của bài viết\n• > 0 (ví dụ 5, 20...): Cào tối đa/tối thiểu N bình luận cho mỗi bài viết (không bỏ qua bài viết ít cmt)")
-        help_cmt_btn.setStyleSheet("""
+        self.lbl_min_comments = QLabel(tr("param_min_comments"))
+        cmt_lbl_layout.addWidget(self.lbl_min_comments)
+        self.help_cmt_btn = QPushButton("?")
+        self.help_cmt_btn.setFixedSize(16, 16)
+        self.help_cmt_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.help_cmt_btn.setToolTip(tr("tooltip_min_comments"))
+        self.help_cmt_btn.setStyleSheet("""
             QPushButton {
                 background-color: #F3F4F6;
                 color: #4B5563;
@@ -1937,16 +2019,12 @@ class FacebookNotificationUI(QMainWindow):
             }
             QPushButton:hover { background-color: #E5E7EB; }
         """)
-        help_cmt_btn.clicked.connect(lambda: QMessageBox.information(
+        self.help_cmt_btn.clicked.connect(lambda: QMessageBox.information(
             self,
-            "💡 Hướng dẫn Cmt tối thiểu (Số comment cào/bài)",
-            "<b>Quy tắc thiết lập Số lượng bình luận cần cào cho mỗi bài viết:</b><br><br>"
-            "• <b>0 (Mặc định):</b> <b>Không cào bình luận</b> (chỉ cào bài viết, tốc độ quét nhanh nhất, tiết kiệm request).<br>"
-            "• <b>-1:</b> <b>Cào TẤT CẢ bình luận</b> của mỗi bài viết (tự động phân trang cuộn lấy hết comment).<br>"
-            "• <b>Số > 0 (ví dụ 5, 10, 50...):</b> Cào tối thiểu/tối đa <b>N bình luận</b> cho mỗi bài viết. "
-            "<i>(Nếu bài viết có ít hơn N bình luận thì vẫn cào bài viết đó và lấy toàn bộ số bình luận hiện có, không bỏ qua bài viết).</i>"
+            "💡 " + tr("param_min_comments"),
+            tr("tooltip_min_comments").replace("\n", "<br>")
         ))
-        cmt_lbl_layout.addWidget(help_cmt_btn)
+        cmt_lbl_layout.addWidget(self.help_cmt_btn)
         params_row.addLayout(cmt_lbl_layout)
 
         self.group_min_comments = QSpinBox()
@@ -1962,12 +2040,13 @@ class FacebookNotificationUI(QMainWindow):
         # 3. Số luồng quét nhóm (1-10) dạng Dropdown
         concurrency_lbl_layout = QHBoxLayout()
         concurrency_lbl_layout.setSpacing(2)
-        concurrency_lbl_layout.addWidget(QLabel("Luồng cào:"))
-        help_concurrency_btn = QPushButton("?")
-        help_concurrency_btn.setFixedSize(16, 16)
-        help_concurrency_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        help_concurrency_btn.setToolTip("💡 Hướng dẫn Số luồng cào:\n• Chọn từ 1 đến 10 nhóm quét đồng thời cùng lúc (Mặc định: 1).\n• Khuyến nghị: 1-3 luồng để an toàn tài khoản. Nếu chạy 4-10 luồng nên cấu hình Proxy ở Tab Cài đặt.")
-        help_concurrency_btn.setStyleSheet("""
+        self.lbl_threads = QLabel(tr("param_threads"))
+        concurrency_lbl_layout.addWidget(self.lbl_threads)
+        self.help_concurrency_btn = QPushButton("?")
+        self.help_concurrency_btn.setFixedSize(16, 16)
+        self.help_concurrency_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.help_concurrency_btn.setToolTip(tr("tooltip_threads"))
+        self.help_concurrency_btn.setStyleSheet("""
             QPushButton {
                 background-color: #E0E7FF;
                 color: #3730A3;
@@ -1979,15 +2058,12 @@ class FacebookNotificationUI(QMainWindow):
             }
             QPushButton:hover { background-color: #C7D2FE; }
         """)
-        help_concurrency_btn.clicked.connect(lambda: QMessageBox.information(
+        self.help_concurrency_btn.clicked.connect(lambda: QMessageBox.information(
             self,
-            "💡 Hướng dẫn Số luồng cào nhóm",
-            "<b>Số luồng cào nhóm (1 - 10):</b><br><br>"
-            "• <b>1 luồng (Mặc định):</b> Quét tuần tự từng nhóm một, an toàn nhất cho Cookie.<br>"
-            "• <b>2 - 3 luồng:</b> Quét nhanh 2-3 nhóm cùng lúc, tốc độ tối ưu.<br>"
-            "• <b>4 - 10 luồng:</b> Tốc độ quét cực nhanh. <i>Khuyến nghị:</i> Nên cấu hình Proxy xoay IP ở Tab Cài đặt để tránh bị Facebook Rate Limit."
+            "💡 " + tr("param_threads"),
+            tr("tooltip_threads").replace("\n", "<br>")
         ))
-        concurrency_lbl_layout.addWidget(help_concurrency_btn)
+        concurrency_lbl_layout.addWidget(self.help_concurrency_btn)
         params_row.addLayout(concurrency_lbl_layout)
 
         self.group_concurrency = QComboBox()
@@ -1998,18 +2074,19 @@ class FacebookNotificationUI(QMainWindow):
         params_row.addWidget(self.group_concurrency)
 
         # 4. Giới hạn thời gian bài viết
-        params_row.addWidget(QLabel("⏰ Thời gian:"))
+        self.lbl_cutoff_time = QLabel("⏰ " + tr("param_cutoff_time"))
+        params_row.addWidget(self.lbl_cutoff_time)
         self.time_filter_combo = QComboBox()
         self.time_filter_combo.addItems([
-            "Tất cả",
-            "1 ngày trước",
-            "2 ngày trước",
-            "3 ngày trước",
-            "4 ngày trước",
-            "5 ngày trước",
-            "6 ngày trước",
-            "7 ngày trước",
-            "Tùy chỉnh..."
+            tr("param_cutoff_all"),
+            tr("param_cutoff_1d"),
+            tr("param_cutoff_2d"),
+            tr("param_cutoff_3d"),
+            "4 " + ("days ago" if get_current_language() == "en" else "ngày trước"),
+            "5 " + ("days ago" if get_current_language() == "en" else "ngày trước"),
+            "6 " + ("days ago" if get_current_language() == "en" else "ngày trước"),
+            tr("param_cutoff_7d"),
+            tr("param_cutoff_custom")
         ])
         self.time_filter_combo.setMinimumWidth(110)
         self.time_filter_combo.currentIndexChanged.connect(self.on_time_filter_changed)
@@ -2023,13 +2100,13 @@ class FacebookNotificationUI(QMainWindow):
         params_row.addWidget(self.custom_datetime_picker)
 
         # 5. Lặp vô hạn
-        self.infinite_loop_cb = QCheckBox("Lặp vô hạn")
+        self.infinite_loop_cb = QCheckBox(tr("param_infinite_loop"))
         self.infinite_loop_cb.setStyleSheet("font-weight: bold; color: #1E3A8A;")
         self.infinite_loop_cb.toggled.connect(self.toggle_infinite_loop)
         params_row.addWidget(self.infinite_loop_cb)
 
         # 6. Thời gian nghỉ giữa các lần quét
-        self.loop_interval_label = QLabel("Nghỉ (s):")
+        self.loop_interval_label = QLabel(tr("param_sleep_interval"))
         self.loop_interval_label.setEnabled(False)
         params_row.addWidget(self.loop_interval_label)
 
@@ -2047,12 +2124,12 @@ class FacebookNotificationUI(QMainWindow):
         params_row.addStretch()
         input_layout.addLayout(params_row)
         
-        layout.addWidget(input_group, 1)
+        layout.addWidget(self.group_box_input, 1)
         
         # Action Buttons Row: Start and STOP
         action_layout = QHBoxLayout()
         
-        self.start_btn = QPushButton("🚀 Bắt đầu quét")
+        self.start_btn = QPushButton(tr("btn_start_scraping"))
         self.start_btn.setStyleSheet("""
             QPushButton {
                 background-color: #10B981;
@@ -2068,7 +2145,7 @@ class FacebookNotificationUI(QMainWindow):
         self.start_btn.clicked.connect(self.start_scraping)
         action_layout.addWidget(self.start_btn)
 
-        self.stop_btn = QPushButton("🛑 DỪNG")
+        self.stop_btn = QPushButton(tr("btn_stop_scraping"))
         self.stop_btn.setEnabled(False)
         self.stop_btn.setStyleSheet("""
             QPushButton {
@@ -2094,11 +2171,11 @@ class FacebookNotificationUI(QMainWindow):
         layout.addWidget(self.progress_bar)
 
         # Activity Logs inside Group Tab (Thu gọn còn 1/4 chiều cao)
-        log_group = QGroupBox("📋 Nhật ký hoạt động (Logs)")
+        self.log_group = QGroupBox(tr("log_console_title"))
         log_layout = QVBoxLayout()
         log_layout.setContentsMargins(6, 4, 6, 4)
         log_layout.setSpacing(3)
-        log_group.setLayout(log_layout)
+        self.log_group.setLayout(log_layout)
         
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
@@ -2107,13 +2184,13 @@ class FacebookNotificationUI(QMainWindow):
         log_layout.addWidget(self.log_text)
         
         log_btn_layout = QHBoxLayout()
-        log_hint = QLabel("<i>⚡ Nhật ký thu gọn (1/4). Bấm 'Phóng to' để xem toàn bộ và tìm kiếm.</i>")
-        log_hint.setStyleSheet("color: #6B7280; font-size: 11px;")
-        log_btn_layout.addWidget(log_hint)
+        self.log_hint = QLabel("<i>⚡ " + ("Compact logs (1/4). Click 'Live Logs Viewer' to expand and search." if get_current_language() == "en" else "Nhật ký thu gọn (1/4). Bấm 'Phóng to' để xem toàn bộ và tìm kiếm.") + "</i>")
+        self.log_hint.setStyleSheet("color: #6B7280; font-size: 11px;")
+        log_btn_layout.addWidget(self.log_hint)
         log_btn_layout.addStretch()
 
-        self.expand_log_btn = QPushButton("⛶ Phóng to")
-        self.expand_log_btn.setToolTip("Mở cửa sổ xem log chi tiết toàn màn hình")
+        self.expand_log_btn = QPushButton("⛶ " + tr("btn_log_viewer"))
+        self.expand_log_btn.setToolTip(tr("btn_log_viewer_tooltip"))
         self.expand_log_btn.setStyleSheet("""
             QPushButton {
                 background-color: #EEF2FF;
@@ -2129,8 +2206,8 @@ class FacebookNotificationUI(QMainWindow):
         self.expand_log_btn.clicked.connect(self.open_log_viewer_dialog)
         log_btn_layout.addWidget(self.expand_log_btn)
 
-        clear_log_btn = QPushButton("🗑 Xóa Log")
-        clear_log_btn.setStyleSheet("""
+        self.clear_log_btn = QPushButton(tr("btn_clear_logs"))
+        self.clear_log_btn.setStyleSheet("""
             QPushButton {
                 background-color: #FEE2E2;
                 color: #991B1B;
@@ -2141,11 +2218,11 @@ class FacebookNotificationUI(QMainWindow):
             }
             QPushButton:hover { background-color: #FCA5A5; }
         """)
-        clear_log_btn.clicked.connect(self.clear_log)
-        log_btn_layout.addWidget(clear_log_btn)
+        self.clear_log_btn.clicked.connect(self.clear_log)
+        log_btn_layout.addWidget(self.clear_log_btn)
         log_layout.addLayout(log_btn_layout)
 
-        layout.addWidget(log_group, 0)
+        layout.addWidget(self.log_group, 0)
         return tab
 
     # --------------------------------------------------------------------------
@@ -2160,13 +2237,13 @@ class FacebookNotificationUI(QMainWindow):
         top_bar = QHBoxLayout()
         
         self.history_search_input = QLineEdit()
-        self.history_search_input.setPlaceholderText("🔍 Tìm kiếm chung (nội dung, tên nhóm/trang, post ID)...")
+        self.history_search_input.setPlaceholderText(tr("tab2_search_placeholder"))
         self.history_search_input.setStyleSheet("padding: 8px; font-size: 13px; border-radius: 4px; border: 1px solid #D1D5DB;")
         self.history_search_input.returnPressed.connect(self.on_filter_changed)
         top_bar.addWidget(self.history_search_input, stretch=3)
 
-        search_btn = QPushButton("🔍 Tìm")
-        search_btn.setStyleSheet("""
+        self.history_search_btn = QPushButton(tr("tab2_btn_search"))
+        self.history_search_btn.setStyleSheet("""
             QPushButton {
                 background-color: #3B82F6;
                 color: white;
@@ -2176,11 +2253,11 @@ class FacebookNotificationUI(QMainWindow):
             }
             QPushButton:hover { background-color: #2563EB; }
         """)
-        search_btn.clicked.connect(self.on_filter_changed)
-        top_bar.addWidget(search_btn)
+        self.history_search_btn.clicked.connect(self.on_filter_changed)
+        top_bar.addWidget(self.history_search_btn)
 
-        refresh_btn = QPushButton("🔄 Làm mới")
-        refresh_btn.setStyleSheet("""
+        self.history_refresh_btn = QPushButton(tr("tab2_btn_refresh"))
+        self.history_refresh_btn.setStyleSheet("""
             QPushButton {
                 background-color: #10B981;
                 color: white;
@@ -2190,28 +2267,30 @@ class FacebookNotificationUI(QMainWindow):
             }
             QPushButton:hover { background-color: #059669; }
         """)
-        refresh_btn.clicked.connect(self.clear_all_filters)
-        top_bar.addWidget(refresh_btn)
+        self.history_refresh_btn.clicked.connect(self.clear_all_filters)
+        top_bar.addWidget(self.history_refresh_btn)
 
         layout.addLayout(top_bar)
 
         # Column Filter Bar
-        filter_group = QGroupBox("🎯 Bộ lọc Dữ liệu cào theo từng cột")
+        self.history_filter_group = QGroupBox("🎯 " + tr("tab2_filter_group"))
         filter_layout = QHBoxLayout()
-        filter_group.setLayout(filter_layout)
+        self.history_filter_group.setLayout(filter_layout)
         filter_layout.setContentsMargins(8, 6, 8, 6)
         filter_layout.setSpacing(8)
 
         # 1. Post ID filter
-        filter_layout.addWidget(QLabel("Post ID:"))
+        self.lbl_filter_post_id = QLabel(tr("col_post_id") + ":")
+        filter_layout.addWidget(self.lbl_filter_post_id)
         self.filter_post_id = QLineEdit()
-        self.filter_post_id.setPlaceholderText("ID bài viết...")
+        self.filter_post_id.setPlaceholderText("ID...")
         self.filter_post_id.setStyleSheet("padding: 4px; font-size: 12px;")
         self.filter_post_id.textChanged.connect(self.on_filter_changed)
         filter_layout.addWidget(self.filter_post_id, stretch=1)
 
         # 2. Group/Page Autocomplete Dropdown (Select2-like)
-        filter_layout.addWidget(QLabel("Nhóm/Trang:"))
+        self.lbl_filter_group = QLabel(tr("col_group_name") + ":")
+        filter_layout.addWidget(self.lbl_filter_group)
         self.filter_group_combo = QComboBox()
         self.filter_group_combo.setEditable(True)
         self.filter_group_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
@@ -2220,20 +2299,22 @@ class FacebookNotificationUI(QMainWindow):
             self.filter_group_combo.completer().setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
             self.filter_group_combo.completer().setFilterMode(Qt.MatchFlag.MatchContains)
         if self.filter_group_combo.lineEdit():
-            self.filter_group_combo.lineEdit().setPlaceholderText("Tất cả hoặc gõ tìm nhóm...")
+            self.filter_group_combo.lineEdit().setPlaceholderText(tr("tab2_filter_group_all"))
         self.filter_group_combo.currentTextChanged.connect(self.on_filter_changed)
         filter_layout.addWidget(self.filter_group_combo, stretch=2)
 
         # 3. Message text filter
-        filter_layout.addWidget(QLabel("Nội dung:"))
+        self.lbl_filter_message = QLabel(tr("col_post_content") + ":")
+        filter_layout.addWidget(self.lbl_filter_message)
         self.filter_message = QLineEdit()
-        self.filter_message.setPlaceholderText("Nội dung bài viết...")
+        self.filter_message.setPlaceholderText(tr("col_post_content") + "...")
         self.filter_message.setStyleSheet("padding: 4px; font-size: 12px;")
         self.filter_message.textChanged.connect(self.on_filter_changed)
         filter_layout.addWidget(self.filter_message, stretch=2)
 
         # 4. Min comments filter
-        filter_layout.addWidget(QLabel("Min Cmt:"))
+        self.lbl_filter_min_comments = QLabel("Min Cmt:")
+        filter_layout.addWidget(self.lbl_filter_min_comments)
         self.filter_min_comments = QSpinBox()
         self.filter_min_comments.setMinimum(0)
         self.filter_min_comments.setMaximum(10000)
@@ -2242,7 +2323,8 @@ class FacebookNotificationUI(QMainWindow):
         filter_layout.addWidget(self.filter_min_comments)
 
         # 5. Time filter
-        filter_layout.addWidget(QLabel("Thời gian:"))
+        self.lbl_filter_time = QLabel(tr("col_post_time") + ":")
+        filter_layout.addWidget(self.lbl_filter_time)
         self.filter_time = QLineEdit()
         self.filter_time.setPlaceholderText("dd/mm/yyyy...")
         self.filter_time.setStyleSheet("padding: 4px; font-size: 12px;")
@@ -2250,8 +2332,8 @@ class FacebookNotificationUI(QMainWindow):
         filter_layout.addWidget(self.filter_time, stretch=1)
 
         # Clear filter button
-        clear_filter_btn = QPushButton("🧹 Xóa lọc")
-        clear_filter_btn.setStyleSheet("""
+        self.history_clear_filter_btn = QPushButton("🧹 " + ("Clear filter" if get_current_language() == "en" else "Xóa lọc"))
+        self.history_clear_filter_btn.setStyleSheet("""
             QPushButton {
                 background-color: #6B7280;
                 color: white;
@@ -2262,29 +2344,29 @@ class FacebookNotificationUI(QMainWindow):
             }
             QPushButton:hover { background-color: #4B5563; }
         """)
-        clear_filter_btn.clicked.connect(self.clear_all_filters)
-        filter_layout.addWidget(clear_filter_btn)
+        self.history_clear_filter_btn.clicked.connect(self.clear_all_filters)
+        filter_layout.addWidget(self.history_clear_filter_btn)
 
-        layout.addWidget(filter_group)
+        layout.addWidget(self.history_filter_group)
 
         # Instruction note
-        hint_label = QLabel("💡 <i>Gợi ý: Bấm đúp chuột hoặc click vào dòng để xem chi tiết bài viết, bình luận & phản hồi. Bấm nút <b>'🔗 Mở FB'</b> để mở bài viết trên trình duyệt.</i>")
-        hint_label.setStyleSheet("color: #4B5563; font-size: 12px; margin-bottom: 2px;")
-        layout.addWidget(hint_label)
+        self.history_hint_label = QLabel("💡 <i>" + ("Tip: Double click a row to view post details, comments & replies. Click '🔗 Open FB' to open post in browser." if get_current_language() == "en" else "Gợi ý: Bấm đúp chuột hoặc click vào dòng để xem chi tiết bài viết, bình luận & phản hồi. Bấm nút '🔗 Mở FB' để mở bài viết trên trình duyệt.") + "</i>")
+        self.history_hint_label.setStyleSheet("color: #4B5563; font-size: 12px; margin-bottom: 2px;")
+        layout.addWidget(self.history_hint_label)
 
         # Batch Action Toolbar
         action_toolbar = QHBoxLayout()
         action_toolbar.setContentsMargins(0, 4, 0, 4)
         action_toolbar.setSpacing(10)
 
-        self.history_select_all_cb = QCheckBox("Chọn tất cả trang này")
+        self.history_select_all_cb = QCheckBox(tr("group_mgr_select_all"))
         self.history_select_all_cb.setStyleSheet("font-weight: bold; font-size: 12px; color: #1E3A8A;")
         self.history_select_all_cb.toggled.connect(self.on_history_select_all_toggled)
         action_toolbar.addWidget(self.history_select_all_cb)
 
         action_toolbar.addSpacing(5)
 
-        self.btn_delete_selected_history = QPushButton("🗑️ Xóa đã chọn (0)")
+        self.btn_delete_selected_history = QPushButton(tr("tab2_btn_delete_selected") + " (0)")
         self.btn_delete_selected_history.setEnabled(False)
         self.btn_delete_selected_history.setStyleSheet("""
             QPushButton {
@@ -2306,7 +2388,7 @@ class FacebookNotificationUI(QMainWindow):
         self.btn_delete_selected_history.clicked.connect(self.delete_selected_history_posts)
         action_toolbar.addWidget(self.btn_delete_selected_history)
 
-        self.btn_delete_all_history = QPushButton("💥 Xóa tất cả")
+        self.btn_delete_all_history = QPushButton("💥 " + tr("tab2_btn_delete_all"))
         self.btn_delete_all_history.setStyleSheet("""
             QPushButton {
                 background-color: #DC2626;
@@ -2323,7 +2405,7 @@ class FacebookNotificationUI(QMainWindow):
 
         action_toolbar.addSpacing(15)
 
-        self.btn_update_selected_comments = QPushButton("🔄 Cập nhật bình luận đã chọn (0)")
+        self.btn_update_selected_comments = QPushButton("🔄 " + ("Update comments (0)" if get_current_language() == "en" else "Cập nhật bình luận đã chọn (0)"))
         self.btn_update_selected_comments.setEnabled(False)
         self.btn_update_selected_comments.setStyleSheet("""
             QPushButton {
@@ -2344,7 +2426,7 @@ class FacebookNotificationUI(QMainWindow):
         self.btn_update_selected_comments.clicked.connect(self.update_selected_comments)
         action_toolbar.addWidget(self.btn_update_selected_comments)
 
-        self.btn_update_24h_comments = QPushButton("⏱️ Cập nhật bình luận 24h vừa qua")
+        self.btn_update_24h_comments = QPushButton("⏱️ " + ("Update last 24h comments" if get_current_language() == "en" else "Cập nhật bình luận 24h vừa qua"))
         self.btn_update_24h_comments.setStyleSheet("""
             QPushButton {
                 background-color: #7C3AED;
@@ -2366,7 +2448,7 @@ class FacebookNotificationUI(QMainWindow):
         self.history_table = QTableWidget()
         self.history_table.setColumnCount(8)
         self.history_table.setHorizontalHeaderLabels([
-            "☑️", "STT", "Post ID", "Nhóm / Trang", "Nội dung bài viết", "Bình luận", "Thời gian", "Hành động"
+            "☑️", tr("col_no"), tr("col_post_id"), tr("col_group_name"), tr("col_post_content"), tr("col_comments_count"), tr("col_post_time"), tr("col_actions")
         ])
         self.history_table.setTextElideMode(Qt.TextElideMode.ElideRight)
         
@@ -2425,17 +2507,18 @@ class FacebookNotificationUI(QMainWindow):
         paging_bar = QHBoxLayout()
         paging_bar.setContentsMargins(4, 4, 4, 4)
 
-        self.first_page_btn = QPushButton("⏮ Đầu")
+        self.first_page_btn = QPushButton(tr("btn_first_page"))
         self.first_page_btn.setStyleSheet("padding: 4px 8px; font-size: 12px;")
         self.first_page_btn.clicked.connect(self.go_first_page)
         paging_bar.addWidget(self.first_page_btn)
 
-        self.prev_page_btn = QPushButton("◀ Trước")
+        self.prev_page_btn = QPushButton(tr("btn_prev_page"))
         self.prev_page_btn.setStyleSheet("padding: 4px 8px; font-size: 12px;")
         self.prev_page_btn.clicked.connect(self.go_prev_page)
         paging_bar.addWidget(self.prev_page_btn)
 
-        paging_bar.addWidget(QLabel("Trang"))
+        self.lbl_page_text = QLabel("Page" if get_current_language() == "en" else "Trang")
+        paging_bar.addWidget(self.lbl_page_text)
 
         self.page_spin = QSpinBox()
         self.page_spin.setMinimum(1)
@@ -2449,18 +2532,19 @@ class FacebookNotificationUI(QMainWindow):
         self.total_pages_label.setStyleSheet("font-weight: bold; margin-right: 8px;")
         paging_bar.addWidget(self.total_pages_label)
 
-        self.next_page_btn = QPushButton("Sau ▶")
+        self.next_page_btn = QPushButton(tr("btn_next_page"))
         self.next_page_btn.setStyleSheet("padding: 4px 8px; font-size: 12px;")
         self.next_page_btn.clicked.connect(self.go_next_page)
         paging_bar.addWidget(self.next_page_btn)
 
-        self.last_page_btn = QPushButton("Cuối ⏭")
+        self.last_page_btn = QPushButton(tr("btn_last_page"))
         self.last_page_btn.setStyleSheet("padding: 4px 8px; font-size: 12px;")
         self.last_page_btn.clicked.connect(self.go_last_page)
         paging_bar.addWidget(self.last_page_btn)
 
         paging_bar.addSpacing(20)
-        paging_bar.addWidget(QLabel("Hiển thị/trang:"))
+        self.lbl_page_size = QLabel("Show/page:" if get_current_language() == "en" else "Hiển thị/trang:")
+        paging_bar.addWidget(self.lbl_page_size)
 
         self.page_size_combo = QComboBox()
         self.page_size_combo.addItems(["20", "50", "100", "200"])
@@ -2470,7 +2554,7 @@ class FacebookNotificationUI(QMainWindow):
 
         paging_bar.addStretch()
 
-        self.history_total_label = QLabel("📊 Tổng số: 0 bài viết")
+        self.history_total_label = QLabel("📊 " + tr("page_info", current=1, total=1, count=0))
         self.history_total_label.setStyleSheet("font-weight: bold; font-size: 13px; color: #1E3A8A;")
         paging_bar.addWidget(self.history_total_label)
 
@@ -2847,7 +2931,10 @@ class FacebookNotificationUI(QMainWindow):
             self.last_page_btn.setEnabled(self.history_current_page < self.history_total_pages)
 
         if hasattr(self, 'history_total_label'):
-            self.history_total_label.setText(f"📊 Tổng số: {total} bài viết | Trang {self.history_current_page}/{self.history_total_pages}")
+            lbl_total = "Total:" if get_current_language() == "en" else "Tổng số:"
+            lbl_posts = "posts" if get_current_language() == "en" else "bài viết"
+            lbl_page = "Page" if get_current_language() == "en" else "Trang"
+            self.history_total_label.setText(f"📊 {lbl_total} {total} {lbl_posts} | {lbl_page} {self.history_current_page}/{self.history_total_pages}")
 
         offset = (self.history_current_page - 1) * self.history_page_size
         posts = database.get_all_posts_summary(limit=self.history_page_size, offset=offset, search_query=search_query, filters=filters)
@@ -2959,7 +3046,7 @@ class FacebookNotificationUI(QMainWindow):
             btn_layout.setSpacing(4)
             btn_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-            open_btn = QPushButton("🔗 Mở FB")
+            open_btn = QPushButton("🔗 " + ("Open FB" if get_current_language() == "en" else "Mở FB"))
             open_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #2563EB;
@@ -2974,7 +3061,7 @@ class FacebookNotificationUI(QMainWindow):
             open_btn.clicked.connect(lambda checked, url=permalink: webbrowser.open(url))
             btn_layout.addWidget(open_btn)
 
-            del_btn = QPushButton("🗑 Xóa")
+            del_btn = QPushButton("🗑 " + ("Delete" if get_current_language() == "en" else "Xóa"))
             del_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #FEE2E2;
@@ -3059,13 +3146,13 @@ class FacebookNotificationUI(QMainWindow):
         top_bar = QHBoxLayout()
         
         self.ai_search_input = QLineEdit()
-        self.ai_search_input.setPlaceholderText("🔍 Tìm kiếm phân tích AI (nội dung, tên nhóm, post ID, thiết bị, từ khóa)...")
+        self.ai_search_input.setPlaceholderText(tr("tab3_search_placeholder"))
         self.ai_search_input.setStyleSheet("padding: 8px; font-size: 13px; border-radius: 4px; border: 1px solid #D1D5DB;")
         self.ai_search_input.returnPressed.connect(self.on_ai_filter_changed)
         top_bar.addWidget(self.ai_search_input, stretch=3)
 
-        search_btn = QPushButton("🔍 Tìm")
-        search_btn.setStyleSheet("""
+        self.ai_search_btn = QPushButton(tr("tab2_btn_search"))
+        self.ai_search_btn.setStyleSheet("""
             QPushButton {
                 background-color: #8B5CF6;
                 color: white;
@@ -3075,11 +3162,11 @@ class FacebookNotificationUI(QMainWindow):
             }
             QPushButton:hover { background-color: #7C3AED; }
         """)
-        search_btn.clicked.connect(self.on_ai_filter_changed)
-        top_bar.addWidget(search_btn)
+        self.ai_search_btn.clicked.connect(self.on_ai_filter_changed)
+        top_bar.addWidget(self.ai_search_btn)
 
-        refresh_btn = QPushButton("🔄 Làm mới")
-        refresh_btn.setStyleSheet("""
+        self.ai_refresh_btn = QPushButton(tr("tab2_btn_refresh"))
+        self.ai_refresh_btn.setStyleSheet("""
             QPushButton {
                 background-color: #10B981;
                 color: white;
@@ -3089,28 +3176,30 @@ class FacebookNotificationUI(QMainWindow):
             }
             QPushButton:hover { background-color: #059669; }
         """)
-        refresh_btn.clicked.connect(self.clear_all_ai_filters)
-        top_bar.addWidget(refresh_btn)
+        self.ai_refresh_btn.clicked.connect(self.clear_all_ai_filters)
+        top_bar.addWidget(self.ai_refresh_btn)
 
         layout.addLayout(top_bar)
 
         # Column Filter Bar
-        filter_group = QGroupBox("🎯 Bộ lọc Lịch sử Phân tích AI")
+        self.ai_filter_group = QGroupBox("🎯 " + tr("tab3_filter_status"))
         filter_layout = QHBoxLayout()
-        filter_group.setLayout(filter_layout)
+        self.ai_filter_group.setLayout(filter_layout)
         filter_layout.setContentsMargins(8, 6, 8, 6)
         filter_layout.setSpacing(8)
 
         # 1. Post ID filter
-        filter_layout.addWidget(QLabel("Post ID:"))
+        self.lbl_ai_filter_post_id = QLabel(tr("col_post_id") + ":")
+        filter_layout.addWidget(self.lbl_ai_filter_post_id)
         self.ai_filter_post_id = QLineEdit()
-        self.ai_filter_post_id.setPlaceholderText("ID bài...")
+        self.ai_filter_post_id.setPlaceholderText("ID...")
         self.ai_filter_post_id.setStyleSheet("padding: 4px; font-size: 12px;")
         self.ai_filter_post_id.textChanged.connect(self.on_ai_filter_changed)
         filter_layout.addWidget(self.ai_filter_post_id, stretch=1)
 
         # 2. Group/Page Autocomplete Dropdown
-        filter_layout.addWidget(QLabel("Nhóm/Trang:"))
+        self.lbl_ai_filter_group = QLabel(tr("col_group_name") + ":")
+        filter_layout.addWidget(self.lbl_ai_filter_group)
         self.ai_filter_group_combo = QComboBox()
         self.ai_filter_group_combo.setEditable(True)
         self.ai_filter_group_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
@@ -3119,28 +3208,31 @@ class FacebookNotificationUI(QMainWindow):
             self.ai_filter_group_combo.completer().setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
             self.ai_filter_group_combo.completer().setFilterMode(Qt.MatchFlag.MatchContains)
         if self.ai_filter_group_combo.lineEdit():
-            self.ai_filter_group_combo.lineEdit().setPlaceholderText("Tất cả hoặc gõ tìm nhóm...")
+            self.ai_filter_group_combo.lineEdit().setPlaceholderText(tr("tab2_filter_group_all"))
         self.ai_filter_group_combo.currentTextChanged.connect(self.on_ai_filter_changed)
         filter_layout.addWidget(self.ai_filter_group_combo, stretch=2)
 
         # 3. Keyword filter
-        filter_layout.addWidget(QLabel("Từ khóa:"))
+        self.lbl_ai_filter_keyword = QLabel(tr("col_target_demand") + ":")
+        filter_layout.addWidget(self.lbl_ai_filter_keyword)
         self.ai_filter_keyword = QLineEdit()
-        self.ai_filter_keyword.setPlaceholderText("Từ khóa khớp...")
+        self.ai_filter_keyword.setPlaceholderText("Keyword...")
         self.ai_filter_keyword.setStyleSheet("padding: 4px; font-size: 12px;")
         self.ai_filter_keyword.textChanged.connect(self.on_ai_filter_changed)
         filter_layout.addWidget(self.ai_filter_keyword, stretch=1)
 
         # 4. Target / Topic filter
-        filter_layout.addWidget(QLabel("Mục tiêu:"))
+        self.lbl_ai_filter_device = QLabel(tr("col_target_demand") + ":")
+        filter_layout.addWidget(self.lbl_ai_filter_device)
         self.ai_filter_device = QLineEdit()
-        self.ai_filter_device.setPlaceholderText("Tên sp / phòng / việc...")
+        self.ai_filter_device.setPlaceholderText("Target...")
         self.ai_filter_device.setStyleSheet("padding: 4px; font-size: 12px;")
         self.ai_filter_device.textChanged.connect(self.on_ai_filter_changed)
         filter_layout.addWidget(self.ai_filter_device, stretch=1)
 
         # 5. Model filter
-        filter_layout.addWidget(QLabel("Model AI:"))
+        self.lbl_ai_filter_model = QLabel("Model:")
+        filter_layout.addWidget(self.lbl_ai_filter_model)
         self.ai_filter_model = QLineEdit()
         self.ai_filter_model.setPlaceholderText("Model...")
         self.ai_filter_model.setStyleSheet("padding: 4px; font-size: 12px;")
@@ -3148,7 +3240,8 @@ class FacebookNotificationUI(QMainWindow):
         filter_layout.addWidget(self.ai_filter_model, stretch=1)
 
         # 6. Time filter
-        filter_layout.addWidget(QLabel("Thời gian:"))
+        self.lbl_ai_filter_time = QLabel(tr("col_post_time") + ":")
+        filter_layout.addWidget(self.lbl_ai_filter_time)
         self.ai_filter_time = QLineEdit()
         self.ai_filter_time.setPlaceholderText("dd/mm/yyyy...")
         self.ai_filter_time.setStyleSheet("padding: 4px; font-size: 12px;")
@@ -3156,8 +3249,8 @@ class FacebookNotificationUI(QMainWindow):
         filter_layout.addWidget(self.ai_filter_time, stretch=1)
 
         # Clear filter button
-        clear_filter_btn = QPushButton("🧹 Xóa lọc")
-        clear_filter_btn.setStyleSheet("""
+        self.ai_clear_filter_btn = QPushButton("🧹 " + ("Clear filter" if get_current_language() == "en" else "Xóa lọc"))
+        self.ai_clear_filter_btn.setStyleSheet("""
             QPushButton {
                 background-color: #6B7280;
                 color: white;
@@ -3168,29 +3261,29 @@ class FacebookNotificationUI(QMainWindow):
             }
             QPushButton:hover { background-color: #4B5563; }
         """)
-        clear_filter_btn.clicked.connect(self.clear_all_ai_filters)
-        filter_layout.addWidget(clear_filter_btn)
+        self.ai_clear_filter_btn.clicked.connect(self.clear_all_ai_filters)
+        filter_layout.addWidget(self.ai_clear_filter_btn)
 
-        layout.addWidget(filter_group)
+        layout.addWidget(self.ai_filter_group)
 
         # Instruction note
-        hint_label = QLabel("💡 <i>Danh sách hiển thị các bài viết được AI phân tích có <b>should_notify = True</b> (khớp nhu cầu mua bán / nhà trọ / việc làm). Bấm đúp chuột để xem chi tiết.</i>")
-        hint_label.setStyleSheet("color: #4B5563; font-size: 12px; margin-bottom: 2px;")
-        layout.addWidget(hint_label)
+        self.ai_hint_label = QLabel("💡 <i>" + ("List of posts analyzed by AI with <b>should_notify = True</b> (matched target / purchase / rental / jobs). Double click to view details." if get_current_language() == "en" else "Danh sách hiển thị các bài viết được AI phân tích có <b>should_notify = True</b> (khớp nhu cầu mua bán / nhà trọ / việc làm). Bấm đúp chuột để xem chi tiết.") + "</i>")
+        self.ai_hint_label.setStyleSheet("color: #4B5563; font-size: 12px; margin-bottom: 2px;")
+        layout.addWidget(self.ai_hint_label)
 
         # Batch Action Toolbar
         ai_action_toolbar = QHBoxLayout()
         ai_action_toolbar.setContentsMargins(0, 4, 0, 4)
         ai_action_toolbar.setSpacing(10)
 
-        self.ai_select_all_cb = QCheckBox("Chọn tất cả trang này")
+        self.ai_select_all_cb = QCheckBox(tr("group_mgr_select_all"))
         self.ai_select_all_cb.setStyleSheet("font-weight: bold; font-size: 12px; color: #5B21B6;")
         self.ai_select_all_cb.toggled.connect(self.on_ai_select_all_toggled)
         ai_action_toolbar.addWidget(self.ai_select_all_cb)
 
         ai_action_toolbar.addSpacing(5)
 
-        self.btn_delete_selected_ai = QPushButton("🗑️ Xóa đã chọn (0)")
+        self.btn_delete_selected_ai = QPushButton(tr("tab2_btn_delete_selected") + " (0)")
         self.btn_delete_selected_ai.setEnabled(False)
         self.btn_delete_selected_ai.setStyleSheet("""
             QPushButton {
@@ -3212,7 +3305,7 @@ class FacebookNotificationUI(QMainWindow):
         self.btn_delete_selected_ai.clicked.connect(self.delete_selected_ai_analyses)
         ai_action_toolbar.addWidget(self.btn_delete_selected_ai)
 
-        self.btn_resend_telegram = QPushButton("🔔 Gửi lại Telegram (0)")
+        self.btn_resend_telegram = QPushButton("🔔 " + ("Resend Telegram (0)" if get_current_language() == "en" else "Gửi lại Telegram (0)"))
         self.btn_resend_telegram.setEnabled(False)
         self.btn_resend_telegram.setStyleSheet("""
             QPushButton {
@@ -3234,7 +3327,7 @@ class FacebookNotificationUI(QMainWindow):
         self.btn_resend_telegram.clicked.connect(self.resend_telegram_for_selected)
         ai_action_toolbar.addWidget(self.btn_resend_telegram)
 
-        self.btn_delete_all_ai = QPushButton("💥 Xóa tất cả")
+        self.btn_delete_all_ai = QPushButton("💥 " + tr("tab2_btn_delete_all"))
         self.btn_delete_all_ai.setStyleSheet("""
             QPushButton {
                 background-color: #DC2626;
@@ -3256,7 +3349,7 @@ class FacebookNotificationUI(QMainWindow):
         self.ai_analysis_table = QTableWidget()
         self.ai_analysis_table.setColumnCount(12)
         self.ai_analysis_table.setHorizontalHeaderLabels([
-            "☑️", "STT", "Post ID", "Nhóm / Trang", "Từ khóa", "Model AI", "Mục tiêu / Nhu cầu", "Giá / Ngân sách", "Telegram", "Vai trò & Trích đoạn", "Đánh giá AI", "Hành động"
+            "☑️", tr("col_no"), tr("col_post_id"), tr("col_group_name"), "Keyword" if get_current_language() == "en" else "Từ khóa", "Model AI", tr("col_target_demand"), tr("col_price"), tr("col_telegram_status"), tr("col_role_snippet"), tr("col_ai_assessment"), tr("col_actions")
         ])
         self.ai_analysis_table.setTextElideMode(Qt.TextElideMode.ElideRight)
 
@@ -3320,17 +3413,18 @@ class FacebookNotificationUI(QMainWindow):
         paging_bar = QHBoxLayout()
         paging_bar.setContentsMargins(4, 4, 4, 4)
 
-        self.ai_first_page_btn = QPushButton("⏮ Đầu")
+        self.ai_first_page_btn = QPushButton(tr("btn_first_page"))
         self.ai_first_page_btn.setStyleSheet("padding: 4px 8px; font-size: 12px;")
         self.ai_first_page_btn.clicked.connect(self.go_first_ai_page)
         paging_bar.addWidget(self.ai_first_page_btn)
 
-        self.ai_prev_page_btn = QPushButton("◀ Trước")
+        self.ai_prev_page_btn = QPushButton(tr("btn_prev_page"))
         self.ai_prev_page_btn.setStyleSheet("padding: 4px 8px; font-size: 12px;")
         self.ai_prev_page_btn.clicked.connect(self.go_prev_ai_page)
         paging_bar.addWidget(self.ai_prev_page_btn)
 
-        paging_bar.addWidget(QLabel("Trang"))
+        self.lbl_ai_page_text = QLabel("Page" if get_current_language() == "en" else "Trang")
+        paging_bar.addWidget(self.lbl_ai_page_text)
 
         self.ai_page_spin = QSpinBox()
         self.ai_page_spin.setMinimum(1)
@@ -3344,18 +3438,19 @@ class FacebookNotificationUI(QMainWindow):
         self.ai_total_pages_label.setStyleSheet("font-weight: bold; margin-right: 8px;")
         paging_bar.addWidget(self.ai_total_pages_label)
 
-        self.ai_next_page_btn = QPushButton("Sau ▶")
+        self.ai_next_page_btn = QPushButton(tr("btn_next_page"))
         self.ai_next_page_btn.setStyleSheet("padding: 4px 8px; font-size: 12px;")
         self.ai_next_page_btn.clicked.connect(self.go_next_ai_page)
         paging_bar.addWidget(self.ai_next_page_btn)
 
-        self.ai_last_page_btn = QPushButton("Cuối ⏭")
+        self.ai_last_page_btn = QPushButton(tr("btn_last_page"))
         self.ai_last_page_btn.setStyleSheet("padding: 4px 8px; font-size: 12px;")
         self.ai_last_page_btn.clicked.connect(self.go_last_ai_page)
         paging_bar.addWidget(self.ai_last_page_btn)
 
         paging_bar.addSpacing(20)
-        paging_bar.addWidget(QLabel("Hiển thị/trang:"))
+        self.lbl_ai_page_size = QLabel("Show/page:" if get_current_language() == "en" else "Hiển thị/trang:")
+        paging_bar.addWidget(self.lbl_ai_page_size)
 
         self.ai_page_size_combo = QComboBox()
         self.ai_page_size_combo.addItems(["20", "50", "100", "200"])
@@ -3365,7 +3460,7 @@ class FacebookNotificationUI(QMainWindow):
 
         paging_bar.addStretch()
 
-        self.ai_total_label = QLabel("📊 Tổng số: 0 phân tích")
+        self.ai_total_label = QLabel("📊 " + tr("ai_page_info", current=1, total=1, count=0))
         self.ai_total_label.setStyleSheet("font-weight: bold; font-size: 13px; color: #5B21B6;")
         paging_bar.addWidget(self.ai_total_label)
 
@@ -3586,7 +3681,10 @@ class FacebookNotificationUI(QMainWindow):
             self.ai_last_page_btn.setEnabled(self.ai_current_page < self.ai_total_pages)
 
         if hasattr(self, 'ai_total_label'):
-            self.ai_total_label.setText(f"📊 Tổng số: {total} bài phân tích bán hàng | Trang {self.ai_current_page}/{self.ai_total_pages}")
+            lbl_total = "Total:" if get_current_language() == "en" else "Tổng số:"
+            lbl_evals = "AI evaluations" if get_current_language() == "en" else "bài phân tích"
+            lbl_page = "Page" if get_current_language() == "en" else "Trang"
+            self.ai_total_label.setText(f"📊 {lbl_total} {total} {lbl_evals} | {lbl_page} {self.ai_current_page}/{self.ai_total_pages}")
 
         offset = (self.ai_current_page - 1) * self.ai_page_size
         analyses = database.get_all_ai_analyses(limit=self.ai_page_size, offset=offset, search_query=search_query, filters=filters)
@@ -3725,7 +3823,7 @@ class FacebookNotificationUI(QMainWindow):
 
             self.ai_analysis_table.setCellWidget(row_idx, 11, btn_container)
 
-            view_btn = QPushButton("🔍 Chi tiết")
+            view_btn = QPushButton("🔍 " + ("Details" if get_current_language() == "en" else "Chi tiết"))
             view_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #8B5CF6;
@@ -3740,7 +3838,7 @@ class FacebookNotificationUI(QMainWindow):
             view_btn.clicked.connect(lambda checked, pid=post_id: self.show_post_detail(pid))
             btn_layout.addWidget(view_btn)
 
-            open_btn = QPushButton("🔗 Mở FB")
+            open_btn = QPushButton("🔗 " + ("Open FB" if get_current_language() == "en" else "Mở FB"))
             open_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #2563EB;
@@ -3755,7 +3853,7 @@ class FacebookNotificationUI(QMainWindow):
             open_btn.clicked.connect(lambda checked, url=permalink: webbrowser.open(url))
             btn_layout.addWidget(open_btn)
 
-            del_btn = QPushButton("🗑 Xóa")
+            del_btn = QPushButton("🗑 " + ("Delete" if get_current_language() == "en" else "Xóa"))
             del_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #FEE2E2;
@@ -3913,27 +4011,28 @@ class FacebookNotificationUI(QMainWindow):
         left_col.setSpacing(12)
 
         # 1. Telegram Group
-        tg_group = QGroupBox("📱 Cấu hình Telegram Bot")
+        self.tg_group = QGroupBox("📱 " + tr("sec_telegram"))
         tg_layout = QVBoxLayout()
-        tg_group.setLayout(tg_layout)
+        self.tg_group.setLayout(tg_layout)
 
-        self.tg_enabled_cb = QCheckBox("Bật thông báo qua Telegram")
+        self.tg_enabled_cb = QCheckBox(tr("lbl_enable_telegram"))
         self.tg_enabled_cb.setStyleSheet("font-weight: bold; color: #1E3A8A;")
         self.tg_enabled_cb.toggled.connect(self.toggle_telegram_fields)
         tg_layout.addWidget(self.tg_enabled_cb)
 
         tg_grid = QGridLayout()
-        tg_grid.addWidget(QLabel("Bot Token:"), 0, 0)
+        self.lbl_tg_token = QLabel("Bot Token:")
+        tg_grid.addWidget(self.lbl_tg_token, 0, 0)
         
         token_row = QHBoxLayout()
         self.tg_token_input = QLineEdit()
         self.tg_token_input.setPlaceholderText("VD: 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11")
         token_row.addWidget(self.tg_token_input)
 
-        btn_token_help = QPushButton("?")
-        btn_token_help.setFixedSize(22, 22)
-        btn_token_help.setToolTip("Xem hướng dẫn cách lấy Telegram Bot Token")
-        btn_token_help.setStyleSheet("""
+        self.btn_token_help = QPushButton("?")
+        self.btn_token_help.setFixedSize(22, 22)
+        self.btn_token_help.setToolTip(tr("btn_telegram_guide"))
+        self.btn_token_help.setStyleSheet("""
             QPushButton {
                 background-color: #EEF2FF;
                 color: #4F46E5;
@@ -3944,20 +4043,21 @@ class FacebookNotificationUI(QMainWindow):
             }
             QPushButton:hover { background-color: #E0E7FF; }
         """)
-        btn_token_help.clicked.connect(self.show_telegram_guide_dialog)
-        token_row.addWidget(btn_token_help)
+        self.btn_token_help.clicked.connect(self.show_telegram_guide_dialog)
+        token_row.addWidget(self.btn_token_help)
         tg_grid.addLayout(token_row, 0, 1)
 
-        tg_grid.addWidget(QLabel("Chat ID:"), 1, 0)
+        self.lbl_tg_chat_id = QLabel("Chat ID:")
+        tg_grid.addWidget(self.lbl_tg_chat_id, 1, 0)
         chat_id_row = QHBoxLayout()
         self.tg_chat_id_input = QLineEdit()
         self.tg_chat_id_input.setPlaceholderText("VD: -1001234567890 hoặc 123456789")
         chat_id_row.addWidget(self.tg_chat_id_input)
 
-        btn_chat_id_help = QPushButton("?")
-        btn_chat_id_help.setFixedSize(22, 22)
-        btn_chat_id_help.setToolTip("Xem hướng dẫn cách lấy Chat ID (Cá nhân hoặc Nhóm)")
-        btn_chat_id_help.setStyleSheet("""
+        self.btn_chat_id_help = QPushButton("?")
+        self.btn_chat_id_help.setFixedSize(22, 22)
+        self.btn_chat_id_help.setToolTip(tr("btn_telegram_guide"))
+        self.btn_chat_id_help.setStyleSheet("""
             QPushButton {
                 background-color: #EEF2FF;
                 color: #4F46E5;
@@ -3968,23 +4068,23 @@ class FacebookNotificationUI(QMainWindow):
             }
             QPushButton:hover { background-color: #E0E7FF; }
         """)
-        btn_chat_id_help.clicked.connect(self.show_telegram_guide_dialog)
-        chat_id_row.addWidget(btn_chat_id_help)
+        self.btn_chat_id_help.clicked.connect(self.show_telegram_guide_dialog)
+        chat_id_row.addWidget(self.btn_chat_id_help)
         tg_grid.addLayout(chat_id_row, 1, 1)
 
         tg_layout.addLayout(tg_grid)
 
         # Telegram triggers
-        self.tg_notify_finish_cb = QCheckBox("Gửi thông báo khi hoàn thành đợt quét")
+        self.tg_notify_finish_cb = QCheckBox(tr("chk_notify_on_finish"))
         self.tg_notify_finish_cb.setChecked(True)
         tg_layout.addWidget(self.tg_notify_finish_cb)
 
-        self.tg_notify_keyword_cb = QCheckBox("Gửi thông báo ngay khi phát hiện bài viết khớp từ khóa / AI xác nhận")
+        self.tg_notify_keyword_cb = QCheckBox(tr("chk_notify_on_keyword"))
         self.tg_notify_keyword_cb.setChecked(True)
         tg_layout.addWidget(self.tg_notify_keyword_cb)
 
         # Test Telegram button
-        self.test_tg_btn = QPushButton("🔔 Gửi tin nhắn kiểm tra kết nối Telegram")
+        self.test_tg_btn = QPushButton("🔔 " + tr("btn_test_telegram"))
         self.test_tg_btn.setStyleSheet("""
             QPushButton {
                 background-color: #3B82F6;
@@ -3999,42 +4099,45 @@ class FacebookNotificationUI(QMainWindow):
         self.test_tg_btn.clicked.connect(self.test_telegram_connection)
         tg_layout.addWidget(self.test_tg_btn)
 
-        left_col.addWidget(tg_group)
+        left_col.addWidget(self.tg_group)
 
         # 2. Network & Proxy Group
-        proxy_group = QGroupBox("🌐 Cấu hình Mạng & Proxy (Tùy chọn)")
+        self.proxy_group = QGroupBox("🌐 " + tr("sec_system"))
         proxy_layout = QVBoxLayout()
-        proxy_group.setLayout(proxy_layout)
+        self.proxy_group.setLayout(proxy_layout)
 
-        proxy_desc = QLabel("💡 Hỗ trợ: username:pass@ip:port hoặc ip:port (Để trống nếu chạy trực tiếp bằng mạng máy tính).")
-        proxy_desc.setWordWrap(True)
-        proxy_desc.setStyleSheet("font-size: 11px; color: #4B5563; line-height: 1.4;")
-        proxy_layout.addWidget(proxy_desc)
+        self.proxy_desc = QLabel("💡 " + ("Format: username:pass@ip:port or ip:port (Leave blank to connect directly)." if get_current_language() == "en" else "Hỗ trợ: username:pass@ip:port hoặc ip:port (Để trống nếu chạy trực tiếp bằng mạng máy tính)."))
+        self.proxy_desc.setWordWrap(True)
+        self.proxy_desc.setStyleSheet("font-size: 11px; color: #4B5563; line-height: 1.4;")
+        proxy_layout.addWidget(self.proxy_desc)
 
         proxy_grid = QGridLayout()
-        proxy_grid.addWidget(QLabel("Proxy:"), 0, 0)
+        self.lbl_proxy_title = QLabel("Proxy:")
+        proxy_grid.addWidget(self.lbl_proxy_title, 0, 0)
         self.proxy_input = QLineEdit()
         self.proxy_input.setPlaceholderText("VD: admin:123456@103.150.12.34:8080 hoặc 103.150.12.34:8080")
         proxy_grid.addWidget(self.proxy_input, 0, 1)
         proxy_layout.addLayout(proxy_grid)
 
-        left_col.addWidget(proxy_group)
+        left_col.addWidget(self.proxy_group)
 
         # 3. Diagnostics & Dev Support Group
-        diag_group = QGroupBox("🩺 Chẩn đoán & Hỗ trợ Kỹ thuật")
+        self.diag_group = QGroupBox("🩺 " + tr("btn_export_diagnose"))
         diag_layout = QVBoxLayout()
-        diag_group.setLayout(diag_layout)
+        self.diag_group.setLayout(diag_layout)
 
-        diag_desc = QLabel(
-            "Xuất dữ liệu bài viết, bình luận, lịch sử AI và logs ra tệp <code>.diagnose</code> để gửi cho Developer phân tích lỗi.<br>"
+        self.diag_desc = QLabel(
+            ("Export posts, comments, AI history and logs to a <code>.zip</code> archive for developer troubleshooting.<br><span style='color: #059669; font-weight: bold;'>🔒 100% Confidential:</span> Sensitive settings (Tokens, Keys, Cookies) are <b>NEVER</b> exported." if get_current_language() == "en" else
+            "Xuất dữ liệu bài viết, bình luận, lịch sử AI và logs ra tệp <code>.zip</code> để gửi cho Developer phân tích lỗi.<br>"
             "<span style='color: #059669; font-weight: bold;'>🔒 Bảo mật 100%:</span> "
-            "Bảng cài đặt chứa Token Telegram, API Key AI, Cookie và Proxy hoàn toàn <b>KHÔNG</b> được xuất."
+            "Bảng cài đặt chứa Token Telegram, API Key AI, Cookie và Proxy hoàn toàn <b>KHÔNG</b> được xuất.")
         )
-        diag_desc.setWordWrap(True)
-        diag_desc.setStyleSheet("font-size: 11px; color: #4B5563; line-height: 1.4;")
-        diag_layout.addWidget(diag_desc)
+        self.diag_desc.setWordWrap(True)
+        self.diag_desc.setStyleSheet("font-size: 11px; color: #4B5563; line-height: 1.4;")
+        diag_layout.addWidget(self.diag_desc)
 
-        self.btn_export_diagnose = QPushButton("🩺 Gửi phân tích cho Dev (Xuất file .diagnose)")
+        self.btn_export_diagnose = QPushButton("🩺 " + tr("btn_export_diagnose"))
+        self.btn_export_diagnose.setToolTip(tr("btn_export_diagnose_tooltip"))
         self.btn_export_diagnose.setStyleSheet("""
             QPushButton {
                 background-color: #7C3AED;
@@ -4048,22 +4151,22 @@ class FacebookNotificationUI(QMainWindow):
         """)
         self.btn_export_diagnose.clicked.connect(self.export_diagnose_action)
         diag_layout.addWidget(self.btn_export_diagnose)
-        left_col.addWidget(diag_group)
+        left_col.addWidget(self.diag_group)
 
         # 4. OTA Software Update Group
-        ota_group = QGroupBox("🔄 Cập nhật phần mềm (OTA Update)")
+        self.ota_group = QGroupBox("🔄 " + tr("btn_check_update"))
         ota_layout = QVBoxLayout()
-        ota_group.setLayout(ota_layout)
+        self.ota_group.setLayout(ota_layout)
 
-        ota_ver_label = QLabel(f"Phiên bản hiện tại: <span style='color: #2563EB; font-weight: bold;'>v{APP_VERSION}</span>")
-        ota_ver_label.setStyleSheet("font-size: 12px;")
-        ota_layout.addWidget(ota_ver_label)
+        self.ota_ver_label = QLabel(f"{tr('app_version')}: <span style='color: #2563EB; font-weight: bold;'>v{APP_VERSION}</span>")
+        self.ota_ver_label.setStyleSheet("font-size: 12px;")
+        ota_layout.addWidget(self.ota_ver_label)
 
-        self.ota_auto_check_cb = QCheckBox("Tự động kiểm tra bản cập nhật khi mở ứng dụng")
+        self.ota_auto_check_cb = QCheckBox("Automatically check for updates on startup" if get_current_language() == "en" else "Tự động kiểm tra bản cập nhật khi mở ứng dụng")
         self.ota_auto_check_cb.setChecked(True)
         ota_layout.addWidget(self.ota_auto_check_cb)
 
-        self.btn_check_ota = QPushButton("🔍 Kiểm tra bản cập nhật mới")
+        self.btn_check_ota = QPushButton("🔍 " + tr("btn_check_update"))
         self.btn_check_ota.setStyleSheet("""
             QPushButton {
                 background-color: #0284C7;
@@ -4077,7 +4180,7 @@ class FacebookNotificationUI(QMainWindow):
         """)
         self.btn_check_ota.clicked.connect(lambda: self.check_for_updates_action(manual=True))
         ota_layout.addWidget(self.btn_check_ota)
-        left_col.addWidget(ota_group)
+        left_col.addWidget(self.ota_group)
 
         left_col.addStretch()
 
@@ -4089,18 +4192,19 @@ class FacebookNotificationUI(QMainWindow):
         right_col = QVBoxLayout()
         right_col.setSpacing(12)
 
-        ai_group = QGroupBox("🤖 Cấu hình AI Phân tích nội dung (Multi-Model Fallback)")
+        self.ai_group = QGroupBox("🤖 " + tr("sec_ai"))
         ai_layout = QVBoxLayout()
-        ai_group.setLayout(ai_layout)
+        self.ai_group.setLayout(ai_layout)
 
-        self.ai_enabled_cb = QCheckBox("Bật AI phân tích bài viết & bình luận")
+        self.ai_enabled_cb = QCheckBox(tr("lbl_enable_ai"))
         self.ai_enabled_cb.setStyleSheet("font-weight: bold; color: #1E3A8A;")
         self.ai_enabled_cb.toggled.connect(self.toggle_ai_fields)
         ai_layout.addWidget(self.ai_enabled_cb)
 
         # Provider Selector Row
         provider_layout = QHBoxLayout()
-        provider_layout.addWidget(QLabel("<b>Nhà cung cấp AI:</b>"))
+        self.lbl_ai_provider = QLabel(f"<b>{tr('lbl_ai_provider')}</b>")
+        provider_layout.addWidget(self.lbl_ai_provider)
         self.ai_provider_combo = QComboBox()
         self.ai_provider_combo.addItem("✨ Google AI Studio (Gemini)", "google_ai")
         self.ai_provider_combo.addItem("🧠 OpenAI / OpenAI Tương thích", "openai")
@@ -4115,8 +4219,8 @@ class FacebookNotificationUI(QMainWindow):
         google_guide_layout.setContentsMargins(0, 4, 0, 4)
         google_guide_layout.setSpacing(4)
 
-        btn_open_google_studio = QPushButton("🔑 Mở Google AI Studio để lấy API Key miễn phí (aistudio.google.com)")
-        btn_open_google_studio.setStyleSheet("""
+        self.btn_open_google_studio = QPushButton("🔑 " + ("Open Google AI Studio to get free API Key (aistudio.google.com)" if get_current_language() == "en" else "Mở Google AI Studio để lấy API Key miễn phí (aistudio.google.com)"))
+        self.btn_open_google_studio.setStyleSheet("""
             QPushButton {
                 background-color: #E0F2FE;
                 color: #0369A1;
@@ -4128,35 +4232,34 @@ class FacebookNotificationUI(QMainWindow):
             }
             QPushButton:hover { background-color: #BAE6FD; }
         """)
-        btn_open_google_studio.clicked.connect(lambda: webbrowser.open("https://aistudio.google.com/app/apikey"))
-        google_guide_layout.addWidget(btn_open_google_studio)
+        self.btn_open_google_studio.clicked.connect(lambda: webbrowser.open("https://aistudio.google.com/app/apikey"))
+        google_guide_layout.addWidget(self.btn_open_google_studio)
 
-        google_note = QLabel("💡 <i>Hướng dẫn: Vào Google AI Studio ➔ Bấm 'Get API key' ➔ 'Create API key' ➔ Dán Key vào ô bên dưới.<br>• Model Gemini (như Gemini 2.5 Flash) sẽ tự động được tắt suy luận (thinking_budget: 0) để phản hồi JSON nhanh nhất.</i>")
-        google_note.setStyleSheet("font-size: 11px; color: #0369A1;")
-        google_note.setWordWrap(True)
-        google_guide_layout.addWidget(google_note)
+        self.google_note = QLabel("💡 <i>" + ("Guide: Go to Google AI Studio ➔ 'Get API key' ➔ 'Create API key' ➔ Paste key below.<br>• Gemini models run with thinking_budget: 0 for instantaneous JSON responses." if get_current_language() == "en" else "Hướng dẫn: Vào Google AI Studio ➔ Bấm 'Get API key' ➔ 'Create API key' ➔ Dán Key vào ô bên dưới.<br>• Model Gemini sẽ tự động được tắt suy luận để phản hồi JSON nhanh nhất.") + "</i>")
+        self.google_note.setStyleSheet("font-size: 11px; color: #0369A1;")
+        self.google_note.setWordWrap(True)
+        google_guide_layout.addWidget(self.google_note)
 
         ai_layout.addWidget(self.google_ai_guide_widget)
 
         # AI Grid (Base URL + API Key)
-        # AI Grid (Base URL + API Key)
         self.ai_grid = QGridLayout()
         
-        self.ai_base_url_label = QLabel("Base URL:")
+        self.ai_base_url_label = QLabel(tr("lbl_ai_base_url"))
         self.ai_base_url_input = QLineEdit()
-        self.ai_base_url_input.setPlaceholderText("https://api.openai.com/v1 (Để trống mặc định dùng OpenAI chính hãng)")
+        self.ai_base_url_input.setPlaceholderText("https://api.openai.com/v1")
         self.ai_grid.addWidget(self.ai_base_url_label, 0, 0)
         self.ai_grid.addWidget(self.ai_base_url_input, 0, 1)
 
-        self.ai_api_key_label = QLabel("API Key:")
+        self.ai_api_key_label = QLabel(tr("lbl_ai_api_key"))
         self.ai_api_key_input = QLineEdit()
         self.ai_api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.ai_api_key_input.setPlaceholderText("AIzaSy... (Gemini API Key)")
+        self.ai_api_key_input.setPlaceholderText("AIzaSy... (API Key)")
         self.ai_api_key_input.textChanged.connect(self.on_ai_api_key_text_changed)
         self.ai_grid.addWidget(self.ai_api_key_label, 1, 0)
         self.ai_grid.addWidget(self.ai_api_key_input, 1, 1)
 
-        self.ai_timeout_label = QLabel("Timeout AI (giây):")
+        self.ai_timeout_label = QLabel(tr("lbl_timeout"))
         
         timeout_container = QWidget()
         timeout_layout = QHBoxLayout(timeout_container)
@@ -4169,7 +4272,6 @@ class FacebookNotificationUI(QMainWindow):
         self.ai_timeout_input.setPlaceholderText("20")
         self.ai_timeout_input.setFixedWidth(70)
         self.ai_timeout_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.ai_timeout_input.setToolTip("Thời gian tối đa chờ phản hồi từ AI cho mỗi bài viết (giây). Nhập số nguyên từ 1 đến 9999.")
         self.ai_timeout_input.setStyleSheet("""
             QLineEdit {
                 padding: 4px 8px;
@@ -4209,12 +4311,13 @@ class FacebookNotificationUI(QMainWindow):
 
         # System Prompt Section with Presets & Guide Button
         prompt_header_layout = QHBoxLayout()
-        prompt_header_layout.addWidget(QLabel("<b>System Prompt:</b>"))
+        self.lbl_ai_prompt_header = QLabel(f"<b>{tr('lbl_ai_prompt')}</b>")
+        prompt_header_layout.addWidget(self.lbl_ai_prompt_header)
         prompt_header_layout.addStretch()
 
-        btn_preset_seller = QPushButton("🛒 Mẫu Mua Bán")
-        btn_preset_seller.setToolTip("Áp dụng mẫu Prompt chuyên tìm người rao bán / thanh lý sản phẩm, dịch vụ")
-        btn_preset_seller.setStyleSheet("""
+        self.btn_preset_seller = QPushButton(tr("prompt_template_buyer"))
+        self.btn_preset_seller.setToolTip("Prompt template")
+        self.btn_preset_seller.setStyleSheet("""
             QPushButton {
                 background-color: #EEF2FF;
                 color: #4338CA;
@@ -4226,12 +4329,11 @@ class FacebookNotificationUI(QMainWindow):
             }
             QPushButton:hover { background-color: #E0E7FF; }
         """)
-        btn_preset_seller.clicked.connect(lambda: self.apply_prompt_preset(database.DEFAULT_AI_PROMPT))
-        prompt_header_layout.addWidget(btn_preset_seller)
+        self.btn_preset_seller.clicked.connect(lambda: self.apply_prompt_preset(database.DEFAULT_AI_PROMPT))
+        prompt_header_layout.addWidget(self.btn_preset_seller)
 
-        btn_preset_buyer = QPushButton("🏷 Mẫu Tìm Mua")
-        btn_preset_buyer.setToolTip("Áp dụng mẫu Prompt chuyên tìm người cần mua / tìm kiếm sản phẩm, dịch vụ")
-        btn_preset_buyer.setStyleSheet("""
+        self.btn_preset_buyer = QPushButton(tr("prompt_template_buyer"))
+        self.btn_preset_buyer.setStyleSheet("""
             QPushButton {
                 background-color: #FEF3C7;
                 color: #92400E;
@@ -4243,12 +4345,11 @@ class FacebookNotificationUI(QMainWindow):
             }
             QPushButton:hover { background-color: #FDE68A; }
         """)
-        btn_preset_buyer.clicked.connect(lambda: self.apply_prompt_preset(database.DEFAULT_BUYER_AI_PROMPT))
-        prompt_header_layout.addWidget(btn_preset_buyer)
+        self.btn_preset_buyer.clicked.connect(lambda: self.apply_prompt_preset(database.DEFAULT_BUYER_AI_PROMPT))
+        prompt_header_layout.addWidget(self.btn_preset_buyer)
 
-        btn_preset_rental = QPushButton("🏢 Mẫu Phòng Trọ / BĐS")
-        btn_preset_rental.setToolTip("Áp dụng mẫu Prompt chuyên tìm người cho thuê hoặc tìm thuê phòng trọ, căn hộ, mặt bằng")
-        btn_preset_rental.setStyleSheet("""
+        self.btn_preset_rental = QPushButton(tr("prompt_template_rental"))
+        self.btn_preset_rental.setStyleSheet("""
             QPushButton {
                 background-color: #F0FDF4;
                 color: #166534;
@@ -4260,12 +4361,11 @@ class FacebookNotificationUI(QMainWindow):
             }
             QPushButton:hover { background-color: #DCFCE7; }
         """)
-        btn_preset_rental.clicked.connect(lambda: self.apply_prompt_preset(database.DEFAULT_RENTAL_AI_PROMPT))
-        prompt_header_layout.addWidget(btn_preset_rental)
+        self.btn_preset_rental.clicked.connect(lambda: self.apply_prompt_preset(database.DEFAULT_RENTAL_AI_PROMPT))
+        prompt_header_layout.addWidget(self.btn_preset_rental)
 
-        btn_preset_job = QPushButton("💼 Mẫu Việc Làm / Tuyển Dụng")
-        btn_preset_job.setToolTip("Áp dụng mẫu Prompt chuyên tìm tin tuyển dụng nhân viên hoặc người tìm việc làm / freelance")
-        btn_preset_job.setStyleSheet("""
+        self.btn_preset_job = QPushButton(tr("prompt_template_job"))
+        self.btn_preset_job.setStyleSheet("""
             QPushButton {
                 background-color: #FDF2F8;
                 color: #9D174D;
@@ -4277,12 +4377,11 @@ class FacebookNotificationUI(QMainWindow):
             }
             QPushButton:hover { background-color: #FCE7F3; }
         """)
-        btn_preset_job.clicked.connect(lambda: self.apply_prompt_preset(database.DEFAULT_JOB_AI_PROMPT))
-        prompt_header_layout.addWidget(btn_preset_job)
+        self.btn_preset_job.clicked.connect(lambda: self.apply_prompt_preset(database.DEFAULT_JOB_AI_PROMPT))
+        prompt_header_layout.addWidget(self.btn_preset_job)
 
-        btn_prompt_guide = QPushButton("💡 Hướng dẫn tạo Prompt mới")
-        btn_prompt_guide.setToolTip("Xem hướng dẫn và copy mẫu Meta-Prompt gửi cho ChatGPT / Claude / Gemini / DeepSeek để tạo Prompt theo ý muốn")
-        btn_prompt_guide.setStyleSheet("""
+        self.btn_prompt_guide = QPushButton(tr("btn_prompt_guide"))
+        self.btn_prompt_guide.setStyleSheet("""
             QPushButton {
                 background-color: #ECFDF5;
                 color: #047857;
@@ -4294,21 +4393,20 @@ class FacebookNotificationUI(QMainWindow):
             }
             QPushButton:hover { background-color: #D1FAE5; }
         """)
-        btn_prompt_guide.clicked.connect(self.show_prompt_guide_dialog)
-        prompt_header_layout.addWidget(btn_prompt_guide)
+        self.btn_prompt_guide.clicked.connect(self.show_prompt_guide_dialog)
+        prompt_header_layout.addWidget(self.btn_prompt_guide)
 
         ai_layout.addLayout(prompt_header_layout)
-
 
         self.ai_prompt_input = QTextEdit()
         self.ai_prompt_input.setMinimumHeight(140)
         self.ai_prompt_input.setMaximumHeight(220)
-        self.ai_prompt_input.setPlaceholderText("Hướng dẫn prompt cho AI...")
+        self.ai_prompt_input.setPlaceholderText(tr("lbl_ai_prompt"))
         self.ai_prompt_input.setStyleSheet("font-family: Consolas, monospace; font-size: 12px; padding: 6px;")
         ai_layout.addWidget(self.ai_prompt_input)
 
         # Test Sample Post AI button
-        self.test_ai_btn = QPushButton("🤖 Gửi thử nghiệm phân tích bài mẫu")
+        self.test_ai_btn = QPushButton("🤖 " + tr("btn_test_ai_conn"))
         self.test_ai_btn.setStyleSheet("""
             QPushButton {
                 background-color: #6366F1;
@@ -4323,14 +4421,14 @@ class FacebookNotificationUI(QMainWindow):
         self.test_ai_btn.clicked.connect(self.test_ai_connection)
         ai_layout.addWidget(self.test_ai_btn)
 
-        right_col.addWidget(ai_group)
+        right_col.addWidget(self.ai_group)
         two_col_layout.addLayout(right_col, 1)
 
         main_layout.addLayout(two_col_layout)
 
         # Save Button (Full width at bottom)
-        save_cfg_btn = QPushButton("💾 Lưu Cấu hình vào SQLite")
-        save_cfg_btn.setStyleSheet("""
+        self.save_cfg_btn = QPushButton("💾 " + tr("btn_save_settings"))
+        self.save_cfg_btn.setStyleSheet("""
             QPushButton {
                 background-color: #2563EB;
                 color: white;
@@ -4341,8 +4439,8 @@ class FacebookNotificationUI(QMainWindow):
             }
             QPushButton:hover { background-color: #1D4ED8; }
         """)
-        save_cfg_btn.clicked.connect(lambda: self.save_all_settings_to_db(silent=False))
-        main_layout.addWidget(save_cfg_btn)
+        self.save_cfg_btn.clicked.connect(lambda: self.save_all_settings_to_db(silent=False))
+        main_layout.addWidget(self.save_cfg_btn)
 
         scroll_area.setWidget(content_widget)
         tab_vbox.addWidget(scroll_area)
@@ -4602,12 +4700,319 @@ class FacebookNotificationUI(QMainWindow):
         self.log("📋 Đã áp dụng mẫu System Prompt mới vào ô cấu hình.")
 
     # --------------------------------------------------------------------------
+    # Language & Localization (i18n)
+    # --------------------------------------------------------------------------
+    def set_app_language(self, lang_code: str):
+        """Chuyển đổi ngôn ngữ giao diện tức thì (vi / en)"""
+        if lang_code not in ("vi", "en"):
+            return
+        set_current_language(lang_code)
+        database.set_setting("language", lang_code)
+        
+        if hasattr(self, 'btn_lang_vi') and hasattr(self, 'btn_lang_us'):
+            self.btn_lang_vi.setChecked(lang_code == "vi")
+            self.btn_lang_us.setChecked(lang_code == "en")
+            
+        self.retranslate_ui()
+
+    def retranslate_ui(self):
+        """Cập nhật lại toàn bộ nhãn, tiêu đề, bảng, placeholder trên giao diện theo ngôn ngữ hiện tại"""
+        # Window & Header
+        self.setWindowTitle(f"📘 {tr('app_title')} v{APP_VERSION}")
+        if hasattr(self, 'title_lbl'):
+            self.title_lbl.setText(f"📘 {tr('app_title')} <span style='font-size: 13px; color: #2563EB; font-weight: bold;'>v{APP_VERSION}</span>")
+        if hasattr(self, 'btn_lang_vi'):
+            self.btn_lang_vi.setToolTip(tr("flag_vi_tooltip"))
+        if hasattr(self, 'btn_lang_us'):
+            self.btn_lang_us.setToolTip(tr("flag_us_tooltip"))
+
+        # 4 Tab Titles
+        if hasattr(self, 'tabs'):
+            self.tabs.setTabText(0, tr("tab_group_posts"))
+            self.tabs.setTabText(1, tr("tab_scraped_data"))
+            self.tabs.setTabText(2, tr("tab_ai_history"))
+            self.tabs.setTabText(3, tr("tab_settings"))
+
+        # Tab 1: Group Posts
+        if hasattr(self, 'cookie_btn'):
+            self.cookie_btn.setText(tr("btn_cookie_config"))
+        if hasattr(self, 'guide_btn'):
+            self.guide_btn.setText(tr("btn_user_guide"))
+            self.guide_btn.setToolTip(tr("btn_user_guide_tooltip"))
+        if hasattr(self, 'group_box_input'):
+            self.group_box_input.setTitle(tr("group_box_target_groups"))
+        if hasattr(self, 'group_list_widget'):
+            self.group_list_widget.retranslate_ui()
+        if hasattr(self, 'kw_title'):
+            self.kw_title.setText(f"<b>{tr('kw_card_title')}:</b>")
+        if hasattr(self, 'btn_edit_filter'):
+            self.btn_edit_filter.setText(tr("kw_card_btn_config"))
+        if hasattr(self, 'lbl_posts_per_group'):
+            self.lbl_posts_per_group.setText(tr("param_posts_per_group"))
+        if hasattr(self, 'lbl_min_comments'):
+            self.lbl_min_comments.setText(tr("param_min_comments"))
+        if hasattr(self, 'help_cmt_btn'):
+            self.help_cmt_btn.setToolTip(tr("tooltip_min_comments"))
+        if hasattr(self, 'lbl_threads'):
+            self.lbl_threads.setText(tr("param_threads"))
+        if hasattr(self, 'help_concurrency_btn'):
+            self.help_concurrency_btn.setToolTip(tr("tooltip_threads"))
+        if hasattr(self, 'lbl_cutoff_time'):
+            self.lbl_cutoff_time.setText("⏰ " + tr("param_cutoff_time"))
+        if hasattr(self, 'time_filter_combo'):
+            curr_idx = self.time_filter_combo.currentIndex()
+            self.time_filter_combo.blockSignals(True)
+            self.time_filter_combo.clear()
+            self.time_filter_combo.addItems([
+                tr("param_cutoff_all"),
+                tr("param_cutoff_1d"),
+                tr("param_cutoff_2d"),
+                tr("param_cutoff_3d"),
+                "4 " + ("days ago" if get_current_language() == "en" else "ngày trước"),
+                "5 " + ("days ago" if get_current_language() == "en" else "ngày trước"),
+                "6 " + ("days ago" if get_current_language() == "en" else "ngày trước"),
+                tr("param_cutoff_7d"),
+                tr("param_cutoff_custom")
+            ])
+            if curr_idx >= 0 and curr_idx < self.time_filter_combo.count():
+                self.time_filter_combo.setCurrentIndex(curr_idx)
+            self.time_filter_combo.blockSignals(False)
+        if hasattr(self, 'infinite_loop_cb'):
+            self.infinite_loop_cb.setText(tr("param_infinite_loop"))
+        if hasattr(self, 'loop_interval_label'):
+            self.loop_interval_label.setText(tr("param_sleep_interval"))
+        if hasattr(self, 'start_btn'):
+            self.start_btn.setText(tr("btn_start_scraping"))
+        if hasattr(self, 'stop_btn'):
+            self.stop_btn.setText(tr("btn_stop_scraping"))
+        if hasattr(self, 'log_group'):
+            self.log_group.setTitle(tr("log_console_title"))
+        if hasattr(self, 'log_hint'):
+            self.log_hint.setText("<i>⚡ " + ("Compact logs (1/4). Click 'Live Logs Viewer' to expand and search." if get_current_language() == "en" else "Nhật ký thu gọn (1/4). Bấm 'Phóng to' để xem toàn bộ và tìm kiếm.") + "</i>")
+        if hasattr(self, 'expand_log_btn'):
+            self.expand_log_btn.setText("⛶ " + tr("btn_log_viewer"))
+            self.expand_log_btn.setToolTip(tr("btn_log_viewer_tooltip"))
+        if hasattr(self, 'clear_log_btn'):
+            self.clear_log_btn.setText(tr("btn_clear_logs"))
+
+        # Update Keyword Filter preview text
+        if hasattr(self, 'update_keyword_filter_summary'):
+            self.update_keyword_filter_summary(getattr(self, 'current_keyword_expression', ''))
+
+        # Tab 2: Scraped Data
+        if hasattr(self, 'history_search_input'):
+            self.history_search_input.setPlaceholderText(tr("tab2_search_placeholder"))
+        if hasattr(self, 'history_search_btn'):
+            self.history_search_btn.setText(tr("tab2_btn_search"))
+        if hasattr(self, 'history_refresh_btn'):
+            self.history_refresh_btn.setText(tr("tab2_btn_refresh"))
+        if hasattr(self, 'history_filter_group'):
+            self.history_filter_group.setTitle("🎯 " + tr("tab2_filter_group"))
+        if hasattr(self, 'lbl_filter_post_id'):
+            self.lbl_filter_post_id.setText(tr("col_post_id") + ":")
+        if hasattr(self, 'lbl_filter_group'):
+            self.lbl_filter_group.setText(tr("col_group_name") + ":")
+        if hasattr(self, 'lbl_filter_message'):
+            self.lbl_filter_message.setText(tr("col_post_content") + ":")
+        if hasattr(self, 'lbl_filter_time'):
+            self.lbl_filter_time.setText(tr("col_post_time") + ":")
+        if hasattr(self, 'history_clear_filter_btn'):
+            self.history_clear_filter_btn.setText("🧹 " + ("Clear filter" if get_current_language() == "en" else "Xóa lọc"))
+        if hasattr(self, 'history_hint_label'):
+            self.history_hint_label.setText("💡 <i>" + ("Tip: Double click a row to view post details, comments & replies. Click '🔗 Open FB' to open post in browser." if get_current_language() == "en" else "Gợi ý: Bấm đúp chuột hoặc click vào dòng để xem chi tiết bài viết, bình luận & phản hồi. Bấm nút '🔗 Mở FB' để mở bài viết trên trình duyệt.") + "</i>")
+        if hasattr(self, 'history_select_all_cb'):
+            self.history_select_all_cb.setText(tr("group_mgr_select_all"))
+        if hasattr(self, 'btn_delete_selected_history'):
+            self.update_history_buttons_state()
+        if hasattr(self, 'btn_delete_all_history'):
+            self.btn_delete_all_history.setText("💥 " + tr("tab2_btn_delete_all"))
+        if hasattr(self, 'btn_update_24h_comments'):
+            self.btn_update_24h_comments.setText("⏱️ " + ("Update last 24h comments" if get_current_language() == "en" else "Cập nhật bình luận 24h vừa qua"))
+        if hasattr(self, 'history_table'):
+            self.history_table.setHorizontalHeaderLabels([
+                "☑️", tr("col_no"), tr("col_post_id"), tr("col_group_name"), tr("col_post_content"), tr("col_comments_count"), tr("col_post_time"), tr("col_actions")
+            ])
+        if hasattr(self, 'first_page_btn'):
+            self.first_page_btn.setText(tr("btn_first_page"))
+        if hasattr(self, 'prev_page_btn'):
+            self.prev_page_btn.setText(tr("btn_prev_page"))
+        if hasattr(self, 'lbl_page_text'):
+            self.lbl_page_text.setText("Page" if get_current_language() == "en" else "Trang")
+        if hasattr(self, 'next_page_btn'):
+            self.next_page_btn.setText(tr("btn_next_page"))
+        if hasattr(self, 'last_page_btn'):
+            self.last_page_btn.setText(tr("btn_last_page"))
+        if hasattr(self, 'lbl_page_size'):
+            self.lbl_page_size.setText("Show/page:" if get_current_language() == "en" else "Hiển thị/trang:")
+
+        # Tab 3: AI History
+        if hasattr(self, 'ai_search_input'):
+            self.ai_search_input.setPlaceholderText(tr("tab3_search_placeholder"))
+        if hasattr(self, 'ai_search_btn'):
+            self.ai_search_btn.setText(tr("tab2_btn_search"))
+        if hasattr(self, 'ai_refresh_btn'):
+            self.ai_refresh_btn.setText(tr("tab2_btn_refresh"))
+        if hasattr(self, 'ai_filter_group'):
+            self.ai_filter_group.setTitle("🎯 " + tr("tab3_filter_status"))
+        if hasattr(self, 'lbl_ai_filter_post_id'):
+            self.lbl_ai_filter_post_id.setText(tr("col_post_id") + ":")
+        if hasattr(self, 'lbl_ai_filter_group'):
+            self.lbl_ai_filter_group.setText(tr("col_group_name") + ":")
+        if hasattr(self, 'lbl_ai_filter_keyword'):
+            self.lbl_ai_filter_keyword.setText(tr("col_target_demand") + ":")
+        if hasattr(self, 'lbl_ai_filter_device'):
+            self.lbl_ai_filter_device.setText(tr("col_target_demand") + ":")
+        if hasattr(self, 'lbl_ai_filter_time'):
+            self.lbl_ai_filter_time.setText(tr("col_post_time") + ":")
+        if hasattr(self, 'ai_clear_filter_btn'):
+            self.ai_clear_filter_btn.setText("🧹 " + ("Clear filter" if get_current_language() == "en" else "Xóa lọc"))
+        if hasattr(self, 'ai_hint_label'):
+            self.ai_hint_label.setText("💡 <i>" + ("List of posts analyzed by AI with <b>should_notify = True</b> (matched target / purchase / rental / jobs). Double click to view details." if get_current_language() == "en" else "Danh sách hiển thị các bài viết được AI phân tích có <b>should_notify = True</b> (khớp nhu cầu mua bán / nhà trọ / việc làm). Bấm đúp chuột để xem chi tiết.") + "</i>")
+        if hasattr(self, 'ai_select_all_cb'):
+            self.ai_select_all_cb.setText(tr("group_mgr_select_all"))
+        if hasattr(self, 'btn_delete_selected_ai'):
+            self.update_ai_buttons_state()
+        if hasattr(self, 'btn_delete_all_ai'):
+            self.btn_delete_all_ai.setText("💥 " + tr("tab2_btn_delete_all"))
+        if hasattr(self, 'ai_analysis_table'):
+            self.ai_analysis_table.setHorizontalHeaderLabels([
+                "☑️", tr("col_no"), tr("col_post_id"), tr("col_group_name"), "Keyword" if get_current_language() == "en" else "Từ khóa", "Model AI", tr("col_target_demand"), tr("col_price"), tr("col_telegram_status"), tr("col_role_snippet"), tr("col_ai_assessment"), tr("col_actions")
+            ])
+        if hasattr(self, 'ai_first_page_btn'):
+            self.ai_first_page_btn.setText(tr("btn_first_page"))
+        if hasattr(self, 'ai_prev_page_btn'):
+            self.ai_prev_page_btn.setText(tr("btn_prev_page"))
+        if hasattr(self, 'lbl_ai_page_text'):
+            self.lbl_ai_page_text.setText("Page" if get_current_language() == "en" else "Trang")
+        if hasattr(self, 'ai_next_page_btn'):
+            self.ai_next_page_btn.setText(tr("btn_next_page"))
+        if hasattr(self, 'ai_last_page_btn'):
+            self.ai_last_page_btn.setText(tr("btn_last_page"))
+        if hasattr(self, 'lbl_ai_page_size'):
+            self.lbl_ai_page_size.setText("Show/page:" if get_current_language() == "en" else "Hiển thị/trang:")
+
+        # Refresh tables to update row buttons and total count labels
+        if hasattr(self, 'load_history_data'):
+            self.load_history_data()
+        if hasattr(self, 'load_ai_analysis_data'):
+            self.load_ai_analysis_data()
+
+        # Tab 4: Settings
+        if hasattr(self, 'tg_group'):
+            self.tg_group.setTitle("📱 " + tr("sec_telegram"))
+        if hasattr(self, 'tg_enabled_cb'):
+            self.tg_enabled_cb.setText(tr("lbl_enable_telegram"))
+        if hasattr(self, 'lbl_tg_token'):
+            self.lbl_tg_token.setText(tr("lbl_tg_token"))
+        if hasattr(self, 'lbl_tg_chat_id'):
+            self.lbl_tg_chat_id.setText(tr("lbl_tg_chat_id"))
+        if hasattr(self, 'tg_token_input'):
+            self.tg_token_input.setPlaceholderText(tr("placeholder_tg_token"))
+        if hasattr(self, 'tg_chat_id_input'):
+            self.tg_chat_id_input.setPlaceholderText(tr("placeholder_tg_chat_id"))
+        if hasattr(self, 'btn_token_help'):
+            self.btn_token_help.setToolTip(tr("btn_telegram_guide"))
+        if hasattr(self, 'btn_chat_id_help'):
+            self.btn_chat_id_help.setToolTip(tr("btn_telegram_guide"))
+        if hasattr(self, 'tg_notify_finish_cb'):
+            self.tg_notify_finish_cb.setText(tr("chk_notify_on_finish"))
+        if hasattr(self, 'tg_notify_keyword_cb'):
+            self.tg_notify_keyword_cb.setText(tr("chk_notify_on_keyword"))
+        if hasattr(self, 'test_tg_btn'):
+            self.test_tg_btn.setText("🔔 " + tr("btn_test_telegram"))
+        if hasattr(self, 'proxy_group'):
+            self.proxy_group.setTitle("🌐 " + tr("sec_proxy"))
+        if hasattr(self, 'lbl_proxy_title'):
+            self.lbl_proxy_title.setText(tr("lbl_proxy_title"))
+        if hasattr(self, 'proxy_input'):
+            self.proxy_input.setPlaceholderText(tr("placeholder_proxy"))
+        if hasattr(self, 'proxy_desc'):
+            self.proxy_desc.setText("💡 " + tr("lbl_proxy_desc"))
+        if hasattr(self, 'diag_group'):
+            self.diag_group.setTitle("🩺 " + tr("sec_diagnose"))
+        if hasattr(self, 'diag_desc'):
+            self.diag_desc.setText(tr("lbl_diagnose_desc"))
+        if hasattr(self, 'btn_export_diagnose'):
+            self.btn_export_diagnose.setText("🩺 " + tr("btn_export_diagnose"))
+            self.btn_export_diagnose.setToolTip(tr("btn_export_diagnose_tooltip"))
+        if hasattr(self, 'ota_group'):
+            self.ota_group.setTitle("🔄 " + tr("sec_ota"))
+        if hasattr(self, 'ota_ver_label'):
+            self.ota_ver_label.setText(f"{tr('app_version')}: <span style='color: #2563EB; font-weight: bold;'>v{APP_VERSION}</span>")
+        if hasattr(self, 'ota_auto_check_cb'):
+            self.ota_auto_check_cb.setText(tr("lbl_ota_auto_check"))
+        if hasattr(self, 'btn_check_ota'):
+            self.btn_check_ota.setText("🔍 " + tr("btn_check_update"))
+        if hasattr(self, 'ai_group'):
+            self.ai_group.setTitle("🤖 " + tr("sec_ai"))
+        if hasattr(self, 'ai_enabled_cb'):
+            self.ai_enabled_cb.setText(tr("lbl_enable_ai"))
+        if hasattr(self, 'lbl_ai_provider'):
+            self.lbl_ai_provider.setText(f"<b>{tr('lbl_ai_provider')}</b>")
+        if hasattr(self, 'ai_provider_combo'):
+            self.ai_provider_combo.setItemText(0, tr("ai_provider_google"))
+            self.ai_provider_combo.setItemText(1, tr("ai_provider_openai"))
+        if hasattr(self, 'btn_open_google_studio'):
+            self.btn_open_google_studio.setText(tr("btn_open_google_studio"))
+        if hasattr(self, 'google_note'):
+            self.google_note.setText(tr("google_studio_note"))
+        if hasattr(self, 'ai_base_url_label'):
+            self.ai_base_url_label.setText(tr("lbl_ai_base_url"))
+        if hasattr(self, 'ai_api_key_label'):
+            self.ai_api_key_label.setText(tr("lbl_ai_api_key"))
+        if hasattr(self, 'ai_api_key_input'):
+            provider = self.get_current_ai_provider() if hasattr(self, 'get_current_ai_provider') else "google_ai"
+            if provider == "google_ai":
+                self.ai_api_key_input.setPlaceholderText(tr("placeholder_gemini_key"))
+            else:
+                self.ai_api_key_input.setPlaceholderText(tr("placeholder_openai_key"))
+        if hasattr(self, 'ai_timeout_label'):
+            self.ai_timeout_label.setText(tr("lbl_timeout"))
+        if hasattr(self, 'gemini_model_selector') and hasattr(self.gemini_model_selector, 'retranslate_ui'):
+            self.gemini_model_selector.retranslate_ui()
+        if hasattr(self, 'openai_model_selector') and hasattr(self.openai_model_selector, 'retranslate_ui'):
+            self.openai_model_selector.retranslate_ui()
+        if hasattr(self, 'lbl_ai_prompt_header'):
+            self.lbl_ai_prompt_header.setText(f"<b>{tr('lbl_ai_prompt')}</b>")
+        if hasattr(self, 'btn_preset_seller'):
+            self.btn_preset_seller.setText(tr("prompt_template_seller"))
+        if hasattr(self, 'btn_preset_buyer'):
+            self.btn_preset_buyer.setText(tr("prompt_template_buyer"))
+        if hasattr(self, 'btn_preset_rental'):
+            self.btn_preset_rental.setText(tr("prompt_template_rental"))
+        if hasattr(self, 'btn_preset_job'):
+            self.btn_preset_job.setText(tr("prompt_template_job"))
+        if hasattr(self, 'btn_prompt_guide'):
+            self.btn_prompt_guide.setText(tr("btn_prompt_guide"))
+        if hasattr(self, 'test_ai_btn'):
+            self.test_ai_btn.setText("🤖 " + tr("btn_test_ai_conn"))
+        if hasattr(self, 'save_cfg_btn'):
+            self.save_cfg_btn.setText("💾 " + tr("btn_save_settings"))
+
+        # Re-render active table data if on Tab 2 or Tab 3
+        if hasattr(self, 'tabs'):
+            idx = self.tabs.currentIndex()
+            if idx == 1 and hasattr(self, 'load_history_data'):
+                self.load_history_data()
+            elif idx == 2 and hasattr(self, 'load_ai_analysis_data'):
+                self.load_ai_analysis_data()
+
+    # --------------------------------------------------------------------------
     # Settings Management (SQLite Persistence)
     # --------------------------------------------------------------------------
     def load_saved_settings(self):
         """Nạp toàn bộ cấu hình đã lưu từ SQLite khi khởi động"""
         settings = database.get_all_settings()
         
+        # Load language setting
+        saved_lang = settings.get("language", "vi")
+        if saved_lang in ("vi", "en"):
+            set_current_language(saved_lang)
+            if hasattr(self, 'btn_lang_vi') and hasattr(self, 'btn_lang_us'):
+                self.btn_lang_vi.setChecked(saved_lang == "vi")
+                self.btn_lang_us.setChecked(saved_lang == "en")
+            self.retranslate_ui()
+
         # Tab 1: Group URLs & Settings from facebook_groups table
         groups = database.get_all_groups()
         self.group_list_widget.set_groups(groups)
@@ -4765,6 +5170,7 @@ class FacebookNotificationUI(QMainWindow):
         ota_auto = "1" if (hasattr(self, 'ota_auto_check_cb') and self.ota_auto_check_cb.isChecked()) else "0"
 
         data = {
+            "language": get_current_language(),
             "keywords": kw_expr,
             "keyword_expression": kw_expr,
             "concurrency": self.group_concurrency.currentText() if hasattr(self, 'group_concurrency') else "1",
@@ -4823,7 +5229,7 @@ class FacebookNotificationUI(QMainWindow):
             self.ai_dispatcher.update_config(ai_cfg, tg_cfg)
 
         if not silent:
-            QMessageBox.information(self, "Thành công", "✅ Đã lưu toàn bộ cấu hình vào SQLite!")
+            QMessageBox.information(self, "Thành công" if get_current_language() == "vi" else "Success", "✅ " + tr("msg_save_success"))
 
     def export_diagnose_action(self):
         """Xuất access.log, error.log và SQL dump (trừ settings) vào file .zip để gửi Dev"""
@@ -5144,23 +5550,34 @@ class FacebookNotificationUI(QMainWindow):
         self.group_fetch_worker.start()
 
     def open_user_guide(self):
-        """Mở tài liệu hướng dẫn HTML trong trình duyệt mặc định"""
+        """Mở tài liệu hướng dẫn HTML trong trình duyệt mặc định theo ngôn ngữ hiện tại"""
         exe_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.getcwd()
         meipass_dir = getattr(sys, '_MEIPASS', '')
+        lang = get_current_language()
+        html_name = "en.html" if lang == "en" else "index.html"
+        fallback_name = "index.html" if lang == "en" else "en.html"
+
         possible_paths = [
-            os.path.abspath(os.path.join(exe_dir, "guides", "index.html")),
-            os.path.abspath(os.path.join(exe_dir, "_internal", "guides", "index.html")),
-            os.path.abspath(os.path.join(meipass_dir, "guides", "index.html")) if meipass_dir else "",
-            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "guides", "index.html")),
-            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "guides", "index.html")),
-            os.path.abspath("guides/index.html")
+            os.path.abspath(os.path.join(exe_dir, "guides", html_name)),
+            os.path.abspath(os.path.join(exe_dir, "_internal", "guides", html_name)),
+            os.path.abspath(os.path.join(meipass_dir, "guides", html_name)) if meipass_dir else "",
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "guides", html_name)),
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "guides", html_name)),
+            os.path.abspath(f"guides/{html_name}"),
+            os.path.abspath(os.path.join(exe_dir, "guides", fallback_name)),
+            os.path.abspath(os.path.join(exe_dir, "_internal", "guides", fallback_name)),
+            os.path.abspath(os.path.join(meipass_dir, "guides", fallback_name)) if meipass_dir else "",
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "guides", fallback_name)),
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "guides", fallback_name)),
+            os.path.abspath(f"guides/{fallback_name}")
         ]
         guide_file = next((p for p in possible_paths if p and os.path.exists(p)), None)
         if guide_file:
             self.log(f"📖 Đang mở hướng dẫn sử dụng: {guide_file}")
             webbrowser.open(f"file:///{guide_file.replace(os.sep, '/')}")
         else:
-            QMessageBox.warning(self, "Không tìm thấy file", "Chưa tìm thấy file tài liệu hướng dẫn `guides/index.html`.")
+            QMessageBox.warning(self, "Không tìm thấy file" if lang == "vi" else "File not found", 
+                                f"Chưa tìm thấy file tài liệu hướng dẫn `guides/{html_name}`." if lang == "vi" else f"User guide file `guides/{html_name}` not found.")
 
 
     # --------------------------------------------------------------------------

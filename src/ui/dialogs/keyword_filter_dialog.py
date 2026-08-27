@@ -13,12 +13,13 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from src.ui.components.keyword_filter_widget import KeywordFilterWidget
 from src.utils.keyword_engine import explain_expression, validate_expression
+from src.utils.i18n import tr, get_current_language
 
 
 class KeywordFilterDialog(QDialog):
     def __init__(self, initial_expression: str = "", parent=None):
         super().__init__(parent)
-        self.setWindowTitle("🔍 Cấu hình Bộ lọc Từ khóa & Biểu thức Logic nâng cao")
+        self.setWindowTitle("🔍 " + tr("filter_dialog_title"))
         # Cho phép phóng to Max màn hình (Maximize button) và thu nhỏ
         self.setWindowFlags(
             self.windowFlags()
@@ -44,11 +45,13 @@ class KeywordFilterDialog(QDialog):
         banner_layout.setContentsMargins(12, 10, 12, 10)
         banner_layout.setSpacing(4)
 
-        banner_title = QLabel("<b>💡 Trình xây dựng biểu thức logic từ khóa</b>")
+        banner_title = QLabel(f"<b>💡 {tr('filter_dialog_title')}</b>")
         banner_title.setStyleSheet("color: #1E40AF; font-size: 13px;")
         banner_layout.addWidget(banner_title)
 
         banner_desc = QLabel(
+            "You can construct conditions visually or write expressions freely. The system interprets your logic in real-time."
+            if get_current_language() == "en" else
             "Bạn có thể chọn tạo điều kiện bằng giao diện trực quan theo từng khối/nhóm, hoặc tự gõ biểu thức tự do. "
             "Hệ thống sẽ tự động chuyển đổi qua lại giữa 2 chế độ và diễn giải ý nghĩa bên dưới."
         )
@@ -70,11 +73,11 @@ class KeywordFilterDialog(QDialog):
         explainer_layout.setContentsMargins(12, 10, 12, 10)
         explainer_layout.setSpacing(4)
 
-        explainer_title = QLabel("<b>🗣️ Ý nghĩa bộ lọc (Giải thích bằng tiếng Việt):</b>")
+        explainer_title = QLabel("<b>🗣️ " + ("Filter Logic Explanation:" if get_current_language() == "en" else "Ý nghĩa bộ lọc (Giải thích bằng ngôn ngữ tự nhiên):") + "</b>")
         explainer_title.setStyleSheet("color: #334155; font-size: 11px;")
         explainer_layout.addWidget(explainer_title)
 
-        self.explanation_label = QLabel(explain_expression(initial_expr))
+        self.explanation_label = QLabel(explain_expression(initial_expr, lang=get_current_language()))
         self.explanation_label.setStyleSheet("color: #0F172A; font-size: 12px; font-weight: 500;")
         self.explanation_label.setWordWrap(True)
         explainer_layout.addWidget(self.explanation_label)
@@ -84,7 +87,7 @@ class KeywordFilterDialog(QDialog):
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
 
-        self.cancel_btn = QPushButton("Đóng")
+        self.cancel_btn = QPushButton(tr("btn_close"))
         self.cancel_btn.setStyleSheet("""
             QPushButton {
                 padding: 8px 16px;
@@ -100,7 +103,7 @@ class KeywordFilterDialog(QDialog):
         self.cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(self.cancel_btn)
 
-        self.apply_btn = QPushButton("✅ Áp dụng & Lưu bộ lọc")
+        self.apply_btn = QPushButton("✅ " + ("Apply & Save Filter" if get_current_language() == "en" else "Áp dụng & Lưu bộ lọc"))
         self.apply_btn.setStyleSheet("""
             QPushButton {
                 padding: 8px 20px;
@@ -118,13 +121,13 @@ class KeywordFilterDialog(QDialog):
         main_layout.addLayout(btn_layout)
 
     def on_expression_updated(self, expr: str):
-        self.explanation_label.setText(explain_expression(expr))
+        self.explanation_label.setText(explain_expression(expr, lang=get_current_language()))
 
     def on_apply(self):
         expr = self.filter_widget.get_expression()
         ok, msg = validate_expression(expr)
         if expr and not ok:
-            QMessageBox.warning(self, "Cú pháp không hợp lệ", f"Biểu thức chưa hợp lệ:\n{msg}\n\nVui lòng kiểm tra lại trước khi áp dụng.")
+            QMessageBox.warning(self, "Invalid Syntax" if get_current_language() == "en" else "Cú pháp không hợp lệ", f"{msg}")
             return
 
         self.final_expression = expr

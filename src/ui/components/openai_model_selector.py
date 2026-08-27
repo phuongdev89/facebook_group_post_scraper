@@ -10,6 +10,9 @@ from src.core.ai_analyzer import (
 )
 
 
+from src.utils.i18n import tr, get_current_language
+
+
 class FetchOpenAIModelsWorker(QThread):
     finished_signal = pyqtSignal(bool, list, str)
 
@@ -64,13 +67,13 @@ class OpenAIModelSelectorWidget(QWidget):
 
         # 1. Header bar
         header_layout = QHBoxLayout()
-        self.status_label = QLabel("🧠 <b>Danh sách Model OpenAI / Tương thích:</b>")
+        self.status_label = QLabel(f"🧠 <b>{tr('model_sel_openai_title')}</b>")
         self.status_label.setStyleSheet("color: #4F46E5; font-size: 12px;")
         header_layout.addWidget(self.status_label)
 
         header_layout.addStretch()
 
-        self.btn_select_all = QPushButton("Chọn tất cả")
+        self.btn_select_all = QPushButton(tr("btn_select_all"))
         self.btn_select_all.setStyleSheet("""
             QPushButton {
                 background-color: #F0FDF4;
@@ -86,8 +89,8 @@ class OpenAIModelSelectorWidget(QWidget):
         self.btn_select_all.clicked.connect(self.toggle_select_all)
         header_layout.addWidget(self.btn_select_all)
 
-        self.btn_clear_all = QPushButton("🗑 Xóa tất cả")
-        self.btn_clear_all.setToolTip("Xóa toàn bộ danh sách model OpenAI để nhập lại hoặc tải lại từ đầu")
+        self.btn_clear_all = QPushButton("🗑 " + ("Clear All" if get_current_language() == "en" else "Xóa tất cả"))
+        self.btn_clear_all.setToolTip("Clear all models list to re-enter or re-fetch" if get_current_language() == "en" else "Xóa toàn bộ danh sách model OpenAI để nhập lại hoặc tải lại từ đầu")
         self.btn_clear_all.setStyleSheet("""
             QPushButton {
                 background-color: #FEF2F2;
@@ -103,8 +106,8 @@ class OpenAIModelSelectorWidget(QWidget):
         self.btn_clear_all.clicked.connect(self.clear_all_models)
         header_layout.addWidget(self.btn_clear_all)
 
-        self.btn_refresh = QPushButton("🔄 Tải Models từ API")
-        self.btn_refresh.setToolTip("Gửi yêu cầu tới Base URL / API Key để tải toàn bộ danh sách model khả dụng")
+        self.btn_refresh = QPushButton("🔄 " + ("Fetch Models" if get_current_language() == "en" else "Tải Models từ API"))
+        self.btn_refresh.setToolTip("Fetch available models from Base URL / API Key" if get_current_language() == "en" else "Gửi yêu cầu tới Base URL / API Key để tải toàn bộ danh sách model khả dụng")
         self.btn_refresh.setStyleSheet("""
             QPushButton {
                 background-color: #E0F2FE;
@@ -120,8 +123,8 @@ class OpenAIModelSelectorWidget(QWidget):
         """)
         header_layout.addWidget(self.btn_refresh)
 
-        self.btn_test_models = QPushButton("🧪 Test AI & Kiểm tra Models")
-        self.btn_test_models.setToolTip("Gửi request thực tế qua API tới từng model: Loại trừ model bị lỗi hoặc không trả về JSON thuần")
+        self.btn_test_models = QPushButton("🧪 " + ("Test Models" if get_current_language() == "en" else "Test AI & Kiểm tra Models"))
+        self.btn_test_models.setToolTip("Test models via API to exclude non-JSON or broken models" if get_current_language() == "en" else "Gửi request thực tế qua API tới từng model: Loại trừ model bị lỗi hoặc không trả về JSON thuần")
         self.btn_test_models.setStyleSheet("""
             QPushButton {
                 background-color: #8B5CF6;
@@ -144,7 +147,11 @@ class OpenAIModelSelectorWidget(QWidget):
         input_layout.setSpacing(4)
 
         self.custom_input = QLineEdit()
-        self.custom_input.setPlaceholderText("Nhập thêm tên model tùy chỉnh (VD: deepseek-chat, qwen-2.5) rồi Enter hoặc bấm +...")
+        self.custom_input.setPlaceholderText(
+            "Enter custom model name (e.g. deepseek-chat, qwen-2.5) then Enter or click +..."
+            if get_current_language() == "en" else
+            "Nhập thêm tên model tùy chỉnh (VD: deepseek-chat, qwen-2.5) rồi Enter hoặc bấm +..."
+        )
         self.custom_input.setStyleSheet("""
             QLineEdit {
                 padding: 3px 6px;
@@ -158,10 +165,10 @@ class OpenAIModelSelectorWidget(QWidget):
         self.custom_input.returnPressed.connect(self.add_custom_model_from_input)
         input_layout.addWidget(self.custom_input)
 
-        btn_add = QPushButton("+")
-        btn_add.setToolTip("Thêm model này vào danh sách checkbox")
-        btn_add.setFixedSize(26, 26)
-        btn_add.setStyleSheet("""
+        self.btn_add = QPushButton("+")
+        self.btn_add.setToolTip("Add model to list" if get_current_language() == "en" else "Thêm model này vào danh sách checkbox")
+        self.btn_add.setFixedSize(26, 26)
+        self.btn_add.setStyleSheet("""
             QPushButton {
                 background-color: #4F46E5;
                 color: white;
@@ -171,8 +178,8 @@ class OpenAIModelSelectorWidget(QWidget):
             }
             QPushButton:hover { background-color: #4338CA; }
         """)
-        btn_add.clicked.connect(self.add_custom_model_from_input)
-        input_layout.addWidget(btn_add)
+        self.btn_add.clicked.connect(self.add_custom_model_from_input)
+        input_layout.addWidget(self.btn_add)
 
         main_layout.addLayout(input_layout)
 
@@ -199,12 +206,43 @@ class OpenAIModelSelectorWidget(QWidget):
         main_layout.addWidget(self.scroll_area)
 
         # 4. Note
-        self.note_label = QLabel("💡 <i>Tích chọn (✓) các model muốn dùng luân phiên. Model Thinking/Lỗi sẽ tự động bị loại trừ.</i>")
+        self.note_label = QLabel(
+            "💡 <i>Check (✓) models you want to rotate. Thinking/Error models will be automatically excluded.</i>"
+            if get_current_language() == "en" else
+            "💡 <i>Tích chọn (✓) các model muốn dùng luân phiên. Model Thinking/Lỗi sẽ tự động bị loại trừ.</i>"
+        )
         self.note_label.setStyleSheet("font-size: 10px; color: #64748B;")
         self.note_label.setWordWrap(True)
         main_layout.addWidget(self.note_label)
 
         self.render_checkboxes()
+
+    def retranslate_ui(self):
+        """Retranslate dynamic labels and buttons"""
+        if hasattr(self, 'status_label'):
+            self.status_label.setText(f"🧠 <b>{tr('model_sel_openai_title')}</b>")
+        if hasattr(self, 'btn_select_all'):
+            self.btn_select_all.setText(tr("btn_select_all"))
+        if hasattr(self, 'btn_clear_all'):
+            self.btn_clear_all.setText("🗑 " + ("Clear All" if get_current_language() == "en" else "Xóa tất cả"))
+        if hasattr(self, 'btn_refresh'):
+            self.btn_refresh.setText("🔄 " + ("Fetch Models" if get_current_language() == "en" else "Tải Models từ API"))
+        if hasattr(self, 'btn_test_models'):
+            self.btn_test_models.setText("🧪 " + ("Test Models" if get_current_language() == "en" else "Test AI & Kiểm tra Models"))
+        if hasattr(self, 'custom_input'):
+            self.custom_input.setPlaceholderText(
+                "Enter custom model name (e.g. deepseek-chat, qwen-2.5) then Enter or click +..."
+                if get_current_language() == "en" else
+                "Nhập thêm tên model tùy chỉnh (VD: deepseek-chat, qwen-2.5) rồi Enter hoặc bấm +..."
+            )
+        if hasattr(self, 'btn_add'):
+            self.btn_add.setToolTip("Add model to list" if get_current_language() == "en" else "Thêm model này vào danh sách checkbox")
+        if hasattr(self, 'note_label'):
+            self.note_label.setText(
+                "💡 <i>Check (✓) models you want to rotate. Thinking/Error models will be automatically excluded.</i>"
+                if get_current_language() == "en" else
+                "💡 <i>Tích chọn (✓) các model muốn dùng luân phiên. Model Thinking/Lỗi sẽ tự động bị loại trừ.</i>"
+            )
 
     def add_custom_model_from_input(self):
         text = self.custom_input.text().strip()

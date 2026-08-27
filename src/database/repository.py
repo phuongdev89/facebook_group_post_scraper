@@ -392,7 +392,8 @@ def seed_default_settings(db_path: str = None):
         "ai_model": "gpt-4o-mini",
         "ai_models": "gpt-4o-mini, gpt-4o, gemini-2.0-flash, gemma4-31b",
         "ai_prompt": DEFAULT_AI_PROMPT,
-        "ai_timeout": "20"
+        "ai_timeout": "20",
+        "language": "vi"
     }
     with get_connection(db_path) as conn:
         cursor = conn.cursor()

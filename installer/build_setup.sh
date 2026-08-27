@@ -5,6 +5,10 @@
 
 set -e
 
+# Chuyển về thư mục gốc của project
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+
 # Tìm Windows Python binary
 PYTHON_BIN="python.exe"
 if ! command -v "$PYTHON_BIN" &> /dev/null; then
@@ -20,7 +24,7 @@ if ! command -v "$PYTHON_BIN" &> /dev/null; then
 fi
 
 # Đọc phiên bản từ tệp .version
-APP_VERSION="1.0.1"
+APP_VERSION="1.0.7"
 if [ -f ".version" ]; then
     APP_VERSION=$(tr -d '\r\n' < .version)
 fi
@@ -31,7 +35,7 @@ echo "========================================================"
 echo ""
 
 echo "[1/2] Đang đóng gói ứng dụng với PyInstaller..."
-"$PYTHON_BIN" -m PyInstaller --noconfirm facebook_notification.spec
+"$PYTHON_BIN" -m PyInstaller --noconfirm installer/build.spec
 
 echo ""
 echo "[2/2] Đang tạo bộ cài đặt Installer với Inno Setup..."

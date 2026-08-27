@@ -1,6 +1,6 @@
 # Facebook Notification & Scraper AI 🕷️
 
-**[🇻🇳 Tiếng Việt](README.md) | [🇬🇧 English](README.en.md)**
+**[🇻🇳 Tiếng Việt](README.md) | [🇬🇧 English](README.en.md) | [📖 HTML User Guide (guides/en.html)](guides/en.html)**
 
 A high-performance desktop application for extracting (scraping) posts and comments from Facebook Groups, automatically analyzing and filtering content using AI (Google Gemini & OpenAI / OpenRouter / DeepSeek / Ollama), and dispatching real-time alert notifications via Telegram Bot.
 
@@ -8,10 +8,11 @@ A high-performance desktop application for extracting (scraping) posts and comme
 
 ## 🎯 Key Highlights
 
+- **🌐 Instant Multilingual Support (English 🇬🇧 / Vietnamese 🇻🇳)**: Switch the entire user interface, data tables, logical explainers, and dialogs dynamically between English and Vietnamese with a single click on the header flag buttons.
 - **Pure HTTP Requests & Concurrent Multi-Threading (1-10 Workers)**: Operates entirely via Facebook GraphQL APIs and HTTP protocols without headless browsers. Scrapes up to 10 Facebook groups in parallel with lightning-fast performance.
 - **Deep Boolean Logic Keyword Filter & Visual Builder**:
   - Full support for `AND`, `OR`, `NOT`, and parenthesized expressions `()`.
-  - Fullscreen dual-mode editor: **🧱 Visual Rule Builder** and **✍️ Raw Expression**, with live natural language explanation.
+  - Fullscreen dual-mode editor: **🧱 Visual Rule Builder** and **✍️ Raw Expression**, with live natural language explanation in English and Vietnamese.
   - Flexible comment scraping rules: `0` (skip comments, fastest), `-1` (fetch all comments), `> 0` (fetch up to N comments/post, never skips posts).
   - Time cutoff stopper: Filter posts from the last 1-7 days or custom datetime range.
 - **Multi-Platform AI Analysis & Multi-Level Deduplication**:
@@ -35,12 +36,9 @@ A high-performance desktop application for extracting (scraping) posts and comme
 
 The application runs standalone on Windows **without requiring Python installation**:
 
-- **Windows Setup Installer (Recommended)**:
+- **Windows Setup Installer**:
   1. Download `FacebookNotification_Setup_vX.X.X.exe` from the Releases section.
   2. Double-click the installer and follow the wizard. Shortcuts will be placed on the Desktop and Start Menu.
-- **Portable ZIP Package (Zero-installation)**:
-  1. Download `FacebookNotification-vX.X.X-windows-x64-portable.zip`.
-  2. Extract the archive into any folder and run `FacebookNotification.exe`.
 
 > [!NOTE]
 > **Data Storage Location:** All SQLite database files (`facebook_scraper.sqlite`), AI configurations, tokens, and logs are safely stored in:  
@@ -81,14 +79,12 @@ The application runs standalone on Windows **without requiring Python installati
 
 ## 🛠️ Build & Packaging
 
-Dedicated build scripts are available in the project root and `scripts/` directory:
+Build configurations for PyInstaller and Inno Setup are available in the `installer/` directory:
 
 | Build Type | Execution Command | Output Artifact |
 | :--- | :--- | :--- |
-| **Standalone Directory (PyInstaller)** | `python scripts/build_standalone.py` | Standalone application folder `dist/FacebookNotification/` |
-| **Portable ZIP Package** | `python scripts/create_portable_zip.py` | Compressed archive `dist/FacebookNotification-vX.X.X-windows-x64-portable.zip` |
-| **Lightweight Patch (.zip & .exe)** | `build_patch.bat` *(or `bash build_patch.sh`)* | Lightweight update package (~14MB) `dist/FacebookNotification_Patch_vX.X.X.*` |
-| **Windows Setup Installer (.exe)** | `build_installer.bat` *(or `bash build_installer.sh`)* | Inno Setup installer executable `dist/FacebookNotification_Setup_vX.X.X.exe` |
+| **Standalone Directory (PyInstaller)** | `pyinstaller installer/build.spec` | Standalone application folder `dist/FacebookNotification/` |
+| **Windows Setup Installer (.exe)** | `installer/build_setup.bat` *(or `bash installer/build_setup.sh`)* | Inno Setup installer executable `dist/FacebookNotification_Setup_vX.X.X.exe` |
 
 ---
 
@@ -113,38 +109,41 @@ facebook_post_comment_scraper/
 │   │   ├── connection.py                 # SQLite connection manager & PRAGMA WAL mode
 │   │   ├── schema.py                     # Table definitions, schemas and indexes
 │   │   └── repository.py                 # CRUD operations, deduplication & log purging
+│   ├── locales/                          # Multilingual translation dictionaries (i18n)
+│   │   ├── en.json                       # English translation dictionary
+│   │   └── vi.json                       # Vietnamese translation dictionary
 │   ├── ui/                               # PyQt6 Graphical User Interface
 │   │   ├── app.py                        # MainWindow coordinator and 4-Tab navigation
-│   │   ├── components/                   # Custom UI Widgets (Gemini/OpenAI Model Selector, TagWidget...)
-│   │   ├── dialogs/                      # Modal dialogs (Cookie, GroupSelect, PromptGuide, Update...)
-│   │   └── workers/                      # Background QThreads (Scraper, AI, Telegram, TestModel...)
-│   └── utils/                            # Helper utilities (Cookie parser, ID extractor, date formatter)
+│   │   ├── components/                   # Custom UI Widgets (Model Selector, Keyword Filter...)
+│   │   ├── dialogs/                      # Modal dialogs (Cookie, GroupSelect, PromptGuide...)
+│   │   └── workers/                      # Background QThreads (Scraper, AI, Telegram...)
+│   └── utils/                            # Helper utilities (i18n, keyword engine, logger, helpers)
+│       ├── i18n.py                       # Dynamic real-time localization manager
+│       ├── keyword_engine.py             # AST parser and Boolean natural language explainer
 │       ├── file_logger.py                # Real-time access.log / error.log file logging
 │       └── helpers.py                    # Extract helpers, media parser & app icon loader
-├── assets/                               # Brand identity assets (SVG, PNG 512px, Windows ICO)
+├── assets/                               # Brand identity assets (SVG, PNG 512px, Windows ICO, flags)
+│   ├── flags/                            # Language switcher flag icons (vn.svg, us.svg)
 │   ├── favicon.svg
 │   ├── icon.ico
 │   ├── icon.png
 │   └── icon.svg
-├── guides/                               # Interactive HTML user guides and documentation
+├── guides/                               # Interactive bilingual HTML user guides and documentation
 │   ├── favicon.svg                       # Web favicon for guides
-│   └── index.html                        # Web-based detailed documentation and manual
-├── installer/                            # Inno Setup build configurations
-│   ├── setup.iss                         # Full Windows installer setup script
-│   └── patch.iss                         # Lightweight patch update script
-├── scripts/                              # Packaging and distribution Python scripts
-│   ├── build_standalone.py               # Builds PyInstaller bundle with version metadata
-│   ├── create_portable_zip.py            # Packages standalone folder into Portable ZIP
-│   └── create_patch_zip.py               # Generates lightweight patch ZIP
+│   ├── index.html                        # Detailed Vietnamese user guide
+│   └── en.html                           # Detailed English user guide
+├── installer/                            # PyInstaller & Inno Setup build configurations
+│   ├── build.spec                        # PyInstaller specification file
+│   ├── setup.iss                         # Inno Setup full Windows installer script
+│   ├── build_setup.bat                   # Windows batch build script
+│   └── build_setup.sh                    # Linux/macOS shell build script
 ├── tests/                                # Automated unit test suite
-├── build_installer.bat / .sh             # One-click command to build full setup installer
-├── build_patch.bat / .sh                 # One-click command to build patch packages
-├── facebook_notification.spec            # PyInstaller specification file
 ├── run_ui.py                            # Main application entry point
 ├── .version                              # Single source of truth for versioning
 ├── CHANGELOG.md                          # Comprehensive release history and changelog
-├── README.en.md                          # English documentation
-└── README.md                             # Vietnamese documentation
+├── CHANGELOG.en.md                       # Changelog in English
+├── README.md                             # Vietnamese documentation
+└── README.en.md                          # English Documentation
 ```
 
 ---
